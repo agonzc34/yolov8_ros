@@ -46,7 +46,7 @@ public:
 
 private:
     cv::Mat preprocess(const sensor_msgs::msg::Image::SharedPtr &image, float *&blob, std::vector<int64_t> &inputTensorShape);
-    std::vector<Ort::Value> inference(const cv::Mat &image);
+    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob);
     virtual yolo_msgs::msg::DetectionArray postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
         const std::vector<Ort::Value> &outputTensors,
         float confThreshold, float iouThreshold);

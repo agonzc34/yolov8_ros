@@ -1,12 +1,14 @@
 #include "yolo_cpp_ros/engine/model.hpp"
 #include <fstream>
 #include <iostream>
+#include <numeric>
 
 yolo_onnx::Model::Model(std::string model_path) 
     : env(ORT_LOGGING_LEVEL_WARNING, "YOLOv8"),
       sessionOptions(),
       session(env, model_path.c_str(), sessionOptions),
-      isDynamicInputShape(false)
+      isDynamicInputShape(false),
+      inputImageShape()
 {
     // Initialize session options
     sessionOptions.SetIntraOpNumThreads(1);
@@ -56,10 +58,12 @@ yolo_onnx::Model::~Model() {}
 
 yolo_msgs::msg::DetectionArray yolo_onnx::Model::detect(const sensor_msgs::msg::Image::SharedPtr &image)
 {
-    float* blob = nullptr;
-    std::vector<int64_t> inputTensorShape; // Define a local variable for input tensor shape
-    cv::Mat resizedImage = preprocess(image, blob, inputTensorShape);
-    auto outputTensors = inference(resizedImage);
+    float* blobPtr = nullptr;
+
+    std::vector<int64_t> inputTensorShape = {1, 3, inputImageShape.height, inputImageShape.width};
+    cv::Mat resizedImage = preprocess(image, blobPtr, inputTensorShape);
+    auto outputTensors = inference(resizedImage, blobPtr);
+    delete[] blobPtr;
     return postprocess(cv::Size(image->width, image->height), inputImageShape, outputTensors, 0.5, 0.4);
 }
 
@@ -76,9 +80,34 @@ cv::Mat yolo_onnx::Model::preprocess(const sensor_msgs::msg::Image::SharedPtr &i
     return resizedImage;
 }
 
-std::vector<Ort::Value> yolo_onnx::Model::inference(const cv::Mat &image)
+std::vector<Ort::Value> yolo_onnx::Model::inference(const cv::Mat &image, float *blob)
 {
-    return std::vector<Ort::Value>();
+    static Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+    std::vector<int64_t> inputTensorShape{1, 3, inputImageShape.height, inputImageShape.width};
+    size_t inputTensorSize = std::accumulate(inputTensorShape.begin(), inputTensorShape.end(), 1, std::multiplies<int64_t>());
+    std::vector<float> inputTensorValues(blob, blob + inputTensorSize);
+
+    Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
+        memoryInfo,
+        inputTensorValues.data(),
+        inputTensorSize,
+        inputTensorShape.data(),
+        inputTensorShape.size()
+    );
+
+    std::vector<Ort::Value> outputTensors = session.Run(
+        Ort::RunOptions{nullptr},
+        inputNames.data(),
+        &inputTensor,
+        numInputNodes,
+        outputNames.data(),
+        numOutputNodes
+    );
+
+    cv::Size resizedImageShape(static_cast<int>(inputTensorShape[3]), static_cast<int>(inputTensorShape[2]));
+    
+    return outputTensors;
 }
 
 yolo_msgs::msg::DetectionArray yolo_onnx::Model::postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape, const std::vector<Ort::Value> &outputTensors, float confThreshold, float iouThreshold)
