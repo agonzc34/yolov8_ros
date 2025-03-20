@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(yolo_onnxruntime_vendor)
 
-option(USE_GPU "Use GPU for inference" OFF)
+option(ONNX_GPU "Use GPU for inference" OFF)
 
 # Determine the architecture
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
@@ -12,7 +12,7 @@ else()
     message(FATAL_ERROR "Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-if(USE_GPU)
+if(ONNX_GPU)
     set(GPU "-gpu")
 else()
     set(GPU "")

@@ -12,22 +12,6 @@
 // The above copyright notice and this permission notice shall be included in
 // all copies or substantial portions of the Software.
 
-#include "yolo_cpp_ros/yolo_onnx.hpp"
-
-yolo_cpp_ros::YoloOnnx::YoloOnnx(const YoloParams &params,
-                                 const std::vector<std::string> &classes) {}
-
-yolo_cpp_ros::YoloOnnx::~YoloOnnx() {}
-
-yolo_msgs::msg::DetectionArray
-yolo_cpp_ros::YoloOnnx::detect(const sensor_msgs::msg::Image::SharedPtr &source,
-                               bool verbose, bool stream, float conf, float iou,
-                               std::pair<int, int> imgsz, bool half,
-                               int max_det, bool augment, bool agnostic_nms,
-                               bool retina_masks, const std::string &device) {
-  return yolo_msgs::msg::DetectionArray();
-}
-
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -35,5 +19,25 @@ yolo_cpp_ros::YoloOnnx::detect(const sensor_msgs::msg::Image::SharedPtr &source,
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-void yolo_cpp_ros::YoloOnnx::set_classes(
-    const std::vector<std::string> &classes) {}
+
+#ifndef YOLO_CPP_ROS__YOLO__DETECT_HPP_
+#define YOLO_CPP_ROS__YOLO__DETECT_HPP_
+
+#include "yolo_cpp_ros/engine/model.hpp"
+#include <memory>
+
+namespace yolo_onnx {
+class YoloDetect : public Model {
+public:
+  YoloDetect(std::string model_path);
+  ~YoloDetect();
+
+protected:
+  virtual yolo_msgs::msg::DetectionArray
+  postprocess(const cv::Size &originalImageSize,
+              const cv::Size &resizedImageShape,
+              const std::vector<Ort::Value> &outputTensors, float confThreshold,
+              float iouThreshold) override;
+};
+} // namespace yolo_onnx
+#endif // YOLO_CPP_ROS__YOLO__DETECT_HPP_

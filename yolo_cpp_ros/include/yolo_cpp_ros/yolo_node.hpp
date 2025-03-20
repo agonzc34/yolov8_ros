@@ -30,13 +30,14 @@
 #include <string>
 
 #include "sensor_msgs/msg/image.hpp"
-#include "yolo_onnx.hpp"
+#include "yolo_cpp_ros/engine/model.hpp"
+#include "yolo_msgs/msg/detection_array.hpp"
 
 namespace yolo_rclcpp
 {
 class YoloNode : public rclcpp_lifecycle::LifecycleNode
 {
-    public:
+public:
     YoloNode();
 
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -51,10 +52,13 @@ class YoloNode : public rclcpp_lifecycle::LifecycleNode
     on_shutdown(const rclcpp_lifecycle::State &);
 
 protected:
-    std::unique_ptr<yolo_cpp_ros::YoloOnnx> yolo_onnx_;
+    std::unique_ptr<yolo_onnx::Model> yolo_model;
+
+    rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr detection_publisher;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
 
     void declare_params(rclcpp_lifecycle::LifecycleNode::SharedPtr &node);
-    virtual void create_yolo(std::string model_path);
+    void create_yolo(std::string model_path);
     void destroy_yolo();
 
 private:

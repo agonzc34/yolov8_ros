@@ -35,6 +35,11 @@ YoloNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_activate(const rclcpp_lifecycle::State &) {
+    this->detection_publisher = this->create_publisher<yolo_msgs::msg::DetectionArray>(
+        "detection", rclcpp::QoS(10));
+    this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
+        "image", rclcpp::QoS(10),
+        std::bind(&YoloNode::recieve_image_callback, this, std::placeholders::_1));
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
@@ -58,7 +63,7 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 void yolo_rclcpp::YoloNode::declare_params(
     rclcpp_lifecycle::LifecycleNode::SharedPtr &node) {
     node->declare_parameter<std::string>("model", "");
-    node->declare_parameter<std::string>("devide", "cuda:0");
+    node->declare_parameter<std::string>("device", "cuda:0");
 
     node->declare_parameter<float>("threshold", 0.5);
     node->declare_parameter<float>("iou", 0.5);
@@ -69,13 +74,24 @@ void yolo_rclcpp::YoloNode::declare_params(
     node->declare_parameter<bool>("augment", false);
     node->declare_parameter<bool>("agnostic_nms", false);
     node->declare_parameter<bool>("retina_masks", false);
-    // node->declare_parameter<bool>("enable", true);
     node->declare_parameter<int>("image_reliability", 2);
     }
 
-void yolo_rclcpp::YoloNode::create_yolo(std::string model_path) {}
+void yolo_rclcpp::YoloNode::create_yolo(std::string model_path) {
+    this->yolo_model = std::make_unique<yolo_onnx::Model>(model_path);
+    this->get_parameter("confThreshold", this->yolo_model->confThreshold);
+    this->get_parameter("iouThreshold", this->yolo_model->iouThreshold);
+}
 
-void YoloNode::destroy_yolo() {}
+void YoloNode::destroy_yolo() {
+    this->yolo_model.reset();
+}
 
 void YoloNode::recieve_image_callback(
-    const sensor_msgs::msg::Image::SharedPtr msg) {}
+    const sensor_msgs::msg::Image::SharedPtr msg) {
+    if (this->yolo_model) {
+        auto detection_array = this->yolo_model->detect(msg);
+        // Publish detection array
+        this->detection_publisher->publish(detection_array);
+    }
+}

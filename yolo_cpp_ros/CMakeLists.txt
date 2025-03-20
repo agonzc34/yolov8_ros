@@ -20,10 +20,10 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
+file(GLOB_RECURSE SRC_FILES "src/*.cpp")
+
 add_executable(yolo_cpp_ros 
-  src/yolo_main.cpp
-  src/yolo_cpp_node/yolo_node.cpp
-  src/yolo_cpp_node/yolo_onnx.cpp
+  ${SRC_FILES}
 )
 
 target_include_directories(yolo_cpp_ros PUBLIC
