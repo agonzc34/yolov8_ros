@@ -20,24 +20,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef YOLO_CPP_ROS__YOLO__DETECT_HPP_
-#define YOLO_CPP_ROS__YOLO__DETECT_HPP_
+#ifndef YOLO_CPP_ROS__YOLO__UTILS_HPP_
+#define YOLO_CPP_ROS__YOLO__UTILS_HPP_
 
-#include "yolo_cpp_ros/engine/model.hpp"
-#include "yolo_msgs/msg/detection.hpp"
 #include <vector>
 
-namespace yolo_onnx {
-class YoloDetect : public Model {
-public:
-  YoloDetect(std::string model_path);
-  ~YoloDetect();
-
-protected:
-  virtual std::vector<yolo_msgs::msg::Detection>
-  postprocess(const cv::Size &originalImageSize,
-              const cv::Size &resizedImageShape,
-              const std::vector<Ort::Value> &outputTensors) override;
+namespace yolo_onnx_utils
+{
+struct Box {
+    float x1, y1, x2, y2, score;
+    int index, class_id;
 };
-} // namespace yolo_onnx
-#endif // YOLO_CPP_ROS__YOLO__DETECT_HPP_
+
+float iou(const Box &box1, const Box &box2);
+std::vector<struct Box> nms(std::vector<Box> &boxes, float iouThreshold, float confThreshold);
+} // namespace yolo_onnx_utils
+
+#endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "yolo_cpp_ros/yolo_node.hpp"
+#include "yolo_cpp_ros/yolo/detect.hpp"
 #include "rclcpp/qos.hpp"
 #include <string>
 
@@ -30,6 +31,12 @@ YoloNode::YoloNode() : rclcpp_lifecycle::LifecycleNode("yolo_node") {}
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_configure(const rclcpp_lifecycle::State &) {
+    if (!this->params_declared) {
+        this->declare_params();
+        this->params_declared = true;
+    }
+    this->yolo_params = this->get_params();
+    RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
@@ -38,49 +45,61 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
     this->detection_publisher = this->create_publisher<yolo_msgs::msg::DetectionArray>(
         "detection", rclcpp::QoS(10));
     this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
-        "image", rclcpp::QoS(10),
+        this->yolo_params.image_topic, rclcpp::QoS(10),
         std::bind(&YoloNode::recieve_image_callback, this, std::placeholders::_1));
+
+    this->create_yolo(this->yolo_params.model_path);
+    RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_deactivate(const rclcpp_lifecycle::State &) {
+    this->destroy_yolo();
+    this->detection_publisher.reset();
+    this->image_subscription.reset();
+    RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_cleanup(const rclcpp_lifecycle::State &) {
+    RCLCPP_INFO(get_logger(), "[%s] Cleaned up", this->get_name());
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
     CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
+    RCLCPP_INFO(get_logger(), "[%s] Shutting down", this->get_name());
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
     CallbackReturn::SUCCESS;
 }
 
-void yolo_rclcpp::YoloNode::declare_params(
-    rclcpp_lifecycle::LifecycleNode::SharedPtr &node) {
-    node->declare_parameter<std::string>("model", "");
-    node->declare_parameter<std::string>("device", "cuda:0");
+void yolo_rclcpp::YoloNode::declare_params() {
+    this->declare_parameter<std::string>("model", "yolov8m.onnx");
+    this->declare_parameter<std::string>("device", "cuda:0");
+    this->declare_parameter<float>("threshold", 0.5);
+    this->declare_parameter<float>("iou", 0.5);
+    this->declare_parameter<int>("image_reliability", 2);
+    this->declare_parameter<std::string>("image_topic", "image");
+}
 
-    node->declare_parameter<float>("threshold", 0.5);
-    node->declare_parameter<float>("iou", 0.5);
-    node->declare_parameter<int>("imgsz_height", 640);
-    node->declare_parameter<int>("imgsz_width", 640);
-    node->declare_parameter<bool>("half", false);
-    node->declare_parameter<int>("max_det", 300);
-    node->declare_parameter<bool>("augment", false);
-    node->declare_parameter<bool>("agnostic_nms", false);
-    node->declare_parameter<bool>("retina_masks", false);
-    node->declare_parameter<int>("image_reliability", 2);
-    }
+yolo_rclcpp::YoloNode::YoloParams yolo_rclcpp::YoloNode::get_params() {
+    YoloParams params;
+    this->get_parameter("model", params.model_path);
+    this->get_parameter("device", params.device);
+    this->get_parameter("threshold", params.threshold);
+    this->get_parameter("iou", params.iou);
+    this->get_parameter("image_reliability", params.image_reliability);
+    this->get_parameter("image_topic", params.image_topic);
+    return params;
+}
 
 void yolo_rclcpp::YoloNode::create_yolo(std::string model_path) {
-    this->yolo_model = std::make_unique<yolo_onnx::Model>(model_path);
-    this->get_parameter("confThreshold", this->yolo_model->confThreshold);
-    this->get_parameter("iouThreshold", this->yolo_model->iouThreshold);
+    this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(model_path);
+    this->yolo_model->confThreshold = this->yolo_params.threshold;
+    this->yolo_model->iouThreshold = this->yolo_params.iou;
 }
 
 void YoloNode::destroy_yolo() {
@@ -89,9 +108,16 @@ void YoloNode::destroy_yolo() {
 
 void YoloNode::recieve_image_callback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
+    auto detection_array = yolo_msgs::msg::DetectionArray();
+
     if (this->yolo_model) {
-        auto detection_array = this->yolo_model->detect(msg);
+        auto image = cv_bridge::toCvShare(msg, "bgr8")->image;
+        auto detections = this->yolo_model->detect(image);
+        detection_array.header = msg->header;
+        detection_array.detections = detections;
+        RCLCPP_INFO(get_logger(), "Detected %d objects", detections.size());
         // Publish detection array
         this->detection_publisher->publish(detection_array);
     }
 }
+

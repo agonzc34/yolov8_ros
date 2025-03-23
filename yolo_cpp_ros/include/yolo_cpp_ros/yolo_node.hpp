@@ -20,8 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef YOLO_RCLCPP__YOLO_NODE_HPP_
-#define YOLO_RCLCPP__YOLO_NODE_HPP_
+#ifndef YOLO_CPP_ROS__YOLO_NODE_HPP_
+#define YOLO_CPP_ROS__YOLO_NODE_HPP_
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -38,6 +38,16 @@ namespace yolo_rclcpp
 class YoloNode : public rclcpp_lifecycle::LifecycleNode
 {
 public:
+struct YoloParams
+{
+    std::string model_path;
+    std::string device;
+    float threshold;
+    float iou;
+    int image_reliability;
+    std::string image_topic;
+};
+
     YoloNode();
 
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -57,7 +67,12 @@ protected:
     rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr detection_publisher;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
 
-    void declare_params(rclcpp_lifecycle::LifecycleNode::SharedPtr &node);
+    void declare_params();
+    YoloParams get_params();
+
+    YoloParams yolo_params;
+    bool params_declared = false;
+    
     void create_yolo(std::string model_path);
     void destroy_yolo();
 

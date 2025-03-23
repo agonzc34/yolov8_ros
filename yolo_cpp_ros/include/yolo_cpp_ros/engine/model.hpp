@@ -23,9 +23,8 @@
 #ifndef YOLO_CPP_ROS__ENGINE__MODEL_HPP_
 #define YOLO_CPP_ROS__ENGINE__MODEL_HPP_
 
-#include <memory>
-#include "yolo_msgs/msg/detection_array.hpp"
-#include "sensor_msgs/msg/image.hpp"
+#include <vector>
+#include "yolo_msgs/msg/detection.hpp"
 #include <opencv2/opencv.hpp>
 #include <onnxruntime_cxx_api.h>
 #include <cv_bridge/cv_bridge.hpp>
@@ -38,18 +37,16 @@ public:
     Model(std::string model_path);
     ~Model();
 
-    yolo_msgs::msg::DetectionArray detect(const sensor_msgs::msg::Image::SharedPtr &image);
-    yolo_msgs::msg::DetectionArray track(const sensor_msgs::msg::Image::SharedPtr &image);
+    std::vector<yolo_msgs::msg::Detection> detect(const cv::Mat &image);
 
     float confThreshold{0.5};   // Confidence threshold for detections
     float iouThreshold{0.5};    // Intersection over union threshold for detections
 
 private:
-    cv::Mat preprocess(const sensor_msgs::msg::Image::SharedPtr &image, float *&blob, std::vector<int64_t> &inputTensorShape);
-    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob);
-    virtual yolo_msgs::msg::DetectionArray postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
-        const std::vector<Ort::Value> &outputTensors,
-        float confThreshold, float iouThreshold);
+    cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape);
+    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob, std::vector<int64_t> &inputTensorShape);
+    virtual std::vector<yolo_msgs::msg::Detection> postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
+        const std::vector<Ort::Value> &preds);
 
     Ort::Env env{nullptr};                         // ONNX Runtime environment
     Ort::SessionOptions sessionOptions{nullptr};   // Session options for ONNX Runtime
@@ -66,6 +63,7 @@ private:
     size_t numInputNodes, numOutputNodes;          // Number of input and output nodes in the model
 
     std::vector<std::string> classNames;            // Vector of class names loaded from file
+    Ort::MemoryInfo memoryInfo;                     // Memory information for ONNX Runtime
 };
 }
 

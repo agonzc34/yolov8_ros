@@ -20,10 +20,15 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
-file(GLOB_RECURSE SRC_FILES "src/*.cpp")
 
 add_executable(yolo_cpp_ros 
-  ${SRC_FILES}
+  src/yolo_node.cpp
+  src/yolo_main.cpp
+
+  src/yolo/detect.cpp
+  src/yolo/utils.cpp
+
+  src/engine/model.cpp
 )
 
 target_include_directories(yolo_cpp_ros PUBLIC
@@ -38,6 +43,11 @@ ament_target_dependencies(yolo_cpp_ros
   rclcpp_lifecycle
   cv_bridge
   yolo_onnxruntime_vendor
+)
+
+target_link_libraries(yolo_cpp_ros
+  ${OpenCV_LIBS}
+  ${ORT_LIBRARIES}
 )
 
 install(TARGETS
