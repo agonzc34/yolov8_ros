@@ -23,17 +23,23 @@
 #ifndef YOLO_CPP_ROS__YOLO__UTILS_HPP_
 #define YOLO_CPP_ROS__YOLO__UTILS_HPP_
 
+#include <opencv2/opencv.hpp>
 #include <vector>
 
-namespace yolo_onnx_utils
-{
+namespace yolo_onnx_utils {
 struct Box {
-    float x1, y1, x2, y2, score;
-    int index, class_id;
+  float x1, y1, x2, y2, score;
+  int index, class_id;
 };
 
 float iou(const Box &box1, const Box &box2);
-std::vector<struct Box> nms(std::vector<Box> &boxes, float iouThreshold, float confThreshold);
+std::vector<struct Box> nms(std::vector<Box> &boxes, float iouThreshold,
+                            float confThreshold);
+cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
+                  const cv::Scalar &color,
+                  bool auto_size);
+Box scale_box(const Box &box, const cv::Size &originalImageSize,
+              const cv::Size &resizedImageShape);
 } // namespace yolo_onnx_utils
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

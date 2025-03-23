@@ -35,60 +35,47 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
                         const std::vector<Ort::Value> &preds) {
   std::vector<yolo_msgs::msg::Detection> detection_array;
 
+  std::vector<yolo_onnx_utils::Box> boxes;
+  for (size_t i = 0; i < preds.size(); ++i) {
+    auto pred = preds[i].GetTensorData<float>();
+    for (size_t j = 0; j < preds[0].GetTensorTypeAndShapeInfo().GetShape()[0];
+         ++j) {
+      yolo_onnx_utils::Box box;
+      box.x1 = pred[j * 6 + 0];
+      box.y1 = pred[j * 6 + 1];
+      box.x2 = pred[j * 6 + 2];
+      box.y2 = pred[j * 6 + 3];
+      box.score = pred[j * 6 + 4];
+      box.class_id = static_cast<int>(pred[j * 6 + 5]);
+      box.index = j;
+      
+      yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(box, originalImageSize, resizedImageShape);
+      boxes.push_back(scaled_box);
+    }
+  }
+
+  std::vector<yolo_onnx_utils::Box> detections;
+
   if (preds[0].GetTensorTypeAndShapeInfo().GetShape().back() == 6) {
     // Process predictions without applying NMS
-    for (size_t i = 0; i < preds.size(); ++i) {
-      auto pred = preds[i].GetTensorData<float>();
-      for (size_t j = 0; j < preds[0].GetTensorTypeAndShapeInfo().GetShape()[0];
-           ++j) {
-        float confidence = pred[j * 6 + 4];
-        if (confidence > confThreshold) {
-          yolo_msgs::msg::Detection detection;
-          detection.bbox.center.position.x = (pred[j * 6 + 0] + pred[j * 6 + 2]) / 2;
-          detection.bbox.center.position.y = (pred[j * 6 + 1] + pred[j * 6 + 3]) / 2;
-          detection.bbox.size.x = pred[j * 6 + 2] - pred[j * 6 + 0];
-          detection.bbox.size.y = pred[j * 6 + 3] - pred[j * 6 + 1];
-          detection.score = confidence;
-          detection.class_id = static_cast<int>(pred[j * 6 + 5]);
-
-          detection_array.push_back(detection);
-        }
-      }
-    }
+    fprintf(stderr, "Processing predictions without NMS\n");
+    detections = boxes;
   } else {
     // Process predictions applying NMS
-    std::vector<yolo_onnx_utils::Box> boxes;
-    for (size_t i = 0; i < preds.size(); ++i) {
-      auto pred = preds[i].GetTensorData<float>();
-      for (size_t j = 0; j < preds[0].GetTensorTypeAndShapeInfo().GetShape()[0];
-           ++j) {
-        float confidence = pred[j * 6 + 4];
-        if (confidence > confThreshold) {
-          yolo_onnx_utils::Box box;
-          box.x1 = pred[j * 6 + 0];
-          box.y1 = pred[j * 6 + 1];
-          box.x2 = pred[j * 6 + 2];
-          box.y2 = pred[j * 6 + 3];
-          box.score = confidence;
-          box.class_id = static_cast<int>(pred[j * 6 + 5]);
-          box.index = j;
-          boxes.push_back(box);
-        }
-      }
-    }
+    fprintf(stderr, "Processing predictions with NMS\n");
+    detections = yolo_onnx_utils::nms(boxes, this->iouThreshold, this->confThreshold);
+  }
 
-    auto detections = yolo_onnx_utils::nms(boxes, iouThreshold, confThreshold);
-    for (const auto &detection : detections) {
-      yolo_msgs::msg::Detection detection_msg;
-      detection_msg.bbox.center.position.x = (detection.x1 + detection.x2) / 2;
-      detection_msg.bbox.center.position.y = (detection.y1 + detection.y2) / 2;
-      detection_msg.bbox.size.x = detection.x2 - detection.x1;
-      detection_msg.bbox.size.y = detection.y2 - detection.y1;
-      detection_msg.score = detection.score;
-      detection_msg.class_id = detection.class_id;
-
-      detection_array.push_back(detection_msg);
-    }
+  for (size_t i = 0; i < detections.size(); ++i) {
+    yolo_msgs::msg::Detection detection;
+    detection.bbox.center.position.x = (detections[i].x1 + detections[i].x2) / 2;
+    detection.bbox.center.position.y = (detections[i].y1 + detections[i].y2) / 2;
+    detection.bbox.size.x = detections[i].x2 - detections[i].x1;
+    detection.bbox.size.y = detections[i].y2 - detections[i].y1;
+    detection.score = detections[i].score;
+    detection.class_id = detections[i].class_id;
+    detection.id = detections[i].index;
+    detection_array.push_back(detection);
   }
 
   return detection_array;

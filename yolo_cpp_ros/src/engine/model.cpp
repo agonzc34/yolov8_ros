@@ -25,44 +25,9 @@
 #include <iostream>
 #include <numeric>
 #include <thread>
+#include "yolo_cpp_ros/yolo/utils.hpp"
 
 namespace yolo_onnx {
-
-cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
-                  const cv::Scalar &color = cv::Scalar(114, 114, 114), bool auto_size = true) {
-  int img_h = img.rows;
-  int img_w = img.cols;
-
-  // Compute scale factor and new dimensions
-  float scale =
-      std::min((float)new_shape.width / img_w, (float)new_shape.height / img_h);
-  
-  int new_w = std::round(img.cols * scale);
-  int new_h = std::round(img.rows * scale);
-
-  int new_pad_w = (new_shape.width - new_w) / 2;
-  int new_pad_h = (new_shape.height - new_h) / 2;
-
-  if (auto_size) {
-    new_pad_w = new_pad_w % 32;
-    new_pad_h = new_pad_h % 32;
-  } else {
-    new_w = new_shape.width;
-    new_h = new_shape.height;
-    scale = std::min((float)new_shape.width / img_w, (float)new_shape.height / img_h);
-    new_pad_w = 0;
-    new_pad_h = 0;
-  }
-
-  if (img.cols == new_w && img.rows == new_h) {
-    return img;
-  } else {
-    cv::Mat resized_img;
-    cv::resize(img, resized_img, cv::Size(new_w, new_h), 0, 0, cv::INTER_LINEAR);
-    return resized_img; // TODO padded
-  }
-}
-
 Model::Model(std::string model_path)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), sessionOptions(),
       isDynamicInputShape(false), inputImageShape(), numInputNodes(0),
@@ -155,7 +120,7 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
 cv::Mat yolo_onnx::Model::preprocess(const cv::Mat &image, float *&blob,
                                      std::vector<int64_t> &inputTensorShape) {
   cv::Mat resizedImage =
-      letterbox(image, cv::Size(inputTensorShape[3], inputTensorShape[2]), this->isDynamicInputShape);
+    yolo_onnx_utils::letterbox(image, cv::Size(inputTensorShape[3], inputTensorShape[2]), cv::Scalar(114, 114, 114), this->isDynamicInputShape);
   resizedImage.convertTo(resizedImage, CV_32FC3, 1.0 / 255.0);
   blob = new float[inputTensorShape[1] * inputTensorShape[2] *
                    inputTensorShape[3]];

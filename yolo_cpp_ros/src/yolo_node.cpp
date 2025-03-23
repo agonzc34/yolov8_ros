@@ -43,9 +43,9 @@ YoloNode::on_configure(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_activate(const rclcpp_lifecycle::State &) {
     this->detection_publisher = this->create_publisher<yolo_msgs::msg::DetectionArray>(
-        "detection", rclcpp::QoS(10));
+        "detections", rclcpp::QoS(10));
     this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
-        this->yolo_params.image_topic, rclcpp::QoS(10),
+        this->yolo_params.image_topic, rclcpp::QoS(1),
         std::bind(&YoloNode::recieve_image_callback, this, std::placeholders::_1));
 
     this->create_yolo(this->yolo_params.model_path);
@@ -77,7 +77,7 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void yolo_rclcpp::YoloNode::declare_params() {
-    this->declare_parameter<std::string>("model", "yolov8m.onnx");
+    this->declare_parameter<std::string>("model", "yolo11m.onnx");
     this->declare_parameter<std::string>("device", "cuda:0");
     this->declare_parameter<float>("threshold", 0.5);
     this->declare_parameter<float>("iou", 0.5);
