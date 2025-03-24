@@ -43,11 +43,22 @@ YoloNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_activate(const rclcpp_lifecycle::State &) {
+  int image_reliability = this->yolo_params.image_reliability;
+  rclcpp::ReliabilityPolicy qos_reliability_policy;
+  if (image_reliability == 0) {
+    qos_reliability_policy = rclcpp::ReliabilityPolicy::SystemDefault;
+  } else if (image_reliability == 1) {
+    qos_reliability_policy = rclcpp::ReliabilityPolicy::Reliable;
+  } else {
+    qos_reliability_policy = rclcpp::ReliabilityPolicy::BestEffort;
+  }
+  auto img_sub_qos = rclcpp::QoS(1).reliability(qos_reliability_policy);
+
   this->detection_publisher =
       this->create_publisher<yolo_msgs::msg::DetectionArray>("detections",
                                                              rclcpp::QoS(10));
   this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
-      this->yolo_params.image_topic, rclcpp::QoS(1),
+      this->yolo_params.image_topic, img_sub_qos,
       std::bind(&YoloNode::recieve_image_callback, this,
                 std::placeholders::_1));
 

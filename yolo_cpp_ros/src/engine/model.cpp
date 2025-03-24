@@ -34,15 +34,15 @@ Model::Model(yolo_onnx_utils::YoloParams params)
       num_output_nodes(0), memory_info(nullptr) {
   // Initialize session options
   int n_threads = params.n_threads;
-  this->conf_threshold = params.conf_threshold;
-  this->iou_threshold = params.iou_threshold;
+  this->conf_threshold = params.threshold;
+  this->iou_threshold = params.iou;
   std::string model_path = params.model_path;
 
   if (n_threads == -1) {
     n_threads = std::thread::hardware_concurrency();
   }
 
-  this->session_options.SetIntraOpNumThreads(std::clamp(n_threads, 1, std::thread::hardware_concurrency()));
+  this->session_options.SetIntraOpNumThreads(n_threads);
   this->session_options.SetGraphOptimizationLevel(
       GraphOptimizationLevel::ORT_ENABLE_ALL);
 
