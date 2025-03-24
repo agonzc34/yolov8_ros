@@ -28,43 +28,44 @@
 #include <opencv2/opencv.hpp>
 #include <onnxruntime_cxx_api.h>
 #include <cv_bridge/cv_bridge.hpp>
+#include "yolo_cpp_ros/yolo/utils.hpp"
 
 namespace yolo_onnx
 {
 class Model
 {
 public:
-    Model(std::string model_path);
+    Model(yolo_onnx_utils::YoloParams params);
     ~Model();
 
     std::vector<yolo_msgs::msg::Detection> detect(const cv::Mat &image);
 
-    float confThreshold{0.5};   // Confidence threshold for detections
-    float iouThreshold{0.5};    // Intersection over union threshold for detections
+    float conf_threshold{0.5};   // Confidence threshold for detections
+    float iou_threshold{0.5};    // Intersection over union threshold for detections
 
 protected:
-    std::vector<std::string> classNames;            // Vector of class names loaded from file
+    std::vector<std::string> class_names;            // Vector of class names loaded from file
 
 private:
-    cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape);
-    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob, std::vector<int64_t> &inputTensorShape);
-    virtual std::vector<yolo_msgs::msg::Detection> postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
+    cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &input_tensor_shape);
+    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob, std::vector<int64_t> &input_tensor_shape);
+    virtual std::vector<yolo_msgs::msg::Detection> postprocess(const cv::Size &original_image_size, const cv::Size &resized_image_size,
         const std::vector<Ort::Value> &preds);
 
     Ort::Env env{nullptr};                         // ONNX Runtime environment
-    Ort::SessionOptions sessionOptions{nullptr};   // Session options for ONNX Runtime
+    Ort::SessionOptions session_options{nullptr};   // Session options for ONNX Runtime
     Ort::Session session{nullptr};                 // ONNX Runtime session for running inference
-    bool isDynamicInputShape{};                    // Flag indicating if input shape is dynamic
-    cv::Size inputImageShape;                      // Expected input image shape for the model
+    bool is_dynamic_input_shape{};                    // Flag indicating if input shape is dynamic
+    cv::Size input_image_shape;                      // Expected input image shape for the model
 
     // Vectors to hold allocated input and output node names
-    std::vector<Ort::AllocatedStringPtr> inputNodeNameAllocatedStrings;
+    std::vector<Ort::AllocatedStringPtr> input_node_name_alloc_strings;
     std::vector<const char *> inputNames;
-    std::vector<Ort::AllocatedStringPtr> outputNodeNameAllocatedStrings;
+    std::vector<Ort::AllocatedStringPtr> output_node_name_alloc_strings;
     std::vector<const char *> outputNames;
 
-    size_t numInputNodes, numOutputNodes;           // Number of input and output nodes in the model
-    Ort::MemoryInfo memoryInfo;                     // Memory information for ONNX Runtime
+    size_t num_input_nodes, num_output_nodes;           // Number of input and output nodes in the model
+    Ort::MemoryInfo memory_info;                     // Memory information for ONNX Runtime
 };
 }
 

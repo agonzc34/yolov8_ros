@@ -25,20 +25,19 @@
 
 namespace yolo_onnx {
 
-YoloDetect::YoloDetect(std::string model_path) : Model(model_path) {}
+YoloDetect::YoloDetect(yolo_onnx_utils::YoloParams params) : Model(params) {}
 
 YoloDetect::~YoloDetect() {}
 
 std::vector<yolo_msgs::msg::Detection>
-YoloDetect::postprocess(const cv::Size &originalImageSize,
-                        const cv::Size &resizedImageShape,
+YoloDetect::postprocess(const cv::Size &original_image_size,
+                        const cv::Size &resized_image_size,
                         const std::vector<Ort::Value> &preds) {
   std::vector<yolo_msgs::msg::Detection> detection_array;
   std::vector<yolo_onnx_utils::Box> detections;
 
   if (preds[0].GetTensorTypeAndShapeInfo().GetShape().back() == 6) {
     // Process predictions without applying NMS
-
     std::vector<yolo_onnx_utils::Box> boxes;
     for (size_t i = 0; i < preds.size(); ++i) {
       auto pred = preds[i].GetTensorData<float>();
@@ -52,8 +51,9 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
         box.score = pred[j * 6 + 4];
         box.class_id = static_cast<int>(pred[j * 6 + 5]);
         box.index = j;
-        
-        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(box, originalImageSize, resizedImageShape);
+
+        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+            box, original_image_size, resized_image_size);
         boxes.push_back(scaled_box);
       }
     }
@@ -62,13 +62,16 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
     // Process predictions applying NMS
     std::vector<yolo_onnx_utils::Box> boxes;
 
-    const float* rawOutput = preds[0].GetTensorData<float>(); // Extract raw output data from the first output tensor
-    const std::vector<int64_t> outputShape = preds[0].GetTensorTypeAndShapeInfo().GetShape();
-    const size_t num_features = outputShape[1];
-    const size_t num_detections = outputShape[2];
+    const float *raw_output =
+        preds[0].GetTensorData<float>(); // Extract raw output data from the
+                                         // first output tensor
+    const std::vector<int64_t> output_shape =
+        preds[0].GetTensorTypeAndShapeInfo().GetShape();
+    const size_t num_features = output_shape[1];
+    const size_t num_detections = output_shape[2];
     const int num_classes = static_cast<int>(num_features) - 4;
 
-    const float* ptr = rawOutput;
+    const float *ptr = raw_output;
     for (size_t i = 0; i < num_detections; ++i) {
       yolo_onnx_utils::Box box;
       float center_x = ptr[0 * num_detections + i];
@@ -87,7 +90,7 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
         }
       }
 
-      if (max_score > this->confThreshold) {
+      if (max_score > this->conf_threshold) {
         box.x1 = (center_x - width / 2);
         box.y1 = (center_y - height / 2);
         box.x2 = (center_x + width / 2);
@@ -95,24 +98,32 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
         box.score = max_score;
         box.class_id = class_id;
 
-        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(box, originalImageSize, resizedImageShape);
+        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+            box, original_image_size, resized_image_size);
         boxes.push_back(scaled_box);
       }
     }
 
-    detections = yolo_onnx_utils::nms(boxes, this->iouThreshold, this->confThreshold);
+    detections =
+        yolo_onnx_utils::nms(boxes, this->iou_threshold, this->conf_threshold);
   }
 
   for (size_t i = 0; i < detections.size(); ++i) {
     yolo_msgs::msg::Detection detection;
-    detection.bbox.center.position.x = (detections[i].x1 + detections[i].x2) / 2;
-    detection.bbox.center.position.y = (detections[i].y1 + detections[i].y2) / 2;
+    detection.bbox.center.position.x =
+        (detections[i].x1 + detections[i].x2) / 2;
+    detection.bbox.center.position.y =
+        (detections[i].y1 + detections[i].y2) / 2;
     detection.bbox.size.x = detections[i].x2 - detections[i].x1;
     detection.bbox.size.y = detections[i].y2 - detections[i].y1;
     detection.score = detections[i].score;
     detection.class_id = detections[i].class_id;
     detection.id = "0";
-    detection.class_name = this->classNames[detections[i].class_id];
+    if (detections[i].class_id < this->class_names.size()) {
+      detection.class_name = this->class_names[detections[i].class_id];
+    } else {
+      detection.class_name = "unknown";
+    }
     detection_array.push_back(detection);
   }
 

@@ -32,14 +32,24 @@ struct Box {
   int index, class_id;
 };
 
+struct YoloParams {
+  std::string model_path;
+  std::string device;
+  float threshold;
+  float iou;
+  int image_reliability;
+  std::string image_topic;
+  int n_threads;
+};
+
 float iou(const Box &box1, const Box &box2);
-std::vector<struct Box> nms(std::vector<Box> &boxes, float iouThreshold,
-                            float confThreshold);
+std::vector<struct Box> nms(std::vector<Box> &boxes, float iou_threshold,
+                            float conf_threshold);
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
                   const cv::Scalar &color,
                   bool auto_size);
-Box scale_box(const Box &box, const cv::Size &originalImageSize,
-              const cv::Size &resizedImageShape);
+Box scale_box(const Box &box, const cv::Size &original_image_size,
+              const cv::Size &resized_image_size);
 } // namespace yolo_onnx_utils
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

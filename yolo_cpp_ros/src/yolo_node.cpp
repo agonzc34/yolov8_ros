@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #include "yolo_cpp_ros/yolo_node.hpp"
-#include "yolo_cpp_ros/yolo/detect.hpp"
 #include "rclcpp/qos.hpp"
+#include "yolo_cpp_ros/yolo/detect.hpp"
 #include <string>
 
 using namespace yolo_rclcpp;
@@ -31,103 +31,110 @@ YoloNode::YoloNode() : rclcpp_lifecycle::LifecycleNode("yolo_node") {}
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_configure(const rclcpp_lifecycle::State &) {
-    if (!this->params_declared) {
-        this->declare_params();
-        this->params_declared = true;
-    }
-    this->yolo_params = this->get_params();
-    RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
-    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+  if (!this->params_declared) {
+    this->declare_params();
+    this->params_declared = true;
+  }
+  this->yolo_params = this->get_params();
+  RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_activate(const rclcpp_lifecycle::State &) {
-    this->detection_publisher = this->create_publisher<yolo_msgs::msg::DetectionArray>(
-        "detections", rclcpp::QoS(10));
-    this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
-        this->yolo_params.image_topic, rclcpp::QoS(1),
-        std::bind(&YoloNode::recieve_image_callback, this, std::placeholders::_1));
+  this->detection_publisher =
+      this->create_publisher<yolo_msgs::msg::DetectionArray>("detections",
+                                                             rclcpp::QoS(10));
+  this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
+      this->yolo_params.image_topic, rclcpp::QoS(1),
+      std::bind(&YoloNode::recieve_image_callback, this,
+                std::placeholders::_1));
 
-    this->create_yolo(this->yolo_params.model_path);
-    RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
-    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+  this->create_yolo(this->yolo_params);
+  RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_deactivate(const rclcpp_lifecycle::State &) {
-    this->destroy_yolo();
-    this->detection_publisher.reset();
-    this->image_subscription.reset();
-    RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
-    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+  this->destroy_yolo();
+  this->detection_publisher.reset();
+  this->image_subscription.reset();
+  RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_cleanup(const rclcpp_lifecycle::State &) {
-    RCLCPP_INFO(get_logger(), "[%s] Cleaned up", this->get_name());
-    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
-    CallbackReturn::SUCCESS;
+  RCLCPP_INFO(get_logger(), "[%s] Cleaned up", this->get_name());
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
-    RCLCPP_INFO(get_logger(), "[%s] Shutting down", this->get_name());
-    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
-    CallbackReturn::SUCCESS;
+  RCLCPP_INFO(get_logger(), "[%s] Shutting down", this->get_name());
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 void yolo_rclcpp::YoloNode::declare_params() {
-    this->declare_parameter<std::string>("model", "yolo10n.onnx");
-    this->declare_parameter<std::string>("device", "cuda:0");
-    this->declare_parameter<float>("threshold", 0.25);
-    this->declare_parameter<float>("iou", 0.45);
-    this->declare_parameter<int>("image_reliability", 2);
-    this->declare_parameter<std::string>("image_topic", "image");
+  this->declare_parameter<std::string>("model", "yolo10n.onnx");
+  this->declare_parameter<std::string>("device", "cuda:0");
+  this->declare_parameter<float>("threshold", 0.25);
+  this->declare_parameter<float>("iou", 0.45);
+  this->declare_parameter<int>("image_reliability", 2);
+  this->declare_parameter<std::string>("image_topic", "image");
+  this->declare_parameter<int>("n_threads", -1);
 }
 
-yolo_rclcpp::YoloNode::YoloParams yolo_rclcpp::YoloNode::get_params() {
-    YoloParams params;
-    this->get_parameter("model", params.model_path);
-    this->get_parameter("device", params.device);
-    this->get_parameter("threshold", params.threshold);
-    this->get_parameter("iou", params.iou);
-    this->get_parameter("image_reliability", params.image_reliability);
-    this->get_parameter("image_topic", params.image_topic);
-    return params;
+yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
+  yolo_onnx_utils::YoloParams params;
+  this->get_parameter("model", params.model_path);
+  this->get_parameter("device", params.device);
+  this->get_parameter("threshold", params.threshold);
+  this->get_parameter("iou", params.iou);
+  this->get_parameter("image_reliability", params.image_reliability);
+  this->get_parameter("image_topic", params.image_topic);
+  this->get_parameter("n_threads", params.n_threads);
+  return params;
 }
 
-void yolo_rclcpp::YoloNode::create_yolo(std::string model_path) {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(model_path);
-    this->yolo_model->confThreshold = this->yolo_params.threshold;
-    this->yolo_model->iouThreshold = this->yolo_params.iou;
+void yolo_rclcpp::YoloNode::create_yolo(yolo_onnx_utils::YoloParams params) {
+  this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
 }
 
-void YoloNode::destroy_yolo() {
-    this->yolo_model.reset();
-}
+void YoloNode::destroy_yolo() { this->yolo_model.reset(); }
 
 void YoloNode::recieve_image_callback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
-    auto detection_array = yolo_msgs::msg::DetectionArray();
+  auto detection_array = yolo_msgs::msg::DetectionArray();
 
-    if (this->yolo_model) {
-        auto image = cv_bridge::toCvShare(msg, "bgr8")->image;
-        auto detections = this->yolo_model->detect(image);
-        detection_array.header = msg->header;
-        detection_array.detections = detections;
+  if (this->yolo_model) {
+    auto image = cv_bridge::toCvShare(msg, "bgr8")->image;
+    auto detections = this->yolo_model->detect(image);
+    detection_array.header = msg->header;
+    detection_array.detections = detections;
 
-        std::map<int, int> detections_per_class;
-        for (const auto &detection : detections) {
-            detections_per_class[detection.class_id]++;
-        }
-
-        RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(), 
-            std::accumulate(detections_per_class.begin(), detections_per_class.end(), std::string(),
-            [&detections](const std::string &a, const std::pair<int, int> &b) {
-                return a + (a.empty() ? "" : ", ") + " - " + detections[b.first].class_name + ": " + std::to_string(b.second);
-            }).c_str()); // TODO: sometimes it breaks here
-        // Publish detection array
-        this->detection_publisher->publish(detection_array);
+    std::map<std::string, int> detections_per_class;
+    for (const auto &detection : detections) {
+      detections_per_class[detection.class_name]++;
     }
-}
 
+    RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(),
+                std::accumulate(detections_per_class.begin(),
+                                detections_per_class.end(), std::string(),
+                                [&detections](const std::string &a,
+                                              const std::pair<std::string, int> &b) {
+                                  return a + (a.empty() ? "" : ", ") + " - " +
+                                         b.first + ": " +
+                                         std::to_string(b.second);
+                                })
+                    .c_str()); // TODO: sometimes it breaks here
+    // Publish detection array
+    this->detection_publisher->publish(detection_array);
+  }
+}

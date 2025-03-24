@@ -32,54 +32,43 @@
 #include "sensor_msgs/msg/image.hpp"
 #include "yolo_cpp_ros/engine/model.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
+#include "yolo_cpp_ros/yolo/utils.hpp"
 
-namespace yolo_rclcpp
-{
-class YoloNode : public rclcpp_lifecycle::LifecycleNode
-{
+namespace yolo_rclcpp {
+class YoloNode : public rclcpp_lifecycle::LifecycleNode {
 public:
-struct YoloParams
-{
-    std::string model_path;
-    std::string device;
-    float threshold;
-    float iou;
-    int image_reliability;
-    std::string image_topic;
-};
+  YoloNode();
 
-    YoloNode();
-
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
-    on_configure(const rclcpp_lifecycle::State &);
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
-    on_activate(const rclcpp_lifecycle::State &);
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
-    on_deactivate(const rclcpp_lifecycle::State &);
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
-    on_cleanup(const rclcpp_lifecycle::State &);
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
-    on_shutdown(const rclcpp_lifecycle::State &);
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_configure(const rclcpp_lifecycle::State &);
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_activate(const rclcpp_lifecycle::State &);
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_deactivate(const rclcpp_lifecycle::State &);
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_cleanup(const rclcpp_lifecycle::State &);
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_shutdown(const rclcpp_lifecycle::State &);
 
 protected:
-    std::unique_ptr<yolo_onnx::Model> yolo_model;
+  std::unique_ptr<yolo_onnx::Model> yolo_model;
 
-    rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr detection_publisher;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
+  rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
+      detection_publisher;
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
 
-    void declare_params();
-    YoloParams get_params();
+  void declare_params();
+  yolo_onnx_utils::YoloParams get_params();
 
-    YoloParams yolo_params;
-    bool params_declared = false;
-    
-    void create_yolo(std::string model_path);
-    void destroy_yolo();
+  yolo_onnx_utils::YoloParams yolo_params;
+  bool params_declared = false;
+
+  void create_yolo(yolo_onnx_utils::YoloParams params);
+  void destroy_yolo();
 
 private:
-    void recieve_image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
-
+  void recieve_image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 };
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp
 
-#endif  // YOLO_RCLCPP__YOLO_NODE_HPP_
+#endif // YOLO_RCLCPP__YOLO_NODE_HPP_

@@ -25,18 +25,19 @@
 
 #include "yolo_cpp_ros/engine/model.hpp"
 #include "yolo_msgs/msg/detection.hpp"
+#include "yolo_cpp_ros/yolo/utils.hpp"
 #include <vector>
 
 namespace yolo_onnx {
 class YoloDetect : public Model {
 public:
-  YoloDetect(std::string model_path);
+  YoloDetect(yolo_onnx_utils::YoloParams params);
   ~YoloDetect();
 
 protected:
   virtual std::vector<yolo_msgs::msg::Detection>
-  postprocess(const cv::Size &originalImageSize,
-              const cv::Size &resizedImageShape,
+  postprocess(const cv::Size &original_image_size,
+              const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
 } // namespace yolo_onnx

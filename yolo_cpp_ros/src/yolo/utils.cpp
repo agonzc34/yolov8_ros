@@ -60,16 +60,18 @@ float iou(const Box &box1, const Box &box2) {
   float y2 = std::min(box1.y2, box2.y2);
 
   float intersection = std::max(0.0f, x2 - x1) * std::max(0.0f, y2 - y1);
-  float area1 = std::max(0.0f, box1.x2 - box1.x1) * std::max(0.0f, box1.y2 - box1.y1);
-  float area2 = std::max(0.0f, box2.x2 - box2.x1) * std::max(0.0f, box2.y2 - box2.y1);
-  float unionArea = area1 + area2 - intersection;
+  float area1 =
+      std::max(0.0f, box1.x2 - box1.x1) * std::max(0.0f, box1.y2 - box1.y1);
+  float area2 =
+      std::max(0.0f, box2.x2 - box2.x1) * std::max(0.0f, box2.y2 - box2.y1);
+  float union_area = area1 + area2 - intersection;
 
-  return unionArea > 0 ? intersection / unionArea : 0;
+  return union_area > 0 ? intersection / union_area : 0;
 }
 
 std::vector<struct Box>
-nms(std::vector<Box> &boxes, float iouThreshold,
-    float confThreshold) // NMS implementation based on class_id
+nms(std::vector<Box> &boxes, float iou_threshold,
+    float conf_threshold) // NMS implementation based on class_id
 {
   std::vector<Box> detections;
 
@@ -79,7 +81,7 @@ nms(std::vector<Box> &boxes, float iouThreshold,
   std::vector<bool> suppressed(boxes.size(), false);
 
   for (size_t i = 0; i < boxes.size(); ++i) {
-    if (boxes[i].score < confThreshold) {
+    if (boxes[i].score < conf_threshold) {
       suppressed[i] = true;
       continue;
     }
@@ -95,8 +97,8 @@ nms(std::vector<Box> &boxes, float iouThreshold,
         continue;
       }
 
-      float iouValue = iou(boxes[i], boxes[j]);
-      if (iouValue > iouThreshold) {
+      float iou_value = iou(boxes[i], boxes[j]);
+      if (iou_value > iou_threshold) {
         suppressed[j] = true;
       }
     }
@@ -105,30 +107,36 @@ nms(std::vector<Box> &boxes, float iouThreshold,
   return detections;
 }
 
-Box scale_box(const Box &box, const cv::Size &originalImageSize,
-              const cv::Size &resizedImageShape) {
-  Box scaledBox;
-  float gain = std::min(
-      static_cast<float>(resizedImageShape.width) / originalImageSize.width,
-      static_cast<float>(resizedImageShape.height) / originalImageSize.height);
-  float pad_x = (resizedImageShape.width - originalImageSize.width * gain) / 2;
+Box scale_box(const Box &box, const cv::Size &original_image_size,
+              const cv::Size &resized_image_size) {
+  Box scaled_box;
+  float gain = std::min(static_cast<float>(resized_image_size.width) /
+                            original_image_size.width,
+                        static_cast<float>(resized_image_size.height) /
+                            original_image_size.height);
+  float pad_x =
+      (resized_image_size.width - original_image_size.width * gain) / 2;
   float pad_y =
-      (resizedImageShape.height - originalImageSize.height * gain) / 2;
+      (resized_image_size.height - original_image_size.height * gain) / 2;
 
-  scaledBox.x1 = (box.x1 - pad_x) / gain;
-  scaledBox.y1 = (box.y1 - pad_y) / gain;
-  scaledBox.x2 = (box.x2 - pad_x) / gain;
-  scaledBox.y2 = (box.y2 - pad_y) / gain;
+  scaled_box.x1 = (box.x1 - pad_x) / gain;
+  scaled_box.y1 = (box.y1 - pad_y) / gain;
+  scaled_box.x2 = (box.x2 - pad_x) / gain;
+  scaled_box.y2 = (box.y2 - pad_y) / gain;
 
-  scaledBox.x1 = std::clamp(scaledBox.x1, 0.0f, static_cast<float>(originalImageSize.width));
-  scaledBox.y1 = std::clamp(scaledBox.y1, 0.0f, static_cast<float>(originalImageSize.height));
-  scaledBox.x2 = std::clamp(scaledBox.x2, 0.0f, static_cast<float>(originalImageSize.width));
-  scaledBox.y2 = std::clamp(scaledBox.y2, 0.0f, static_cast<float>(originalImageSize.height));
+  scaled_box.x1 = std::clamp(scaled_box.x1, 0.0f,
+                             static_cast<float>(original_image_size.width));
+  scaled_box.y1 = std::clamp(scaled_box.y1, 0.0f,
+                             static_cast<float>(original_image_size.height));
+  scaled_box.x2 = std::clamp(scaled_box.x2, 0.0f,
+                             static_cast<float>(original_image_size.width));
+  scaled_box.y2 = std::clamp(scaled_box.y2, 0.0f,
+                             static_cast<float>(original_image_size.height));
 
-  scaledBox.score = box.score;
-  scaledBox.class_id = box.class_id;
-  scaledBox.index = box.index;
+  scaled_box.score = box.score;
+  scaled_box.class_id = box.class_id;
+  scaled_box.index = box.index;
 
-  return scaledBox;
+  return scaled_box;
 }
 } // namespace yolo_onnx_utils
