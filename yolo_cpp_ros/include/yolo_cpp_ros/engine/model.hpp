@@ -42,6 +42,9 @@ public:
     float confThreshold{0.5};   // Confidence threshold for detections
     float iouThreshold{0.5};    // Intersection over union threshold for detections
 
+protected:
+    std::vector<std::string> classNames;            // Vector of class names loaded from file
+
 private:
     cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape);
     std::vector<Ort::Value> inference(const cv::Mat &image, float *blob, std::vector<int64_t> &inputTensorShape);
@@ -60,9 +63,7 @@ private:
     std::vector<Ort::AllocatedStringPtr> outputNodeNameAllocatedStrings;
     std::vector<const char *> outputNames;
 
-    size_t numInputNodes, numOutputNodes;          // Number of input and output nodes in the model
-
-    std::vector<std::string> classNames;            // Vector of class names loaded from file
+    size_t numInputNodes, numOutputNodes;           // Number of input and output nodes in the model
     Ort::MemoryInfo memoryInfo;                     // Memory information for ONNX Runtime
 };
 }

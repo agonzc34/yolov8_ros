@@ -57,7 +57,6 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
         boxes.push_back(scaled_box);
       }
     }
-    fprintf(stderr, "Processing predictions without NMS\n");
     detections = boxes;
   } else {
     // Process predictions applying NMS
@@ -101,7 +100,6 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
       }
     }
 
-    fprintf(stderr, "Processing predictions with NMS\n");
     detections = yolo_onnx_utils::nms(boxes, this->iouThreshold, this->confThreshold);
   }
 
@@ -114,6 +112,7 @@ YoloDetect::postprocess(const cv::Size &originalImageSize,
     detection.score = detections[i].score;
     detection.class_id = detections[i].class_id;
     detection.id = "0";
+    detection.class_name = this->classNames[detections[i].class_id];
     detection_array.push_back(detection);
   }
 

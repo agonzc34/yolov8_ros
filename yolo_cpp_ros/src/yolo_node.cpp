@@ -77,10 +77,10 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void yolo_rclcpp::YoloNode::declare_params() {
-    this->declare_parameter<std::string>("model", "yolo11m.onnx");
+    this->declare_parameter<std::string>("model", "yolo10n.onnx");
     this->declare_parameter<std::string>("device", "cuda:0");
-    this->declare_parameter<float>("threshold", 0.65);
-    this->declare_parameter<float>("iou", 0.25);
+    this->declare_parameter<float>("threshold", 0.25);
+    this->declare_parameter<float>("iou", 0.45);
     this->declare_parameter<int>("image_reliability", 2);
     this->declare_parameter<std::string>("image_topic", "image");
 }
@@ -115,7 +115,17 @@ void YoloNode::recieve_image_callback(
         auto detections = this->yolo_model->detect(image);
         detection_array.header = msg->header;
         detection_array.detections = detections;
-        RCLCPP_INFO(get_logger(), "Detected %d objects", detections.size());
+
+        std::map<int, int> detections_per_class;
+        for (const auto &detection : detections) {
+            detections_per_class[detection.class_id]++;
+        }
+
+        RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(), 
+            std::accumulate(detections_per_class.begin(), detections_per_class.end(), std::string(),
+            [&detections](const std::string &a, const std::pair<int, int> &b) {
+                return a + (a.empty() ? "" : ", ") + " - " + detections[b.first].class_name + ": " + std::to_string(b.second);
+            }).c_str()); // TODO: sometimes it breaks here
         // Publish detection array
         this->detection_publisher->publish(detection_array);
     }
