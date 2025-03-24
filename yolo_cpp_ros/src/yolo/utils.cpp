@@ -46,8 +46,6 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   int pad_top = pad_h / 2;
   int pad_bottom = pad_h - pad_top;
 
-	fprintf(stderr, "new_width: %d, new_height: %d, pad_left: %d, pad_right: %d, pad_top: %d, pad_bottom: %d\n", new_width, new_height, pad_left, pad_right, pad_top, pad_bottom);
-
   cv::resize(img, img_out, cv::Size(new_width, new_height), 0, 0,
              cv::INTER_LINEAR);
   cv::copyMakeBorder(img_out, img_out, pad_top, pad_bottom, pad_left, pad_right,
@@ -62,16 +60,16 @@ float iou(const Box &box1, const Box &box2) {
   float y2 = std::min(box1.y2, box2.y2);
 
   float intersection = std::max(0.0f, x2 - x1) * std::max(0.0f, y2 - y1);
-  float area1 = (box1.x2 - box1.x1) * (box1.y2 - box1.y1);
-  float area2 = (box2.x2 - box2.x1) * (box2.y2 - box2.y1);
+  float area1 = std::max(0.0f, box1.x2 - box1.x1) * std::max(0.0f, box1.y2 - box1.y1);
+  float area2 = std::max(0.0f, box2.x2 - box2.x1) * std::max(0.0f, box2.y2 - box2.y1);
   float unionArea = area1 + area2 - intersection;
 
-  return intersection / unionArea;
+  return unionArea > 0 ? intersection / unionArea : 0;
 }
 
 std::vector<struct Box>
 nms(std::vector<Box> &boxes, float iouThreshold,
-    float confThreshold) // TODO: Change NMS implementation
+    float confThreshold) // NMS implementation based on class_id
 {
   std::vector<Box> detections;
 
@@ -86,10 +84,14 @@ nms(std::vector<Box> &boxes, float iouThreshold,
       continue;
     }
 
+    if (suppressed[i] == true) {
+      continue;
+    }
+
     detections.push_back(boxes[i]);
 
-    for (size_t j = i + 1; j < boxes.size(); ++j) {
-      if (suppressed[j]) {
+    for (size_t j = i + 1; j < boxes.size(); j++) {
+      if (suppressed[j] == true || boxes[j].class_id != boxes[i].class_id) {
         continue;
       }
 
@@ -100,14 +102,7 @@ nms(std::vector<Box> &boxes, float iouThreshold,
     }
   }
 
-  std::vector<Box> results;
-  for (size_t i = 0; i < detections.size(); ++i) {
-    if (!suppressed[i]) {
-      results.push_back(detections[i]);
-    }
-  }
-
-  return results;
+  return detections;
 }
 
 Box scale_box(const Box &box, const cv::Size &originalImageSize,
@@ -120,14 +115,15 @@ Box scale_box(const Box &box, const cv::Size &originalImageSize,
   float pad_y =
       (resizedImageShape.height - originalImageSize.height * gain) / 2;
 
-  scaledBox.x1 = std::clamp((box.x1 - pad_x) / gain, 0.0f,
-                            static_cast<float>(originalImageSize.width));
-  scaledBox.y1 = std::clamp((box.y1 - pad_y) / gain, 0.0f,
-                            static_cast<float>(originalImageSize.height));
-  scaledBox.x2 = std::clamp((box.x2 - pad_x) / gain, 0.0f,
-                            static_cast<float>(originalImageSize.width));
-  scaledBox.y2 = std::clamp((box.y2 - pad_y) / gain, 0.0f,
-                            static_cast<float>(originalImageSize.height));
+  scaledBox.x1 = (box.x1 - pad_x) / gain;
+  scaledBox.y1 = (box.y1 - pad_y) / gain;
+  scaledBox.x2 = (box.x2 - pad_x) / gain;
+  scaledBox.y2 = (box.y2 - pad_y) / gain;
+
+  scaledBox.x1 = std::clamp(scaledBox.x1, 0.0f, static_cast<float>(originalImageSize.width));
+  scaledBox.y1 = std::clamp(scaledBox.y1, 0.0f, static_cast<float>(originalImageSize.height));
+  scaledBox.x2 = std::clamp(scaledBox.x2, 0.0f, static_cast<float>(originalImageSize.width));
+  scaledBox.y2 = std::clamp(scaledBox.y2, 0.0f, static_cast<float>(originalImageSize.height));
 
   scaledBox.score = box.score;
   scaledBox.class_id = box.class_id;

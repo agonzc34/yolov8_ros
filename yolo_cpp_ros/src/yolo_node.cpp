@@ -79,8 +79,8 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 void yolo_rclcpp::YoloNode::declare_params() {
     this->declare_parameter<std::string>("model", "yolo11m.onnx");
     this->declare_parameter<std::string>("device", "cuda:0");
-    this->declare_parameter<float>("threshold", 0.5);
-    this->declare_parameter<float>("iou", 0.5);
+    this->declare_parameter<float>("threshold", 0.65);
+    this->declare_parameter<float>("iou", 0.25);
     this->declare_parameter<int>("image_reliability", 2);
     this->declare_parameter<std::string>("image_topic", "image");
 }
