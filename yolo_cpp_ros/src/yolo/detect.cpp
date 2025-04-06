@@ -37,83 +37,23 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
   std::vector<yolo_onnx_utils::Box> detections;
 
   std::vector<int64_t> shape = preds[0].GetTensorTypeAndShapeInfo().GetShape();
+
   if (shape.back() == 6) {
     // Process predictions without applying NMS
-    std::vector<yolo_onnx_utils::Box> boxes;
-    for (size_t i = 0; i < preds.size(); ++i) {
-      auto pred = preds[i].GetTensorData<float>();
-      for (size_t j = 0; j < static_cast<size_t>(shape[0]); ++j) {
-        yolo_onnx_utils::Box box;
-        box.x1 = pred[j * 6 + 0];
-        box.y1 = pred[j * 6 + 1];
-        box.x2 = pred[j * 6 + 2];
-        box.y2 = pred[j * 6 + 3];
-        box.score = pred[j * 6 + 4];
-        box.class_id = static_cast<int>(pred[j * 6 + 5]);
-        box.index = j;
-
-        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
-            box, original_image_size, resized_image_size);
-        boxes.push_back(scaled_box);
-      }
-    }
-    detections = boxes;
+    detections = yolo_onnx_utils::get_detection_without_nms(
+        preds, shape, original_image_size, resized_image_size);
   } else {
     // Process predictions applying NMS
-    std::vector<yolo_onnx_utils::Box> boxes;
-
-    const float *raw_output =
-        preds[0].GetTensorData<float>(); // Extract raw output data from the
-                                         // first output tensor
     const size_t num_features = shape[1];
-    const size_t num_detections = shape[2];
     const int num_classes = static_cast<int>(num_features) - 4;
 
-    const float *ptr = raw_output;
-    for (size_t i = 0; i < num_detections; ++i) {
-      yolo_onnx_utils::Box box;
-      float center_x = ptr[0 * num_detections + i];
-      float center_y = ptr[1 * num_detections + i];
-      float width = ptr[2 * num_detections + i];
-      float height = ptr[3 * num_detections + i];
-
-      int class_id = -1;
-      float max_score = -1.0f;
-
-      for (int j = 0; j < num_classes; ++j) {
-        float score = ptr[(4 + j) * num_detections + i];
-        if (score > max_score) {
-          max_score = score;
-          class_id = j;
-        }
-      }
-
-      if (max_score > this->conf_threshold) {
-        box.x1 = (center_x - width / 2);
-        box.y1 = (center_y - height / 2);
-        box.x2 = (center_x + width / 2);
-        box.y2 = (center_y + height / 2);
-        box.score = max_score;
-        box.class_id = class_id;
-
-        yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
-            box, original_image_size, resized_image_size);
-        boxes.push_back(scaled_box);
-      }
-    }
-
-    detections =
-        yolo_onnx_utils::nms(boxes, this->iou_threshold, this->conf_threshold);
+    detections = yolo_onnx_utils::get_detection_with_nms(
+        preds, shape, original_image_size, resized_image_size, num_classes, this->iou_threshold, this->conf_threshold);
   }
 
   for (size_t i = 0; i < detections.size(); ++i) {
     yolo_msgs::msg::Detection detection;
-    detection.bbox.center.position.x =
-        (detections[i].x1 + detections[i].x2) / 2;
-    detection.bbox.center.position.y =
-        (detections[i].y1 + detections[i].y2) / 2;
-    detection.bbox.size.x = detections[i].x2 - detections[i].x1;
-    detection.bbox.size.y = detections[i].y2 - detections[i].y1;
+    detection.bbox = yolo_onnx_utils::convert_to_bounding_box(detections[i]);
     detection.score = detections[i].score;
     detection.class_id = detections[i].class_id;
     detection.id = "0";

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(yolo_cpp_ros)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -25,6 +27,7 @@ add_executable(yolo_cpp_ros
   src/yolo_node.cpp
   src/yolo_main.cpp
 
+  src/yolo/segment.cpp
   src/yolo/detect.cpp
   src/yolo/utils.cpp
 

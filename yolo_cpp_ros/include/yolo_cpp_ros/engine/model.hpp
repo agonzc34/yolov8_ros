@@ -55,7 +55,6 @@ private:
     Ort::Env env{nullptr};                         // ONNX Runtime environment
     Ort::SessionOptions session_options{nullptr};   // Session options for ONNX Runtime
     Ort::Session session{nullptr};                 // ONNX Runtime session for running inference
-    bool is_dynamic_input_shape{};                    // Flag indicating if input shape is dynamic
     cv::Size input_image_shape;                      // Expected input image shape for the model
 
     // Vectors to hold allocated input and output node names

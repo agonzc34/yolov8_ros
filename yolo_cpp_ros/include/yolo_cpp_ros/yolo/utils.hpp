@@ -23,6 +23,8 @@
 #ifndef YOLO_CPP_ROS__YOLO__UTILS_HPP_
 #define YOLO_CPP_ROS__YOLO__UTILS_HPP_
 
+#include "onnxruntime_cxx_api.h"
+#include "yolo_msgs/msg/bounding_box2_d.hpp"
 #include <opencv2/opencv.hpp>
 #include <vector>
 
@@ -46,10 +48,20 @@ float iou(const Box &box1, const Box &box2);
 std::vector<struct Box> nms(std::vector<Box> &boxes, float iou_threshold,
                             float conf_threshold);
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
-                  const cv::Scalar &color,
-                  bool auto_size);
+                  const cv::Scalar &color);
 Box scale_box(const Box &box, const cv::Size &original_image_size,
               const cv::Size &resized_image_size);
+yolo_msgs::msg::BoundingBox2D convert_to_bounding_box(const Box &box);
+
+std::vector<yolo_onnx_utils::Box> get_detection_without_nms(
+    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+    const cv::Size &original_image_size, const cv::Size &resized_image_size);
+
+std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
+    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+    const cv::Size &original_image_size, const cv::Size &resized_image_size, const int num_classes,
+    float iou_threshold, float conf_threshold);
+
 } // namespace yolo_onnx_utils
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

@@ -30,7 +30,7 @@
 namespace yolo_onnx {
 Model::Model(yolo_onnx_utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
-      is_dynamic_input_shape(false), input_image_shape(), num_input_nodes(0),
+      input_image_shape(), num_input_nodes(0),
       num_output_nodes(0), memory_info(nullptr) {
   // Initialize session options
   int n_threads = params.n_threads;
@@ -94,7 +94,7 @@ Model::Model(yolo_onnx_utils::YoloParams params)
     this->input_image_shape = cv::Size(static_cast<int>(input_tensor_shape_vec[3]),
                                      static_cast<int>(input_tensor_shape_vec[2]));
     if (input_tensor_shape_vec[2] == -1 && input_tensor_shape_vec[3] == -1) {
-      this->is_dynamic_input_shape = true;
+      this->input_image_shape = cv::Size(640, 640); // Fallback if dynamic
     }
   } else {
     throw std::runtime_error("Invalid input tensor shape.");
@@ -135,7 +135,7 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
 cv::Mat yolo_onnx::Model::preprocess(const cv::Mat &image, float *&blob,
                                      std::vector<int64_t> &input_tensor_shape) {
   cv::Mat resized_image =
-    yolo_onnx_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114), this->is_dynamic_input_shape);
+    yolo_onnx_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114));
   resized_image.convertTo(resized_image, CV_32FC3, 1.0 / 255.0);
   blob = new float[input_tensor_shape[1] * input_tensor_shape[2] *
                    input_tensor_shape[3]];

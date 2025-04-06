@@ -23,6 +23,7 @@
 #include "yolo_cpp_ros/yolo_node.hpp"
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
+#include "yolo_cpp_ros/yolo/segment.hpp"
 #include <string>
 
 using namespace yolo_rclcpp;
@@ -93,9 +94,9 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void yolo_rclcpp::YoloNode::declare_params() {
-  this->declare_parameter<std::string>("model", "yolo10n.onnx");
+  this->declare_parameter<std::string>("model", "yolo11m_segment.onnx");
   this->declare_parameter<std::string>("device", "cuda:0");
-  this->declare_parameter<float>("threshold", 0.25);
+  this->declare_parameter<float>("threshold", 0.7);
   this->declare_parameter<float>("iou", 0.45);
   this->declare_parameter<int>("image_reliability", 2);
   this->declare_parameter<std::string>("image_topic", "image");
@@ -115,7 +116,12 @@ yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
 }
 
 void yolo_rclcpp::YoloNode::create_yolo(yolo_onnx_utils::YoloParams params) {
-  this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
+  if (params.model_path.find("segment") != std::string::npos) {
+    this->yolo_model = std::make_unique<yolo_onnx::YoloSegment>(params);
+  } else {
+    this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
+  }
+  RCLCPP_INFO(get_logger(), "[%s] Yolo model loaded", this->get_name());
 }
 
 void YoloNode::destroy_yolo() { this->yolo_model.reset(); }
@@ -135,16 +141,21 @@ void YoloNode::recieve_image_callback(
       detections_per_class[detection.class_name]++;
     }
 
-    RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(),
-                std::accumulate(detections_per_class.begin(),
-                                detections_per_class.end(), std::string(),
-                                [](const std::string &a,
-                                              const std::pair<std::string, int> &b) {
-                                  return a + (a.empty() ? "" : ", ") + " - " +
-                                         b.first + ": " +
-                                         std::to_string(b.second);
-                                })
-                    .c_str()); // TODO: sometimes it breaks here
+    if (detections.empty()) {
+      RCLCPP_INFO(get_logger(), "No detections");
+    } else {
+      RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(),
+                  std::accumulate(detections_per_class.begin(),
+                                  detections_per_class.end(), std::string(),
+                                  [](const std::string &a,
+                                     const std::pair<std::string, int> &b) {
+                                    return a + (a.empty() ? "" : ", ") + " - " +
+                                           b.first + ": " +
+                                           std::to_string(b.second);
+                                  })
+                      .c_str()); // TODO: sometimes it breaks here
+    }
+
     // Publish detection array
     this->detection_publisher->publish(detection_array);
   }

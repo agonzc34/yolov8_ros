@@ -25,7 +25,7 @@
 
 namespace yolo_onnx_utils {
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
-                  const cv::Scalar &color, bool auto_size) {
+                  const cv::Scalar &color) {
   float ratio = std::min(static_cast<float>(new_shape.width) / img.cols,
                          static_cast<float>(new_shape.height) / img.rows);
   cv::Mat img_out;
@@ -35,11 +35,6 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
 
   int pad_w = new_shape.width - new_width;
   int pad_h = new_shape.height - new_height;
-
-  if (auto_size) {
-    pad_w = pad_w % 32;
-    pad_h = pad_h % 32;
-  }
 
   int pad_left = pad_w / 2;
   int pad_right = pad_w - pad_left;
@@ -138,5 +133,91 @@ Box scale_box(const Box &box, const cv::Size &original_image_size,
   scaled_box.index = box.index;
 
   return scaled_box;
+}
+
+std::vector<yolo_onnx_utils::Box>
+get_detection_without_nms(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+                          const cv::Size &original_image_size,
+                          const cv::Size &resized_image_size) {
+  std::vector<yolo_onnx_utils::Box> boxes;
+  for (size_t i = 0; i < preds.size(); ++i) {
+    auto pred = preds[i].GetTensorData<float>();
+    for (size_t j = 0; j < static_cast<size_t>(shape[0]); ++j) {
+      yolo_onnx_utils::Box box;
+      box.x1 = pred[j * 6 + 0];
+      box.y1 = pred[j * 6 + 1];
+      box.x2 = pred[j * 6 + 2];
+      box.y2 = pred[j * 6 + 3];
+      box.score = pred[j * 6 + 4];
+      box.class_id = static_cast<int>(pred[j * 6 + 5]);
+      box.index = j;
+
+      yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+          box, original_image_size, resized_image_size);
+      boxes.push_back(scaled_box);
+    }
+  }
+
+  return boxes;
+}
+
+std::vector<yolo_onnx_utils::Box>
+get_detection_with_nms(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+                          const cv::Size &original_image_size,
+                          const cv::Size &resized_image_size, const int num_classes,
+                          float iou_threshold, float conf_threshold) {
+  std::vector<yolo_onnx_utils::Box> boxes;
+
+  const float *raw_output =
+      preds[0].GetTensorData<float>(); // Extract raw output data from the
+                                        // first output tensor
+  const size_t num_detections = shape[2];
+
+  const float *ptr = raw_output;
+  for (size_t i = 0; i < num_detections; ++i) {
+    yolo_onnx_utils::Box box;
+    float center_x = ptr[0 * num_detections + i];
+    float center_y = ptr[1 * num_detections + i];
+    float width = ptr[2 * num_detections + i];
+    float height = ptr[3 * num_detections + i];
+
+    int class_id = -1;
+    float max_score = -1.0f;
+
+    for (int j = 0; j < num_classes; ++j) {
+      float score = ptr[(4 + j) * num_detections + i];
+      if (score > max_score) {
+        max_score = score;
+        class_id = j;
+      }
+    }
+
+    if (max_score > conf_threshold) {
+      box.x1 = (center_x - width / 2);
+      box.y1 = (center_y - height / 2);
+      box.x2 = (center_x + width / 2);
+      box.y2 = (center_y + height / 2);
+      box.score = max_score;
+      box.class_id = class_id;
+
+      yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+          box, original_image_size, resized_image_size);
+      boxes.push_back(scaled_box);
+    }
+  }
+
+  return
+      yolo_onnx_utils::nms(boxes, iou_threshold, conf_threshold);
+}
+
+yolo_msgs::msg::BoundingBox2D
+convert_to_bounding_box(
+    const Box &box) {
+  yolo_msgs::msg::BoundingBox2D bounding_box;
+  bounding_box.center.position.x = (box.x1 + box.x2) / 2;
+  bounding_box.center.position.y = (box.y1 + box.y2) / 2;
+  bounding_box.size.x = box.x2 - box.x1;
+  bounding_box.size.y = box.y2 - box.y1;
+  return bounding_box;
 }
 } // namespace yolo_onnx_utils
