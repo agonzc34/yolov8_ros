@@ -36,13 +36,13 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
   std::vector<yolo_msgs::msg::Detection> detection_array;
   std::vector<yolo_onnx_utils::Box> detections;
 
-  if (preds[0].GetTensorTypeAndShapeInfo().GetShape().back() == 6) {
+  std::vector<int64_t> shape = preds[0].GetTensorTypeAndShapeInfo().GetShape();
+  if (shape.back() == 6) {
     // Process predictions without applying NMS
     std::vector<yolo_onnx_utils::Box> boxes;
     for (size_t i = 0; i < preds.size(); ++i) {
       auto pred = preds[i].GetTensorData<float>();
-      for (size_t j = 0; j < preds[0].GetTensorTypeAndShapeInfo().GetShape()[0];
-           ++j) {
+      for (size_t j = 0; j < static_cast<size_t>(shape[0]); ++j) {
         yolo_onnx_utils::Box box;
         box.x1 = pred[j * 6 + 0];
         box.y1 = pred[j * 6 + 1];
@@ -65,10 +65,8 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
     const float *raw_output =
         preds[0].GetTensorData<float>(); // Extract raw output data from the
                                          // first output tensor
-    const std::vector<int64_t> output_shape =
-        preds[0].GetTensorTypeAndShapeInfo().GetShape();
-    const size_t num_features = output_shape[1];
-    const size_t num_detections = output_shape[2];
+    const size_t num_features = shape[1];
+    const size_t num_detections = shape[2];
     const int num_classes = static_cast<int>(num_features) - 4;
 
     const float *ptr = raw_output;
@@ -119,7 +117,7 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
     detection.score = detections[i].score;
     detection.class_id = detections[i].class_id;
     detection.id = "0";
-    if (detections[i].class_id < this->class_names.size()) {
+    if (detections[i].class_id < static_cast<int>(this->class_names.size())) {
       detection.class_name = this->class_names[detections[i].class_id];
     } else {
       detection.class_name = "unknown";

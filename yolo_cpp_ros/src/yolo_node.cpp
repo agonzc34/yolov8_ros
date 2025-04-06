@@ -138,7 +138,7 @@ void YoloNode::recieve_image_callback(
     RCLCPP_INFO(get_logger(), "Total detections: %zu;%s", detections.size(),
                 std::accumulate(detections_per_class.begin(),
                                 detections_per_class.end(), std::string(),
-                                [&detections](const std::string &a,
+                                [](const std::string &a,
                                               const std::pair<std::string, int> &b) {
                                   return a + (a.empty() ? "" : ", ") + " - " +
                                          b.first + ": " +

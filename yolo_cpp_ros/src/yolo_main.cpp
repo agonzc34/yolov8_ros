@@ -21,9 +21,8 @@
 // SOFTWARE.
 
 #include <memory>
-#include <vector>
+#include <rclcpp/executors.hpp>
 
-#include "rclcpp/rclcpp.hpp"
 #include "yolo_cpp_ros/yolo_node.hpp"
 
 using namespace yolo_rclcpp;

@@ -49,7 +49,13 @@ Model::Model(yolo_onnx_utils::YoloParams params)
   auto providers = Ort::GetAvailableProviders();
   if (std::find(providers.begin(), providers.end(), "CUDAExecutionProvider") !=
       providers.end()) {
-    OrtSessionOptionsAppendExecutionProvider_CUDA(this->session_options, 0);
+    OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(this->session_options, 0);
+    if (status != nullptr) {
+        std::cerr << "Error: " << Ort::GetApi().GetErrorMessage(status) << std::endl;
+        Ort::GetApi().ReleaseStatus(status);
+    } else {
+        std::cout << "CUDA Execution Provider is available and has been added." << std::endl;
+    }
     std::cout << "CUDA Execution Provider is available and has been added."
               << std::endl;
   } else {

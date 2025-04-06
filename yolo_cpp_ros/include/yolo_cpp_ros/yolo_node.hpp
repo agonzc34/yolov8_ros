@@ -23,11 +23,9 @@
 #ifndef YOLO_CPP_ROS__YOLO_NODE_HPP_
 #define YOLO_CPP_ROS__YOLO_NODE_HPP_
 
-#include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 #include <memory>
-#include <string>
 
 #include "sensor_msgs/msg/image.hpp"
 #include "yolo_cpp_ros/engine/model.hpp"
