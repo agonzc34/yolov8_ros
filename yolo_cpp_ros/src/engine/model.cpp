@@ -94,7 +94,7 @@ Model::Model(yolo_onnx_utils::YoloParams params)
     this->input_image_shape = cv::Size(static_cast<int>(input_tensor_shape_vec[3]),
                                      static_cast<int>(input_tensor_shape_vec[2]));
     if (input_tensor_shape_vec[2] == -1 && input_tensor_shape_vec[3] == -1) {
-      this->input_image_shape = cv::Size(640, 640); // Fallback if dynamic
+      this->input_image_shape = cv::Size(640, 480); // Fallback if dynamic
     }
   } else {
     throw std::runtime_error("Invalid input tensor shape.");
