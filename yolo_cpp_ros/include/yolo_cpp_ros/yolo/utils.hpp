@@ -26,7 +26,6 @@
 #include "onnxruntime_cxx_api.h"
 #include "yolo_msgs/msg/bounding_box2_d.hpp"
 #include <opencv2/opencv.hpp>
-#include <type_traits>
 #include <vector>
 
 namespace yolo_onnx_utils {
@@ -34,11 +33,27 @@ struct Box {
   float x1, y1, x2, y2, score;
   int index, class_id;
 
+  Box(float x1, float y1, float x2, float y2, float score, int index,
+      int class_id)
+      : x1(x1), y1(y1), x2(x2), y2(y2), score(score), index(index),
+        class_id(class_id) {}
+  Box() = default;
   virtual ~Box() = default;
 };
 
 struct BoxWithMask : public Box {
-  std::vector<std::vector<float>> mask_coeffs;
+  std::vector<float> mask_coeffs;
+
+  BoxWithMask() = default;
+  BoxWithMask(Box box)
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index,
+            box.class_id),
+        mask_coeffs(std::vector<float>()) {}
+  BoxWithMask(Box box,
+              std::vector<float> mask_coeffs)
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index,
+            box.class_id),
+        mask_coeffs(mask_coeffs) {}
 };
 
 struct YoloParams {

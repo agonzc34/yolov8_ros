@@ -25,6 +25,7 @@
 #include "yolo_msgs/msg/point2_d.hpp"
 #include <cstdint>
 #include <cstdio>
+#include <opencv2/highgui.hpp>
 
 namespace yolo_onnx {
 
@@ -65,19 +66,27 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
   std::vector<cv::Mat> masks;
   cv::Mat finalMask = cv::Mat::zeros(maskH, maskW, CV_32F);
   for (size_t i = 0; i < bbox_array.size(); ++i) {
-    const auto& mask_coeffs = bbox_array[i].mask_coeffs[0];
+    const auto& mask_coeffs = bbox_array[i].mask_coeffs;
     finalMask.setTo(0);
     for (int m = 0; m < 32; ++m) {
-      finalMask += mask_coeffs[m] * mask_protos[m];
+      finalMask += mask_coeffs[m] * mask_protos[m] * 255.0f;
     }
+
+    cv::imshow("Final Mask", finalMask);
+    cv::waitKey(1);
+
     cv::threshold(finalMask, finalMask, 0.5, 1.0, cv::THRESH_BINARY);
-    finalMask.convertTo(finalMask, CV_8UC1);
+    finalMask.convertTo(finalMask, CV_32F);
     cv::resize(finalMask, finalMask, original_image_size);
     cv::Mat binary_mask;
-    cv::log(-finalMask, binary_mask);
+    cv::log(-finalMask + 1e-5, binary_mask);
     binary_mask = 1.0 / (1.0 + binary_mask);
-    binary_mask.convertTo(binary_mask, CV_8U);
-    masks.push_back(binary_mask);
+    binary_mask.convertTo(binary_mask, CV_8U, 255.0);
+  
+    cv::Mat edges;
+    cv::Canny(binary_mask, edges, 100, 200);
+
+    masks.push_back(edges);
   }
 
   for (size_t i = 0; i < bbox_array.size(); ++i) {

@@ -22,6 +22,7 @@
 
 #include "yolo_cpp_ros/yolo/utils.hpp"
 #include <algorithm>
+#include <cstdio>
 
 namespace yolo_onnx_utils {
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
@@ -48,7 +49,7 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   return img_out;
 }
 
-float iou(const std::shared_ptr<Box> &box1, const std::shared_ptr<Box> &box2) {
+float iou(const std::shared_ptr<yolo_onnx_utils::Box> &box1, const std::shared_ptr<yolo_onnx_utils::Box> &box2) {
   float x1 = std::max(box1->x1, box2->x1);
   float y1 = std::max(box1->y1, box2->y1);
   float x2 = std::min(box1->x2, box2->x2);
@@ -65,13 +66,13 @@ float iou(const std::shared_ptr<Box> &box1, const std::shared_ptr<Box> &box2) {
 }
 
 std::vector<int>
-nms(std::vector<std::shared_ptr<Box>> &boxes, float iou_threshold,
+nms(std::vector<std::shared_ptr<yolo_onnx_utils::Box>> &boxes, float iou_threshold,
     float conf_threshold) // NMS implementation based on class_id
 {
   std::vector<int> indices;
 
   std::sort(boxes.begin(), boxes.end(),
-            [](const std::shared_ptr<Box> &a, const std::shared_ptr<Box> &b) {
+            [](const std::shared_ptr<yolo_onnx_utils::Box> &a, const std::shared_ptr<yolo_onnx_utils::Box> &b) {
               return a->score > b->score;
             });
 
@@ -202,48 +203,31 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
                 num_classes, conf_threshold);
 
   // 2. Add the mask coefficients to the boxes
+  std::vector<yolo_onnx_utils::BoxWithMask> boxes_with_mask;
   for (size_t i = 0; i < boxes.size(); ++i) {
-    auto *box_with_mask =
-        dynamic_cast<yolo_onnx_utils::BoxWithMask *>(&boxes[i]);
-    if (box_with_mask) {
-      std::vector<float> mask_coeffs(32);
-      for (int m = 0; m < 32; ++m) {
-        mask_coeffs[m] = ptr[(num_classes + 4 + m) * num_detections + i];
-      }
-      box_with_mask->mask_coeffs.push_back(mask_coeffs);
+    yolo_onnx_utils::BoxWithMask box_with_mask(boxes[i]);
+    std::vector<float> mask_coeffs(32);
+    for (int m = 0; m < 32; ++m) {
+      mask_coeffs[m] = ptr[(num_classes + 4 + m) * num_detections + i];
     }
+    box_with_mask.mask_coeffs = std::move(mask_coeffs);
+    boxes_with_mask.push_back(box_with_mask);
   }
-
-  fprintf(stderr, "Trying to get convert to %d boxes\n",
-          static_cast<int>(boxes.size()));
 
   std::vector<std::shared_ptr<yolo_onnx_utils::Box>> boxes_ptr;
-  std::vector<std::shared_ptr<yolo_onnx_utils::Box>>
-      new_boxes_ptr; // Temporary vector to store the casted boxes
-
-  for (size_t i = 0; i < boxes_ptr.size(); ++i) {
-    if (boxes_ptr[i]) {
-      auto box_with_mask =
-          std::dynamic_pointer_cast<yolo_onnx_utils::BoxWithMask>(boxes_ptr[i]);
-
-      if (box_with_mask) {
-        new_boxes_ptr.push_back(box_with_mask);
-      }
-    }
+  for (size_t i = 0; i < boxes_with_mask.size(); ++i) {
+    boxes_ptr.push_back(std::make_shared<yolo_onnx_utils::Box>(
+        boxes_with_mask[i]));
   }
-
-  // Now you can safely add new_boxes_ptr to boxes_ptr or do further processing
-  boxes_ptr.insert(boxes_ptr.end(), new_boxes_ptr.begin(), new_boxes_ptr.end());
-
-  fprintf(stderr, "Number of boxes: %zu\n", boxes_ptr.size());
 
   // 3. Apply NMS
   auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
 
   std::vector<yolo_onnx_utils::BoxWithMask> filtered_boxes;
   for (size_t i = 0; i < indices.size(); ++i) {
-    filtered_boxes.push_back(seg_boxes[indices[i]]);
+    filtered_boxes.push_back(boxes_with_mask[indices[i]]);
   }
+
   return filtered_boxes;
 }
 
