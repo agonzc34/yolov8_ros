@@ -59,34 +59,37 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
   std::vector<cv::Mat> mask_protos;
   const float* mask_ptr = preds[1].GetTensorData<float>();
   for (int64_t i = 0; i < mask_shape[1]; ++i) {
-    cv::Mat mask(maskH, maskW, CV_32FC1, const_cast<float*>(mask_ptr + i * maskH * maskW));
+    cv::Mat mask(maskH, maskW, CV_32F, const_cast<float*>(mask_ptr + i * maskH * maskW));
     mask_protos.push_back(mask);
   }
 
   std::vector<cv::Mat> masks;
-  cv::Mat finalMask = cv::Mat::zeros(maskH, maskW, CV_32F);
   for (size_t i = 0; i < bbox_array.size(); ++i) {
-    const auto& mask_coeffs = bbox_array[i].mask_coeffs;
-    finalMask.setTo(0);
+    const auto mask_coeffs = bbox_array[i].mask_coeffs;
+    cv::Mat finalMask = cv::Mat::zeros(maskH, maskW, CV_32F);
+
     for (int m = 0; m < 32; ++m) {
-      finalMask += mask_coeffs[m] * mask_protos[m] * 255.0f;
+      finalMask += mask_coeffs[m] * mask_protos[m];
     }
 
-    cv::imshow("Final Mask", finalMask);
-    cv::waitKey(1);
+    cv::exp(-finalMask, finalMask); // Apply sigmoid activation
+    finalMask = 1.0 / (1.0 + finalMask); // Sigmoid activation
 
-    cv::threshold(finalMask, finalMask, 0.5, 1.0, cv::THRESH_BINARY);
-    finalMask.convertTo(finalMask, CV_32F);
-    cv::resize(finalMask, finalMask, original_image_size);
-    cv::Mat binary_mask;
-    cv::log(-finalMask + 1e-5, binary_mask);
-    binary_mask = 1.0 / (1.0 + binary_mask);
-    binary_mask.convertTo(binary_mask, CV_8U, 255.0);
+    cv::Mat binaryMask;
+    cv::threshold(finalMask, binaryMask, 0.5, 255.0, cv::THRESH_BINARY);
+    binaryMask.convertTo(binaryMask, CV_8U);
+
+    // Rescale the mask to the original image size
+    cv::Mat resizedMask;
+    cv::resize(binaryMask, resizedMask, original_image_size);
+
+    cv::imshow("Binary Mask", resizedMask);
+    cv::waitKey(0);
   
-    cv::Mat edges;
-    cv::Canny(binary_mask, edges, 100, 200);
+    // cv::Mat edges;
+    // cv::Canny(binaryMask, edges, 100, 200);
 
-    masks.push_back(edges);
+    // masks.push_back(edges);
   }
 
   for (size_t i = 0; i < bbox_array.size(); ++i) {
@@ -97,16 +100,16 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
     detection.mask.height = original_image_size.height;
     detection.mask.width = original_image_size.width;
     detection.mask.data.clear();
-    for (int j = 0; j < original_image_size.height; ++j) {
-      for (int k = 0; k < original_image_size.width; ++k) {
-        if (masks[i].at<uchar>(j, k) > 0) {
-          yolo_msgs::msg::Point2D mask_point;
-          mask_point.x = k;
-          mask_point.y = j;
-          detection.mask.data.push_back(mask_point);
-        }
-      }
-    }
+    // for (int j = 0; j < original_image_size.height; ++j) {
+    //   for (int k = 0; k < original_image_size.width; ++k) {
+    //     if (masks[i].at<uchar>(j, k) > 0) {
+    //       yolo_msgs::msg::Point2D mask_point;
+    //       mask_point.x = k;
+    //       mask_point.y = j;
+    //       detection.mask.data.push_back(mask_point);
+    //     }
+    //   }
+    // }
 
     // Some additional information
     detection.score = bbox_array[i].score;

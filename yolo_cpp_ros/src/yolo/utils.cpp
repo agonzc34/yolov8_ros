@@ -49,7 +49,8 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   return img_out;
 }
 
-float iou(const std::shared_ptr<yolo_onnx_utils::Box> &box1, const std::shared_ptr<yolo_onnx_utils::Box> &box2) {
+float iou(const std::shared_ptr<yolo_onnx_utils::Box> &box1,
+          const std::shared_ptr<yolo_onnx_utils::Box> &box2) {
   float x1 = std::max(box1->x1, box2->x1);
   float y1 = std::max(box1->y1, box2->y1);
   float x2 = std::min(box1->x2, box2->x2);
@@ -66,13 +67,15 @@ float iou(const std::shared_ptr<yolo_onnx_utils::Box> &box1, const std::shared_p
 }
 
 std::vector<int>
-nms(std::vector<std::shared_ptr<yolo_onnx_utils::Box>> &boxes, float iou_threshold,
+nms(std::vector<std::shared_ptr<yolo_onnx_utils::Box>> &boxes,
+    float iou_threshold,
     float conf_threshold) // NMS implementation based on class_id
 {
   std::vector<int> indices;
 
   std::sort(boxes.begin(), boxes.end(),
-            [](const std::shared_ptr<yolo_onnx_utils::Box> &a, const std::shared_ptr<yolo_onnx_utils::Box> &b) {
+            [](const std::shared_ptr<yolo_onnx_utils::Box> &a,
+               const std::shared_ptr<yolo_onnx_utils::Box> &b) {
               return a->score > b->score;
             });
 
@@ -173,6 +176,13 @@ std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
       get_boxes(preds, shape, original_image_size, resized_image_size,
                 num_classes, conf_threshold);
 
+  boxes.erase(
+      std::remove_if(boxes.begin(), boxes.end(),
+                     [conf_threshold](const yolo_onnx_utils::Box &box) {
+                       return box.score < conf_threshold;
+                     }),
+      boxes.end());
+
   auto boxes_ptr = std::vector<std::shared_ptr<yolo_onnx_utils::Box>>();
   for (size_t i = 0; i < boxes.size(); ++i) {
     boxes_ptr.push_back(std::make_shared<yolo_onnx_utils::Box>(boxes[i]));
@@ -193,8 +203,9 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
 
   const float *raw_output =
       preds[0].GetTensorData<float>(); // Extract raw output data from the
-  const size_t num_detections = shape[2];
-  const float *ptr = raw_output;
+  const size_t num_detections =
+      preds[0].GetTensorTypeAndShapeInfo().GetShape()[2];
+
   std::vector<yolo_onnx_utils::BoxWithMask> seg_boxes;
 
   // 1. Get the bounding boxes
@@ -205,19 +216,22 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
   // 2. Add the mask coefficients to the boxes
   std::vector<yolo_onnx_utils::BoxWithMask> boxes_with_mask;
   for (size_t i = 0; i < boxes.size(); ++i) {
+    if (boxes[i].score < conf_threshold) {
+      continue;
+    }
     yolo_onnx_utils::BoxWithMask box_with_mask(boxes[i]);
     std::vector<float> mask_coeffs(32);
-    for (int m = 0; m < 32; ++m) {
-      mask_coeffs[m] = ptr[(num_classes + 4 + m) * num_detections + i];
+    for (size_t m = 0; m < 32; ++m) {
+      mask_coeffs[m] = raw_output[(num_classes + 4 + m) * num_detections + i];
     }
-    box_with_mask.mask_coeffs = std::move(mask_coeffs);
+    box_with_mask.mask_coeffs = mask_coeffs;
     boxes_with_mask.push_back(box_with_mask);
   }
 
   std::vector<std::shared_ptr<yolo_onnx_utils::Box>> boxes_ptr;
   for (size_t i = 0; i < boxes_with_mask.size(); ++i) {
-    boxes_ptr.push_back(std::make_shared<yolo_onnx_utils::Box>(
-        boxes_with_mask[i]));
+    boxes_ptr.push_back(
+        std::make_shared<yolo_onnx_utils::Box>(boxes_with_mask[i]));
   }
 
   // 3. Apply NMS
@@ -241,7 +255,8 @@ get_boxes(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
   const float *raw_output =
       preds[0].GetTensorData<float>(); // Extract raw output data from the
                                        // first output tensor
-  const size_t num_detections = shape[2];
+  const size_t num_detections =
+      preds[0].GetTensorTypeAndShapeInfo().GetShape()[2];
 
   const float *ptr = raw_output;
   for (size_t i = 0; i < num_detections; ++i) {
@@ -262,18 +277,16 @@ get_boxes(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
       }
     }
 
-    if (max_score > conf_threshold) {
-      box.x1 = (center_x - width / 2);
-      box.y1 = (center_y - height / 2);
-      box.x2 = (center_x + width / 2);
-      box.y2 = (center_y + height / 2);
-      box.score = max_score;
-      box.class_id = class_id;
+    box.x1 = (center_x - width / 2);
+    box.y1 = (center_y - height / 2);
+    box.x2 = (center_x + width / 2);
+    box.y2 = (center_y + height / 2);
+    box.score = max_score;
+    box.class_id = class_id;
 
-      yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
-          box, original_image_size, resized_image_size);
-      boxes.push_back(scaled_box);
-    }
+    yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+        box, original_image_size, resized_image_size);
+    boxes.push_back(scaled_box);
   }
 
   return boxes;
