@@ -142,114 +142,10 @@ yolo_onnx_utils::Box scale_box(const yolo_onnx_utils::Box &box,
   return scaled_box;
 }
 
-std::vector<yolo_onnx_utils::Box> get_detection_without_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size) {
-  std::vector<yolo_onnx_utils::Box> boxes;
-  for (size_t i = 0; i < preds.size(); ++i) {
-    auto pred = preds[i].GetTensorData<float>();
-    for (size_t j = 0; j < static_cast<size_t>(shape[0]); ++j) {
-      yolo_onnx_utils::Box box;
-      box.x1 = pred[j * 6 + 0];
-      box.y1 = pred[j * 6 + 1];
-      box.x2 = pred[j * 6 + 2];
-      box.y2 = pred[j * 6 + 3];
-      box.score = pred[j * 6 + 4];
-      box.class_id = static_cast<int>(pred[j * 6 + 5]);
-      box.index = j;
-
-      yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
-          box, original_image_size, resized_image_size);
-      boxes.push_back(scaled_box);
-    }
-  }
-
-  return boxes;
-}
-
-std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size,
-    const int num_classes, float iou_threshold, float conf_threshold) {
-
-  std::vector<yolo_onnx_utils::Box> boxes =
-      get_boxes(preds, shape, original_image_size, resized_image_size,
-                num_classes, conf_threshold);
-
-  boxes.erase(
-      std::remove_if(boxes.begin(), boxes.end(),
-                     [conf_threshold](const yolo_onnx_utils::Box &box) {
-                       return box.score < conf_threshold;
-                     }),
-      boxes.end());
-
-  auto boxes_ptr = std::vector<std::shared_ptr<yolo_onnx_utils::Box>>();
-  for (size_t i = 0; i < boxes.size(); ++i) {
-    boxes_ptr.push_back(std::make_shared<yolo_onnx_utils::Box>(boxes[i]));
-  }
-
-  auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
-  std::vector<yolo_onnx_utils::Box> filtered_boxes;
-  for (size_t i = 0; i < indices.size(); ++i) {
-    filtered_boxes.push_back(boxes[indices[i]]);
-  }
-  return filtered_boxes;
-}
-
-std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size,
-    const int num_classes, float iou_threshold, float conf_threshold) {
-
-  const float *raw_output =
-      preds[0].GetTensorData<float>(); // Extract raw output data from the
-  const size_t num_detections =
-      preds[0].GetTensorTypeAndShapeInfo().GetShape()[2];
-
-  std::vector<yolo_onnx_utils::BoxWithMask> seg_boxes;
-
-  // 1. Get the bounding boxes
-  std::vector<yolo_onnx_utils::Box> boxes =
-      get_boxes(preds, shape, original_image_size, resized_image_size,
-                num_classes, conf_threshold);
-
-  // 2. Add the mask coefficients to the boxes
-  std::vector<yolo_onnx_utils::BoxWithMask> boxes_with_mask;
-  for (size_t i = 0; i < boxes.size(); ++i) {
-    if (boxes[i].score < conf_threshold) {
-      continue;
-    }
-    yolo_onnx_utils::BoxWithMask box_with_mask(boxes[i]);
-    std::vector<float> mask_coeffs(32);
-    for (size_t m = 0; m < 32; ++m) {
-      mask_coeffs[m] = raw_output[(num_classes + 4 + m) * num_detections + i];
-    }
-    box_with_mask.mask_coeffs = mask_coeffs;
-    boxes_with_mask.push_back(box_with_mask);
-  }
-
-  std::vector<std::shared_ptr<yolo_onnx_utils::Box>> boxes_ptr;
-  for (size_t i = 0; i < boxes_with_mask.size(); ++i) {
-    boxes_ptr.push_back(
-        std::make_shared<yolo_onnx_utils::Box>(boxes_with_mask[i]));
-  }
-
-  // 3. Apply NMS
-  auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
-
-  std::vector<yolo_onnx_utils::BoxWithMask> filtered_boxes;
-  for (size_t i = 0; i < indices.size(); ++i) {
-    filtered_boxes.push_back(boxes_with_mask[indices[i]]);
-  }
-
-  return filtered_boxes;
-}
-
 std::vector<yolo_onnx_utils::Box>
-get_boxes(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+get_boxes(const std::vector<Ort::Value> &preds,
           const cv::Size &original_image_size,
-          const cv::Size &resized_image_size, const int num_classes,
-          float conf_threshold) {
+          const cv::Size &resized_image_size, const int num_classes) {
   std::vector<yolo_onnx_utils::Box> boxes;
 
   const float *raw_output =
@@ -300,5 +196,36 @@ convert_to_bounding_box(const yolo_onnx_utils::Box &box) {
   bounding_box.size.x = box.x2 - box.x1;
   bounding_box.size.y = box.y2 - box.y1;
   return bounding_box;
+}
+
+cv::Mat inverse_letterbox(
+  const cv::Mat& letterboxed,
+  const cv::Size &original_image_size,
+  const cv::Size &resized_image_size
+) {
+  cv::Mat resized_image;
+  cv::resize(letterboxed, resized_image, resized_image_size, 0, 0,
+             cv::INTER_LINEAR);
+
+  float scale = std::min(
+      static_cast<float>(resized_image_size.width) / original_image_size.width,
+      static_cast<float>(resized_image_size.height) / original_image_size.height
+  );
+
+  int new_w = static_cast<int>(original_image_size.width * scale);
+  int new_h = static_cast<int>(original_image_size.height * scale);
+
+  int pad_x = (resized_image_size.width - new_w) / 2;
+  int pad_y = (resized_image_size.height - new_h) / 2;
+
+  cv::Rect roi(pad_x, pad_y, new_w, new_h);
+  cv::Mat cropped = cv::Mat::zeros(original_image_size, letterboxed.type());
+  resized_image(roi).copyTo(cropped(roi));
+
+  cv::Mat restored;
+  cv::resize(cropped, restored, original_image_size, 0, 0,
+             cv::INTER_LINEAR);
+
+  return restored;
 }
 } // namespace yolo_onnx_utils

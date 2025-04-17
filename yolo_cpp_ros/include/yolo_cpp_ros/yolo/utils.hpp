@@ -46,13 +46,10 @@ struct BoxWithMask : public Box {
 
   BoxWithMask() = default;
   BoxWithMask(Box box)
-      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index,
-            box.class_id),
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index, box.class_id),
         mask_coeffs(std::vector<float>()) {}
-  BoxWithMask(Box box,
-              std::vector<float> mask_coeffs)
-      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index,
-            box.class_id),
+  BoxWithMask(Box box, std::vector<float> mask_coeffs)
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index, box.class_id),
         mask_coeffs(mask_coeffs) {}
 };
 
@@ -68,34 +65,22 @@ struct YoloParams {
 
 float iou(const std::shared_ptr<Box> &box1, const std::shared_ptr<Box> &box2);
 
-std::vector<int> nms(std::vector<std::shared_ptr<Box>>& boxes,
+std::vector<int> nms(std::vector<std::shared_ptr<Box>> &boxes,
                      float iou_threshold, float conf_threshold);
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
                   const cv::Scalar &color);
+cv::Mat inverse_letterbox(const cv::Mat &letterboxed,
+                          const cv::Size &original_image_size,
+                          const cv::Size &resized_image_size);
 Box scale_box(const Box &box, const cv::Size &original_image_size,
               const cv::Size &resized_image_size);
 yolo_msgs::msg::BoundingBox2D
 convert_to_bounding_box(const yolo_onnx_utils::Box &box);
 
 std::vector<yolo_onnx_utils::Box>
-get_boxes(const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
+get_boxes(const std::vector<Ort::Value> &preds,
           const cv::Size &original_image_size,
-          const cv::Size &resized_image_size, const int num_classes,
-          float conf_threshold);
-
-std::vector<yolo_onnx_utils::Box> get_detection_without_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size);
-
-std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size,
-    const int num_classes, float iou_threshold, float conf_threshold);
-
-std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
-    const std::vector<Ort::Value> &preds, std::vector<int64_t> shape,
-    const cv::Size &original_image_size, const cv::Size &resized_image_size,
-    const int num_classes, float iou_threshold, float conf_threshold);
+          const cv::Size &resized_image_size, const int num_classes);
 
 } // namespace yolo_onnx_utils
 

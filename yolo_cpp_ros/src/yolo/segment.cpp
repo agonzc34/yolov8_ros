@@ -23,9 +23,9 @@
 #include "yolo_cpp_ros/yolo/segment.hpp"
 #include "yolo_cpp_ros/yolo/utils.hpp"
 #include "yolo_msgs/msg/point2_d.hpp"
-#include <cstdint>
-#include <cstdio>
+#include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace yolo_onnx {
 
@@ -46,70 +46,94 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
   const size_t num_features = box_shape[1];
   const int num_classes = static_cast<int>(num_features) - 4 - 32;
 
-  bbox_array = yolo_onnx_utils::get_segmentation_with_nms(
-      preds, box_shape, original_image_size, resized_image_size, num_classes,
+  bbox_array = get_segmentation_with_nms(
+      preds, original_image_size, resized_image_size, num_classes,
       this->iou_threshold, this->conf_threshold);
 
   std::vector<int64_t> mask_shape =
       preds[1].GetTensorTypeAndShapeInfo().GetShape(); // [1, 32, maskH, maskW]
-  
-  const int maskH = static_cast<int>(mask_shape[2]);
-  const int maskW = static_cast<int>(mask_shape[3]);
+
+  const int mask_h = static_cast<int>(mask_shape[2]);
+  const int mask_w = static_cast<int>(mask_shape[3]);
 
   std::vector<cv::Mat> mask_protos;
-  const float* mask_ptr = preds[1].GetTensorData<float>();
+  const float *mask_ptr = preds[1].GetTensorData<float>();
   for (int64_t i = 0; i < mask_shape[1]; ++i) {
-    cv::Mat mask(maskH, maskW, CV_32F, const_cast<float*>(mask_ptr + i * maskH * maskW));
+    cv::Mat mask(mask_h, mask_w, CV_32F,
+                 const_cast<float *>(mask_ptr + i * mask_h * mask_w));
     mask_protos.push_back(mask);
   }
 
-  std::vector<cv::Mat> masks;
+  std::vector<std::vector<cv::Point>> masks;
   for (size_t i = 0; i < bbox_array.size(); ++i) {
     const auto mask_coeffs = bbox_array[i].mask_coeffs;
-    cv::Mat finalMask = cv::Mat::zeros(maskH, maskW, CV_32F);
+    cv::Mat seg_mask = cv::Mat::zeros(mask_h, mask_w, CV_32F);
 
+    // Linear combination of prototype masks
     for (int m = 0; m < 32; ++m) {
-      finalMask += mask_coeffs[m] * mask_protos[m];
+      seg_mask += mask_coeffs[m] * mask_protos[m];
     }
 
-    cv::exp(-finalMask, finalMask); // Apply sigmoid activation
-    finalMask = 1.0 / (1.0 + finalMask); // Sigmoid activation
+    // Apply sigmoid activation
+    cv::exp(-seg_mask, seg_mask);
+    seg_mask = 1.0 / (1.0 + seg_mask);
 
-    cv::Mat binaryMask;
-    cv::threshold(finalMask, binaryMask, 0.5, 255.0, cv::THRESH_BINARY);
-    binaryMask.convertTo(binaryMask, CV_8U);
+    // Apply threshold to get binary mask (Filter some noise)
+    cv::Mat filtered_seg_mask;
+    cv::threshold(seg_mask, filtered_seg_mask, 0.7, 255.0, cv::THRESH_BINARY);
+    filtered_seg_mask.convertTo(filtered_seg_mask, CV_8U);
 
     // Rescale the mask to the original image size
-    cv::Mat resizedMask;
-    cv::resize(binaryMask, resizedMask, original_image_size);
+    auto resized_mask = yolo_onnx_utils::inverse_letterbox(
+        filtered_seg_mask, original_image_size, resized_image_size);
 
-    cv::imshow("Binary Mask", resizedMask);
-    cv::waitKey(0);
-  
-    // cv::Mat edges;
-    // cv::Canny(binaryMask, edges, 100, 200);
+    // Crop to bounding box
+    cv::Rect roi(bbox_array[i].x1, bbox_array[i].y1,
+                 bbox_array[i].x2 - bbox_array[i].x1,
+                 bbox_array[i].y2 - bbox_array[i].y1);
+    roi &= cv::Rect(0, 0, resized_mask.cols, resized_mask.rows);
+    cv::Mat cropped_mask = cv::Mat::zeros(resized_mask.size(), CV_8U);
+    if (roi.area() > 0) {
+      resized_mask(roi).copyTo(cropped_mask(roi));
+    }
 
-    // masks.push_back(edges);
+    // Find contours in the cropped mask
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(cropped_mask, contours, cv::RETR_EXTERNAL,
+                     cv::CHAIN_APPROX_SIMPLE);
+
+    // Find the largest contour
+    double max_area = 0;
+    int max_contour_index = -1;
+    for (size_t j = 0; j < contours.size(); ++j) {
+      double area = cv::contourArea(contours[j]);
+      if (area > max_area) {
+        max_area = area;
+        max_contour_index = j;
+      }
+    }
+    if (max_contour_index != -1) {
+      std::vector<cv::Point> largest_contour = contours[max_contour_index];
+      masks.push_back(largest_contour);
+    } else {
+      masks.push_back(std::vector<cv::Point>());
+    }
   }
 
   for (size_t i = 0; i < bbox_array.size(); ++i) {
     yolo_msgs::msg::Detection detection;
     detection.bbox = yolo_onnx_utils::convert_to_bounding_box(bbox_array[i]);
-  
+
     // Segmentation mask
     detection.mask.height = original_image_size.height;
     detection.mask.width = original_image_size.width;
     detection.mask.data.clear();
-    // for (int j = 0; j < original_image_size.height; ++j) {
-    //   for (int k = 0; k < original_image_size.width; ++k) {
-    //     if (masks[i].at<uchar>(j, k) > 0) {
-    //       yolo_msgs::msg::Point2D mask_point;
-    //       mask_point.x = k;
-    //       mask_point.y = j;
-    //       detection.mask.data.push_back(mask_point);
-    //     }
-    //   }
-    // }
+    for (const auto &point : masks[i]) {
+      yolo_msgs::msg::Point2D point2d;
+      point2d.x = point.x;
+      point2d.y = point.y;
+      detection.mask.data.push_back(point2d);
+    }
 
     // Some additional information
     detection.score = bbox_array[i].score;
@@ -125,4 +149,53 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
 
   return detection_array;
 }
+
+std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
+    const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
+    const cv::Size &resized_image_size, const int num_classes,
+    float iou_threshold, float conf_threshold) {
+
+  const float *raw_output =
+      preds[0].GetTensorData<float>(); // Extract raw output data from the
+  const size_t num_detections =
+      preds[0].GetTensorTypeAndShapeInfo().GetShape()[2];
+
+  std::vector<yolo_onnx_utils::BoxWithMask> seg_boxes;
+
+  // 1. Get the bounding boxes
+  std::vector<yolo_onnx_utils::Box> boxes = yolo_onnx_utils::get_boxes(
+      preds, original_image_size, resized_image_size, num_classes);
+
+  // 2. Add the mask coefficients to the boxes
+  std::vector<yolo_onnx_utils::BoxWithMask> boxes_with_mask;
+  for (size_t i = 0; i < boxes.size(); ++i) {
+    if (boxes[i].score < conf_threshold) {
+      continue;
+    }
+    yolo_onnx_utils::BoxWithMask box_with_mask(boxes[i]);
+    std::vector<float> mask_coeffs(32);
+    for (size_t m = 0; m < 32; ++m) {
+      mask_coeffs[m] = raw_output[(num_classes + 4 + m) * num_detections + i];
+    }
+    box_with_mask.mask_coeffs = mask_coeffs;
+    boxes_with_mask.push_back(box_with_mask);
+  }
+
+  std::vector<std::shared_ptr<yolo_onnx_utils::Box>> boxes_ptr;
+  for (size_t i = 0; i < boxes_with_mask.size(); ++i) {
+    boxes_ptr.push_back(
+        std::make_shared<yolo_onnx_utils::Box>(boxes_with_mask[i]));
+  }
+
+  // 3. Apply NMS
+  auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
+
+  std::vector<yolo_onnx_utils::BoxWithMask> filtered_boxes;
+  for (size_t i = 0; i < indices.size(); ++i) {
+    filtered_boxes.push_back(boxes_with_mask[indices[i]]);
+  }
+
+  return filtered_boxes;
+}
+
 } // namespace yolo_onnx
