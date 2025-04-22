@@ -16,13 +16,15 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(yolo_onnxruntime_vendor REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(message_filters REQUIRED)
 
 include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
 )
 
-
+# Install yolo_cpp_ros
 add_executable(yolo_cpp_ros 
   src/yolo_node.cpp
   src/yolo_main.cpp
@@ -53,8 +55,32 @@ target_link_libraries(yolo_cpp_ros
   ${ORT_LIBRARIES}
 )
 
+# Install debug node
+add_executable(yolo_cpp_debug 
+  src/yolo_debug.cpp
+  src/debug_node.cpp
+)
+
+target_include_directories(yolo_cpp_debug PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(yolo_cpp_debug
+  sensor_msgs
+  rclcpp
+  yolo_msgs
+  rclcpp_lifecycle
+  cv_bridge
+  visualization_msgs
+  message_filters
+)
+
+target_link_libraries(yolo_cpp_debug
+  ${OpenCV_LIBS}
+)
+
 install(TARGETS
-  yolo_cpp_ros
+  yolo_cpp_ros yolo_cpp_debug
   DESTINATION lib/${PROJECT_NAME}
 )
 
