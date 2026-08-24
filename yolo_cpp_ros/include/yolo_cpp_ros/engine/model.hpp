@@ -39,8 +39,8 @@ protected:
     std::vector<std::string> class_names;            // Vector of class names loaded from file
 
 private:
-    cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &input_tensor_shape);
-    std::vector<Ort::Value> inference(const cv::Mat &image, float *blob, std::vector<int64_t> &input_tensor_shape);
+    void preprocess(const cv::Mat &image, std::vector<int64_t> &input_tensor_shape);
+    std::vector<Ort::Value> inference(std::vector<int64_t> &input_tensor_shape);
     virtual std::vector<yolo_msgs::msg::Detection> postprocess(const cv::Size &original_image_size, const cv::Size &resized_image_size,
         const std::vector<Ort::Value> &preds);
 
@@ -48,6 +48,10 @@ private:
     Ort::SessionOptions session_options{nullptr};   // Session options for ONNX Runtime
     Ort::Session session{nullptr};                 // ONNX Runtime session for running inference
     cv::Size input_image_shape;                      // Expected input image shape for the model
+
+    // Persistent input buffer (CHW, 1*3*H*W floats) reused every inference to
+    // avoid re-allocating + copying the full blob per frame.
+    std::vector<float> input_buffer_;
 
     // Vectors to hold allocated input and output node names
     std::vector<Ort::AllocatedStringPtr> input_node_name_alloc_strings;

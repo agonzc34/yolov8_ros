@@ -105,6 +105,12 @@ Model::Model(yolo_onnx_utils::YoloParams params)
     throw std::runtime_error("Invalid input tensor shape.");
   }
 
+  // Pre-allocate the reusable input blob (1*3*H*W floats), written in place by
+  // preprocess() and fed directly to ORT with no per-frame copy.
+  this->input_buffer_.resize(
+      static_cast<size_t>(this->input_image_shape.height) *
+      this->input_image_shape.width * 3);
+
   // Load class names from coco.names file
   std::ifstream class_names_file("src/yolov8_ros/yolo_cpp_ros/conf/coco.names"); // TODO: change this path
   if (!class_names_file.is_open()) {
@@ -126,45 +132,42 @@ Model::~Model() {}
 
 std::vector<yolo_msgs::msg::Detection>
 yolo_onnx::Model::detect(const cv::Mat &image) {
-  float *blob_ptr = nullptr;
-
   std::vector<int64_t> input_tensor_shape = {1, 3, this->input_image_shape.height,
                                            this->input_image_shape.width};
-  cv::Mat resized_image = preprocess(image, blob_ptr, input_tensor_shape);
-  auto preds = inference(resized_image, blob_ptr, input_tensor_shape);
-  delete[] blob_ptr;
+  preprocess(image, input_tensor_shape);
+  auto preds = inference(input_tensor_shape);
   return postprocess(cv::Size(image.cols, image.rows), this->input_image_shape,
                      preds);
 }
 
-cv::Mat yolo_onnx::Model::preprocess(const cv::Mat &image, float *&blob,
-                                     std::vector<int64_t> &input_tensor_shape) {
+void yolo_onnx::Model::preprocess(const cv::Mat &image,
+                                  std::vector<int64_t> &input_tensor_shape) {
   cv::Mat resized_image =
     yolo_onnx_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114));
-  resized_image.convertTo(resized_image, CV_32FC3, 1.0 / 255.0);
-  blob = new float[input_tensor_shape[1] * input_tensor_shape[2] *
-                   input_tensor_shape[3]];
 
+  // Normalize to float (OpenCV-optimized), then split channels straight into
+  // the persistent buffer. This keeps the fast SIMD convertTo+split path while
+  // reusing the buffer (no per-frame new[]/copy as in the original).
+  resized_image.convertTo(resized_image, CV_32FC3, 1.0 / 255.0);
+  const int H = static_cast<int>(input_tensor_shape[2]);
+  const int W = static_cast<int>(input_tensor_shape[3]);
   std::vector<cv::Mat> chw(resized_image.channels());
   for (int i = 0; i < resized_image.channels(); ++i) {
-    chw[i] = cv::Mat(resized_image.rows, resized_image.cols, CV_32FC1,
-                     blob + i * resized_image.cols * resized_image.rows);
+    chw[i] = cv::Mat(H, W, CV_32FC1,
+                     input_buffer_.data() + i * H * W);
   }
-  cv::split(resized_image, chw); // Split channels into the blob
-
-  return resized_image;
+  cv::split(resized_image, chw);  // Split channels into the persistent blob
 }
 
 std::vector<Ort::Value>
-yolo_onnx::Model::inference(const cv::Mat &image, float *blob,
-                            std::vector<int64_t> &input_tensor_shape) {
+yolo_onnx::Model::inference(std::vector<int64_t> &input_tensor_shape) {
   size_t input_tensor_size =
       std::accumulate(input_tensor_shape.begin(), input_tensor_shape.end(), 1,
                       std::multiplies<int64_t>());
-  std::vector<float> inputTensorValues(blob, blob + input_tensor_size);
 
+  // Reuse the persistent buffer as the (CPU-owned) input tensor — no copy.
   Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-      this->memory_info, inputTensorValues.data(), input_tensor_size,
+      this->memory_info, this->input_buffer_.data(), input_tensor_size,
       input_tensor_shape.data(), input_tensor_shape.size());
 
   std::vector<Ort::Value> predictions = this->session.Run(
