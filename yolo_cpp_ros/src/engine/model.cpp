@@ -34,23 +34,36 @@ Model::Model(yolo_onnx_utils::YoloParams params)
     n_threads = std::thread::hardware_concurrency();
   }
 
-  this->session_options.SetIntraOpNumThreads(n_threads);
   this->session_options.SetGraphOptimizationLevel(
       GraphOptimizationLevel::ORT_ENABLE_ALL);
 
   auto providers = Ort::GetAvailableProviders();
-  if (std::find(providers.begin(), providers.end(), "CUDAExecutionProvider") !=
-      providers.end()) {
-    OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(this->session_options, 0);
-    if (status != nullptr) {
-        std::cerr << "Error: " << Ort::GetApi().GetErrorMessage(status) << std::endl;
-        Ort::GetApi().ReleaseStatus(status);
-    } else {
-        std::cout << "CUDA Execution Provider is available and has been added." << std::endl;
-    }
-    std::cout << "CUDA Execution Provider is available and has been added."
+  bool use_cuda =
+      std::find(providers.begin(), providers.end(), "CUDAExecutionProvider") !=
+      providers.end();
+
+  if (use_cuda) {
+    // The GPU graph does the compute: a single intra-op thread avoids the
+    // overhead of spinning up a full CPU thread-pool that mostly idles on the
+    // CUDA stream.
+    this->session_options.SetIntraOpNumThreads(1);
+
+    // Tuned CUDA EP: heuristic conv-algo search (skips the expensive per-shape
+    // exhaustive benchmark at session load) and same-as-requested arena growth
+    // (less GPU memory over-allocation).
+    OrtCUDAProviderOptionsV2 *cuda_options = nullptr;
+    Ort::GetApi().CreateCUDAProviderOptions(&cuda_options);
+    std::vector<const char *> keys = {
+        "device_id", "arena_extend_strategy", "cudnn_conv_algo_search"};
+    std::vector<const char *> values = {"0", "kSameAsRequested", "HEURISTIC"};
+    Ort::GetApi().UpdateCUDAProviderOptions(cuda_options, keys.data(),
+                                            values.data(), keys.size());
+    this->session_options.AppendExecutionProvider_CUDA_V2(*cuda_options);
+    Ort::GetApi().ReleaseCUDAProviderOptions(cuda_options);
+    std::cout << "CUDA Execution Provider has been added (tuned)."
               << std::endl;
   } else {
+    this->session_options.SetIntraOpNumThreads(n_threads);
     std::cout << "CUDA Execution Provider is not available." << std::endl;
   }
 
