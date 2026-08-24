@@ -41,65 +41,6 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   return img_out;
 }
 
-float iou(const std::shared_ptr<yolo_onnx_utils::Box> &box1,
-          const std::shared_ptr<yolo_onnx_utils::Box> &box2) {
-  float x1 = std::max(box1->x1, box2->x1);
-  float y1 = std::max(box1->y1, box2->y1);
-  float x2 = std::min(box1->x2, box2->x2);
-  float y2 = std::min(box1->y2, box2->y2);
-
-  float intersection = std::max(0.0f, x2 - x1) * std::max(0.0f, y2 - y1);
-  float area1 =
-      std::max(0.0f, box1->x2 - box1->x1) * std::max(0.0f, box1->y2 - box1->y1);
-  float area2 =
-      std::max(0.0f, box2->x2 - box2->x1) * std::max(0.0f, box2->y2 - box2->y1);
-  float union_area = area1 + area2 - intersection;
-
-  return union_area > 0 ? intersection / union_area : 0;
-}
-
-std::vector<int>
-nms(std::vector<std::shared_ptr<yolo_onnx_utils::Box>> &boxes,
-    float iou_threshold,
-    float conf_threshold) // NMS implementation based on class_id
-{
-  std::vector<int> indices;
-
-  std::sort(boxes.begin(), boxes.end(),
-            [](const std::shared_ptr<yolo_onnx_utils::Box> &a,
-               const std::shared_ptr<yolo_onnx_utils::Box> &b) {
-              return a->score > b->score;
-            });
-
-  std::vector<bool> suppressed(boxes.size(), false);
-
-  for (size_t i = 0; i < boxes.size(); ++i) {
-    if (boxes[i]->score < conf_threshold) {
-      suppressed[i] = true;
-      continue;
-    }
-
-    if (suppressed[i] == true) {
-      continue;
-    }
-
-    indices.push_back(i);
-
-    for (size_t j = i + 1; j < boxes.size(); j++) {
-      if (suppressed[j] == true || boxes[j]->class_id != boxes[i]->class_id) {
-        continue;
-      }
-
-      float iou_value = yolo_onnx_utils::iou(boxes[i], boxes[j]);
-      if (iou_value > iou_threshold) {
-        suppressed[j] = true;
-      }
-    }
-  }
-
-  return indices;
-}
-
 yolo_onnx_utils::Box scale_box(const yolo_onnx_utils::Box &box,
                                const cv::Size &original_image_size,
                                const cv::Size &resized_image_size) {

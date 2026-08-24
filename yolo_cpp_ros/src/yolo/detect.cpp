@@ -100,12 +100,8 @@ std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
                              }),
               boxes.end());
 
-  auto boxes_ptr = std::vector<std::shared_ptr<yolo_onnx_utils::Box>>();
-  for (size_t i = 0; i < boxes.size(); ++i) {
-    boxes_ptr.push_back(std::make_shared<yolo_onnx_utils::Box>(boxes[i]));
-  }
-
-  auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
+  // Boxes are sorted in place by nms(); indices index the same vector.
+  auto indices = yolo_onnx_utils::nms(boxes, iou_threshold, conf_threshold);
   std::vector<yolo_onnx_utils::Box> filtered_boxes;
   for (size_t i = 0; i < indices.size(); ++i) {
     filtered_boxes.push_back(boxes[indices[i]]);

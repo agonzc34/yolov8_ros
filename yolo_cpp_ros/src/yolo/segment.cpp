@@ -173,14 +173,9 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
     boxes_with_mask.push_back(box_with_mask);
   }
 
-  std::vector<std::shared_ptr<yolo_onnx_utils::Box>> boxes_ptr;
-  for (size_t i = 0; i < boxes_with_mask.size(); ++i) {
-    boxes_ptr.push_back(
-        std::make_shared<yolo_onnx_utils::Box>(boxes_with_mask[i]));
-  }
-
-  // 3. Apply NMS
-  auto indices = yolo_onnx_utils::nms(boxes_ptr, iou_threshold, conf_threshold);
+  // BoxesWithMask are sorted in place by nms(); indices index the same vector.
+  auto indices =
+      yolo_onnx_utils::nms(boxes_with_mask, iou_threshold, conf_threshold);
 
   std::vector<yolo_onnx_utils::BoxWithMask> filtered_boxes;
   for (size_t i = 0; i < indices.size(); ++i) {
