@@ -24,6 +24,7 @@ from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.lifecycle import LifecycleState
 
 import cv2
+import yaml
 import numpy as np
 import message_filters
 from cv_bridge import CvBridge
@@ -31,7 +32,7 @@ from cv_bridge import CvBridge
 from ultralytics.engine.results import Boxes
 from ultralytics.trackers.basetrack import BaseTrack
 from ultralytics.trackers import BOTSORT, BYTETracker
-from ultralytics.utils import IterableSimpleNamespace, yaml_load
+from ultralytics.utils import IterableSimpleNamespace
 from ultralytics.utils.checks import check_requirements, check_yaml
 
 from sensor_msgs.msg import Image
@@ -131,7 +132,8 @@ class TrackingNode(LifecycleNode):
         check_requirements("lap")  # for linear_assignment
 
         tracker = check_yaml(tracker_yaml)
-        cfg = IterableSimpleNamespace(**yaml_load(tracker))
+        with open(tracker) as f:
+            cfg = IterableSimpleNamespace(**yaml.safe_load(f))
 
         assert cfg.tracker_type in [
             "bytetrack",
