@@ -195,24 +195,25 @@ cv::Mat inverse_letterbox(
   const cv::Size &original_image_size,
   const cv::Size &resized_image_size
 ) {
+  // Resize the (low-res) mask up to the letterboxed / model-input frame.
   cv::Mat resized_image;
   cv::resize(letterboxed, resized_image, resized_image_size, 0, 0,
              cv::INTER_LINEAR);
 
+  // Size of the actual (unpadded) image content inside the letterboxed frame.
   float scale = std::min(
       static_cast<float>(resized_image_size.width) / original_image_size.width,
       static_cast<float>(resized_image_size.height) / original_image_size.height
   );
-
   int new_w = static_cast<int>(original_image_size.width * scale);
   int new_h = static_cast<int>(original_image_size.height * scale);
 
   int pad_x = (resized_image_size.width - new_w) / 2;
   int pad_y = (resized_image_size.height - new_h) / 2;
 
-  cv::Rect roi(pad_x, pad_y, new_w, new_h);
-  cv::Mat cropped = cv::Mat::zeros(original_image_size, letterboxed.type());
-  resized_image(roi).copyTo(cropped(roi));
+  // Crop only the unpadded content, then rescale back to the original size.
+  cv::Rect content_roi(pad_x, pad_y, new_w, new_h);
+  cv::Mat cropped = resized_image(content_roi);
 
   cv::Mat restored;
   cv::resize(cropped, restored, original_image_size, 0, 0,
