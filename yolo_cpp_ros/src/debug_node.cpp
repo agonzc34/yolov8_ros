@@ -13,7 +13,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "yolo_cpp_ros/debug_node.hpp"
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include <opencv2/imgproc.hpp>
 #include <string>
 
@@ -157,11 +157,17 @@ cv::Mat DebugNode::draw_mask(const cv::Mat &image,
 			return image;
 		}
 		auto layer = image.clone();
-		cv::fillPoly(layer, detection.mask.data,
-									color, cv::LINE_AA);
+		// Convert ROS Point2D (float64) mask boundary points to OpenCV points
+		std::vector<std::vector<cv::Point>> contours(1);
+		contours[0].reserve(detection.mask.data.size());
+		for (const auto &p : detection.mask.data) {
+			contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
+		}
+		cv::fillPoly(layer, contours,
+										color, cv::LINE_AA);
 		cv::addWeighted(layer, 0.4, image, 0.6, 0, image);
-		cv::polylines(image, detection.mask.data,
-									true, color, 2, cv::LINE_AA);
+		cv::polylines(image, contours,
+										true, color, 2, cv::LINE_AA);
 		return image;
 	}
 

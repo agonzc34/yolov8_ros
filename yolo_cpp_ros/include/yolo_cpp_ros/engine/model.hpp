@@ -19,7 +19,7 @@
 #include "yolo_msgs/msg/detection.hpp"
 #include <opencv2/opencv.hpp>
 #include <onnxruntime_cxx_api.h>
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include "yolo_cpp_ros/yolo/utils.hpp"
 
 namespace yolo_onnx
