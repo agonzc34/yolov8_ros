@@ -118,14 +118,15 @@ void DebugNode::recieve_callback(
     }
     cv::Scalar color = color_it->second;
 
-		image = draw_box(image, detection, color);
-		image = draw_mask(image, detection, color);
-
-    auto return_image =
-        cv_bridge::CvImage(msg_image->header, msg_image->encoding, image)
-            .toImageMsg();
-    this->debug_publisher->publish(*return_image.get());
+    image = draw_box(image, detection, color);
+    image = draw_mask(image, detection, color);
   }
+
+  // Publish ONCE with all detections/masks drawn (not once per detection).
+  auto return_image =
+      cv_bridge::CvImage(msg_image->header, msg_image->encoding, image)
+          .toImageMsg();
+  this->debug_publisher->publish(*return_image.get());
 }
 
 cv::Mat DebugNode::draw_box(const cv::Mat &image,
