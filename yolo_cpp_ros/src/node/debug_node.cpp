@@ -15,6 +15,7 @@
 #include "yolo_cpp_ros/node/debug_node.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/imgproc.hpp>
+#include <map>
 #include <string>
 
 using namespace yolo_rclcpp;
@@ -136,6 +137,7 @@ void DebugNode::recieve_callback(
 
     image = draw_box(image, detection, color);
     image = draw_mask(image, detection, color);
+    image = draw_keypoints(image, detection, color);
 
     // RViz markers for the 3D boxes (emitted only when a detect_3d node has
     // enriched the detection stream with bbox3d).
@@ -210,6 +212,41 @@ cv::Mat DebugNode::draw_mask(const cv::Mat &image,
 										true, color, 2, cv::LINE_AA);
 		return image;
 	}
+
+cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
+																	const yolo_msgs::msg::Detection &detection,
+																	const cv::Scalar &color) {
+	if (detection.keypoints.data.size() == 0) {
+		return image;
+	}
+
+	// COCO human pose skeleton, 1-based keypoint ids (matches the ids the
+	// yolo_node publishes and ultralytics' plotting skeleton).
+	static const int skeleton[19][2] = {{16, 14}, {14, 12}, {17, 15}, {15, 13},
+																			{12, 13}, {6, 12},  {7, 13},  {6, 7},
+																			{6, 8},   {7, 9},   {8, 10},  {9, 11},
+																			{2, 3},   {1, 2},   {1, 3},   {2, 4},
+																			{3, 5},   {4, 6},   {5, 7}};
+
+	std::map<int, cv::Point> points;
+	for (const auto &kp : detection.keypoints.data) {
+		points[kp.id] = cv::Point(cvRound(kp.point.x), cvRound(kp.point.y));
+	}
+
+	// Draw the skeleton limbs first, then the keypoints on top.
+	for (const auto &limb : skeleton) {
+		auto it1 = points.find(limb[0]);
+		auto it2 = points.find(limb[1]);
+		if (it1 != points.end() && it2 != points.end()) {
+			cv::line(image, it1->second, it2->second, color, 2, cv::LINE_AA);
+		}
+	}
+	for (const auto &[id, point] : points) {
+		(void)id;
+		cv::circle(image, point, 3, color, -1, cv::LINE_AA);
+	}
+	return image;
+}
 
 visualization_msgs::msg::Marker DebugNode::create_bb_marker(
     const yolo_msgs::msg::Detection &detection,

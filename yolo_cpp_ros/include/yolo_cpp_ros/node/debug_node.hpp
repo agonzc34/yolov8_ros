@@ -80,6 +80,8 @@ private:
 									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
 	cv::Mat draw_mask(const cv::Mat &image,
 									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
+	cv::Mat draw_keypoints(const cv::Mat &image,
+												 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
 
 	visualization_msgs::msg::Marker create_bb_marker(
 			const yolo_msgs::msg::Detection &detection,
