@@ -20,7 +20,10 @@
 #include "message_filters/subscriber.h"
 #include "rclcpp/qos.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
+#include "yolo_msgs/msg/key_point3_d.hpp"
 
 #include "message_filters/sync_policies/approximate_time.h"
 #include "message_filters/synchronizer.h"
@@ -55,6 +58,10 @@ private:
                               rclcpp_lifecycle::LifecycleNode>
       detection_subscription;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_publisher;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+      bb_markers_publisher;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+      kp_markers_publisher;
   std::shared_ptr<message_filters::Synchronizer<ApproximateSyncPolicy>>
       synchronizer;
 
@@ -71,7 +78,13 @@ private:
 	cv::Mat draw_mask(const cv::Mat &image,
 									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
 
-									};
+	visualization_msgs::msg::Marker create_bb_marker(
+			const yolo_msgs::msg::Detection &detection,
+			const cv::Scalar &color);
+	visualization_msgs::msg::Marker create_kp_marker(
+			const yolo_msgs::msg::KeyPoint3D &keypoint);
+
+					};
 } // namespace yolo_rclcpp
 
 #endif // YOLO_CPP_ROS__DEBUG_NODE_HPP_

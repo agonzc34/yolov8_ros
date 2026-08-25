@@ -46,6 +46,14 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
   this->debug_publisher =
       this->create_publisher<sensor_msgs::msg::Image>("debug_image", 10);
 
+  this->bb_markers_publisher =
+      this->create_publisher<visualization_msgs::msg::MarkerArray>(
+          "debug_bb_markers", 10);
+
+  this->kp_markers_publisher =
+      this->create_publisher<visualization_msgs::msg::MarkerArray>(
+          "debug_kp_markers", 10);
+
   RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;
@@ -108,6 +116,9 @@ void DebugNode::recieve_callback(
   }
   cv::Mat image = cv_ptr->image;
 
+  visualization_msgs::msg::MarkerArray bb_marker_array;
+  visualization_msgs::msg::MarkerArray kp_marker_array;
+
   for (const auto &detection : msg_detections->detections) {
     auto class_name = detection.class_name;
     auto color_it = class_to_color.find(class_name);
@@ -120,6 +131,26 @@ void DebugNode::recieve_callback(
 
     image = draw_box(image, detection, color);
     image = draw_mask(image, detection, color);
+
+    // RViz markers for the 3D boxes (emitted only when a detect_3d node has
+    // enriched the detection stream with bbox3d).
+    if (!detection.bbox3d.frame_id.empty()) {
+      auto marker = create_bb_marker(detection, color);
+      marker.header.stamp = msg_image->header.stamp;
+      marker.id = bb_marker_array.markers.size();
+      bb_marker_array.markers.push_back(marker);
+    }
+
+    // RViz markers for the 3D keypoints (pose output from a detect_3d node).
+    if (!detection.keypoints3d.frame_id.empty()) {
+      for (const auto &keypoint : detection.keypoints3d.data) {
+        auto marker = create_kp_marker(keypoint);
+        marker.header.frame_id = detection.keypoints3d.frame_id;
+        marker.header.stamp = msg_image->header.stamp;
+        marker.id = kp_marker_array.markers.size();
+        kp_marker_array.markers.push_back(marker);
+      }
+    }
   }
 
   // Publish ONCE with all detections/masks drawn (not once per detection).
@@ -127,6 +158,9 @@ void DebugNode::recieve_callback(
       cv_bridge::CvImage(msg_image->header, msg_image->encoding, image)
           .toImageMsg();
   this->debug_publisher->publish(*return_image.get());
+
+  this->bb_markers_publisher->publish(bb_marker_array);
+  this->kp_markers_publisher->publish(kp_marker_array);
 }
 
 cv::Mat DebugNode::draw_box(const cv::Mat &image,
@@ -171,4 +205,68 @@ cv::Mat DebugNode::draw_mask(const cv::Mat &image,
 										true, color, 2, cv::LINE_AA);
 		return image;
 	}
+
+visualization_msgs::msg::Marker DebugNode::create_bb_marker(
+    const yolo_msgs::msg::Detection &detection,
+    const cv::Scalar &color) {
+  visualization_msgs::msg::Marker marker;
+
+  marker.header.frame_id = detection.bbox3d.frame_id;
+  marker.ns = "yolo_3d";
+  marker.type = visualization_msgs::msg::Marker::CUBE;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  marker.frame_locked = false;
+
+  marker.pose.position.x = detection.bbox3d.center.position.x;
+  marker.pose.position.y = detection.bbox3d.center.position.y;
+  marker.pose.position.z = detection.bbox3d.center.position.z;
+  marker.pose.orientation.w = 1.0;
+
+  marker.scale.x = detection.bbox3d.size.x;
+  marker.scale.y = detection.bbox3d.size.y;
+  marker.scale.z = detection.bbox3d.size.z;
+
+  // The per-class color is stored as an OpenCV BGR scalar -> convert to RGB.
+  marker.color.r = color[2] / 255.0;
+  marker.color.g = color[1] / 255.0;
+  marker.color.b = color[0] / 255.0;
+  marker.color.a = 0.4;
+
+  marker.lifetime.sec = 0;
+  marker.lifetime.nanosec = 500000000;
+  marker.text = detection.class_name;
+
+  return marker;
+}
+
+visualization_msgs::msg::Marker DebugNode::create_kp_marker(
+    const yolo_msgs::msg::KeyPoint3D &keypoint) {
+  visualization_msgs::msg::Marker marker;
+
+  marker.ns = "yolo_3d";
+  marker.type = visualization_msgs::msg::Marker::SPHERE;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  marker.frame_locked = false;
+
+  marker.pose.position.x = keypoint.point.x;
+  marker.pose.position.y = keypoint.point.y;
+  marker.pose.position.z = keypoint.point.z;
+  marker.pose.orientation.w = 1.0;
+
+  marker.scale.x = 0.05;
+  marker.scale.y = 0.05;
+  marker.scale.z = 0.05;
+
+  // Confidence gradient from red (low score) to blue (high score).
+  marker.color.r = 1.0 - keypoint.score;
+  marker.color.g = 0.0;
+  marker.color.b = keypoint.score;
+  marker.color.a = 0.4;
+
+  marker.lifetime.sec = 0;
+  marker.lifetime.nanosec = 500000000;
+  marker.text = std::to_string(keypoint.id);
+
+  return marker;
+}
 
