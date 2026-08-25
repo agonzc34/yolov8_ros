@@ -1,0 +1,104 @@
+// Copyright (C) 2026 Alejandro González Cantón
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+#ifndef YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_
+#define YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_
+
+#include <memory>
+#include <vector>
+
+#include "yolo_cpp_ros/tracking/kalman_filter.hpp"
+#include "yolo_cpp_ros/tracking/strack.hpp"
+
+namespace yolo_tracking {
+
+// One raw detection fed to the tracker.
+struct TrackDetection {
+  float cx = 0;  // bounding box center x
+  float cy = 0;  // bounding box center y
+  float w = 0;   // width
+  float h = 0;   // height
+  float score = 0;
+  int class_id = 0;
+  int index = 0;  // position in the original detection array (to fetch metadata)
+};
+
+// One tracked object returned by ByteTrack::update().
+struct Track {
+  int id = 0;  // stable track id
+  float x1 = 0;
+  float y1 = 0;
+  float x2 = 0;
+  float y2 = 0;  // Kalman-refined min/max box corners
+  float score = 0;
+  int class_id = 0;
+  int index = 0;  // detection index (from TrackDetection::index)
+};
+
+struct ByteTrackParams {
+  double track_high_thresh = 0.25;  // first-stage match threshold
+  double track_low_thresh = 0.1;    // second-stage low-score threshold
+  double new_track_thresh = 0.25;   // min score to start a new track
+  int track_buffer = 30;            // frames a lost track is kept alive
+  double match_thresh = 0.8;        // association cost threshold
+  bool fuse_score = true;           // fuse IoU cost with detection score
+};
+
+// BYTETracker with behavior identical to ultralytics' BYTETracker
+// (byte_tracker.py), which the Python yolov8_ros tracking_node is built on.
+class ByteTrack {
+public:
+  explicit ByteTrack(const ByteTrackParams &params);
+  ~ByteTrack() = default;
+
+  // Advance the tracker one frame. `detections` should already be NMS-filtered
+  // (the tracker re-splits them by confidence into high / low stages).
+  // Returns the currently active (activated) tracked objects.
+  std::vector<Track> update(const std::vector<TrackDetection> &detections);
+
+  // Clear all track state and the track-id counter.
+  void reset();
+
+  int frame_id() const { return frame_id_; }
+
+private:
+  // Standard end-of-frame bookkeeping over the persistent pools.
+  void merge_track_pools(std::vector<std::shared_ptr<STrack>> &activated,
+                         std::vector<std::shared_ptr<STrack>> &refind,
+                         std::vector<std::shared_ptr<STrack>> &lost,
+                         std::vector<std::shared_ptr<STrack>> &removed);
+
+  // Update or re-activate a matched (pool track, detection) pair.
+  void apply_match(const std::shared_ptr<STrack> &track,
+                   const std::shared_ptr<STrack> &detection,
+                   std::vector<std::shared_ptr<STrack>> &activated,
+                   std::vector<std::shared_ptr<STrack>> &refind);
+
+  // IoU cost matrix fused with detection scores if fuse_score is enabled.
+  std::vector<std::vector<double>> get_dists(
+      const std::vector<std::shared_ptr<STrack>> &tracks,
+      const std::vector<std::shared_ptr<STrack>> &detections) const;
+
+  ByteTrackParams params_;
+  KalmanFilterXYAH kalman_filter_;
+  std::vector<std::shared_ptr<STrack>> tracked_stracks_;
+  std::vector<std::shared_ptr<STrack>> lost_stracks_;
+  std::vector<std::shared_ptr<STrack>> removed_stracks_;
+  int frame_id_ = 0;
+  static constexpr std::size_t kRemovedBuffer = 1000;
+};
+
+}  // namespace yolo_tracking
+
+#endif  // YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_
