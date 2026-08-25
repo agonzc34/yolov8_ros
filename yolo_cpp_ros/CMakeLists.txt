@@ -10,6 +10,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(yolo_msgs REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
@@ -46,6 +47,7 @@ target_include_directories(yolo_cpp_ros PUBLIC
 
 ament_target_dependencies(yolo_cpp_ros
   sensor_msgs
+  std_srvs
   rclcpp
   yolo_msgs
   rclcpp_lifecycle

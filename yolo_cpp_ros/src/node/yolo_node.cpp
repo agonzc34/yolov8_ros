@@ -2,14 +2,6 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #include "yolo_cpp_ros/node/yolo_node.hpp"
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
@@ -30,6 +22,7 @@ YoloNode::on_configure(const rclcpp_lifecycle::State &) {
     this->params_declared = true;
   }
   this->yolo_params = this->get_params();
+  this->enable_inference_.store(this->yolo_params.enable);
   RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;
@@ -56,6 +49,12 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
       std::bind(&YoloNode::recieve_image_callback, this,
                 std::placeholders::_1));
 
+  // Runtime toggle for inference (matches the Python node's `enable` service).
+  this->enable_service_ = this->create_service<std_srvs::srv::SetBool>(
+      "enable",
+      std::bind(&YoloNode::enable_service_callback, this, std::placeholders::_1,
+                std::placeholders::_2));
+
   this->create_yolo(this->yolo_params);
   RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
@@ -65,6 +64,7 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->destroy_yolo();
+  this->enable_service_.reset();
   this->detection_publisher.reset();
   this->image_subscription.reset();
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
@@ -160,11 +160,20 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_onnx_utils::YoloParams params) {
 
 void YoloNode::destroy_yolo() { this->yolo_model.reset(); }
 
+void YoloNode::enable_service_callback(
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
+  this->enable_inference_.store(request->data);
+  response->success = true;
+  RCLCPP_INFO(get_logger(), "[%s] inference %s", this->get_name(),
+              request->data ? "enabled" : "disabled");
+}
+
 void YoloNode::recieve_image_callback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
   auto detection_array = yolo_msgs::msg::DetectionArray();
 
-  if (this->yolo_model && this->yolo_params.enable) {
+  if (this->yolo_model && this->enable_inference_.load()) {
     auto image = cv_bridge::toCvShare(msg, "bgr8")->image;
     auto detections = this->yolo_model->detect(image);
 

@@ -2,22 +2,16 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #ifndef YOLO_CPP_ROS__NODE__YOLO_NODE_HPP_
 #define YOLO_CPP_ROS__NODE__YOLO_NODE_HPP_
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
+#include <atomic>
 #include <memory>
 
 #include "sensor_msgs/msg/image.hpp"
+#include "std_srvs/srv/set_bool.hpp"
 #include "yolo_cpp_ros/engine/model.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 #include "yolo_cpp_ros/yolo/utils.hpp"
@@ -51,11 +45,20 @@ protected:
   yolo_onnx_utils::YoloParams yolo_params;
   bool params_declared = false;
 
+  // Runtime inference gate, toggled by the `enable` service (SetBool); the
+  // `enable` parameter only provides the initial value. Atomic because the
+  // image subscription and the service may run on different executor threads.
+  std::atomic<bool> enable_inference_{true};
+
   void create_yolo(yolo_onnx_utils::YoloParams params);
   void destroy_yolo();
 
 private:
   void recieve_image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
+  void enable_service_callback(
+      const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+      std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
 };
 } // namespace yolo_rclcpp
 
