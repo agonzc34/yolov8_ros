@@ -20,14 +20,19 @@
 using namespace yolo_rclcpp;
 
 DebugNode::DebugNode()
-    : rclcpp_lifecycle::LifecycleNode("yolo_node"), class_to_color(),
-      image_qos_profile(1) {
+    : rclcpp_lifecycle::LifecycleNode("yolo_node"), image_qos_profile(1),
+      class_to_color() {
   this->declare_parameter("image_reliability", 2);
+  this->declare_parameter("image_topic", "image");
+  this->declare_parameter("detections_topic", "detections");
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_configure(const rclcpp_lifecycle::State &) {
   RCLCPP_INFO(get_logger(), "[%s] Configuring...", this->get_name());
+
+  this->image_topic_ = this->get_parameter("image_topic").as_string();
+  this->detections_topic_ = this->get_parameter("detections_topic").as_string();
 
   int image_reliability = this->get_parameter("image_reliability").as_int();
   rclcpp::ReliabilityPolicy qos_reliability_policy;
@@ -61,10 +66,10 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_activate(const rclcpp_lifecycle::State &) {
-  this->image_subscription.subscribe(this->shared_from_this(), "image",
+  this->image_subscription.subscribe(this->shared_from_this(), this->image_topic_,
                                      image_qos_profile.get_rmw_qos_profile());
   this->detection_subscription.subscribe(
-		this->shared_from_this(), "detections", image_qos_profile.get_rmw_qos_profile());
+		this->shared_from_this(), this->detections_topic_, image_qos_profile.get_rmw_qos_profile());
 
   uint32_t queue_size = 10;
 

@@ -67,6 +67,9 @@ private:
 
   rclcpp::QoS image_qos_profile;
 
+  std::string image_topic_;
+  std::string detections_topic_;
+
   std::map<std::string, cv::Scalar> class_to_color;
 
   void recieve_callback(

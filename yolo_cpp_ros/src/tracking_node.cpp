@@ -30,6 +30,8 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 
   this->load_params();
 
+  this->image_topic_ = this->get_parameter("image_topic").as_string();
+
   int image_reliability = this->get_parameter("image_reliability").as_int();
   rclcpp::ReliabilityPolicy qos_reliability_policy;
   if (image_reliability == 0) {
@@ -55,7 +57,7 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 TrackingNode::on_activate(const rclcpp_lifecycle::State &) {
   this->image_subscription_.subscribe(
-      this->shared_from_this(), "image",
+      this->shared_from_this(), this->image_topic_,
       image_qos_profile_.get_rmw_qos_profile());
   this->detection_subscription_.subscribe(
       this->shared_from_this(), "detections",
@@ -103,6 +105,7 @@ TrackingNode::on_shutdown(const rclcpp_lifecycle::State &) {
 void TrackingNode::declare_params() {
   // Same knobs as ultralytics bytetrack.yaml (default values).
   this->declare_parameter<int>("image_reliability", 2);
+  this->declare_parameter<std::string>("image_topic", "image");
   this->declare_parameter<double>("track_high_thresh", 0.25);
   this->declare_parameter<double>("track_low_thresh", 0.1);
   this->declare_parameter<double>("new_track_thresh", 0.25);

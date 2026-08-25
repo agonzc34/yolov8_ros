@@ -63,6 +63,8 @@ private:
       synchronizer_;
   rclcpp::QoS image_qos_profile_;
 
+  std::string image_topic_;
+
   std::unique_ptr<yolo_tracking::ByteTrack> tracker_;
   yolo_tracking::ByteTrackParams tracker_params_;
 
