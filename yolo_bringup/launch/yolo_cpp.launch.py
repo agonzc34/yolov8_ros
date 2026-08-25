@@ -19,54 +19,11 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
-
-    model = LaunchConfiguration("model")
-    model_cmd = DeclareLaunchArgument(
-        "model",
-        default_value="/home/agonzc34/models/yolo26m.onnx",
-        description="Path to the ONNX model",
-    )
-
-    device = LaunchConfiguration("device")
-    device_cmd = DeclareLaunchArgument(
-        "device",
-        default_value="cuda:0",
-        description="Device to use (cuda:0 / cpu)",
-    )
-
-    image_topic = LaunchConfiguration("image_topic")
-    image_topic_cmd = DeclareLaunchArgument(
-        "image_topic",
-        default_value="/webcam_image",
-        description="Camera input topic",
-    )
-
-    image_reliability = LaunchConfiguration("image_reliability")
-    image_reliability_cmd = DeclareLaunchArgument(
-        "image_reliability",
-        default_value="2",
-        choices=["0", "1", "2"],
-        description="QoS of the input image (0=system default, 1=Reliable, 2=Best Effort)",
-    )
-
-    threshold = LaunchConfiguration("threshold")
-    threshold_cmd = DeclareLaunchArgument(
-        "threshold",
-        default_value="0.7",
-        description="Minimum probability of a detection to be published",
-    )
-
-    iou = LaunchConfiguration("iou")
-    iou_cmd = DeclareLaunchArgument(
-        "iou",
-        default_value="0.45",
-        description="IoU threshold",
-    )
 
     use_tracking = LaunchConfiguration("use_tracking")
     use_tracking_cmd = DeclareLaunchArgument(
@@ -81,9 +38,12 @@ def generate_launch_description():
         default_value=os.path.join(
             get_package_share_directory("yolo_bringup"),
             "config",
-            "bytetrack.yaml",
+            "yolo_cpp.yaml",
         ),
-        description="Path to a ROS 2 configuration file (YAML) for the tracking node",
+        description="Path to the ROS 2 parameters file (YAML) with the config "
+                    "for the yolo_node, tracking_node and debug_node blocks. "
+                    "All tuning (model, topics, thresholds, QoS, tracker) lives "
+                    "here; the launch makes no topic remaps.",
     )
 
     namespace = LaunchConfiguration("namespace")
@@ -93,33 +53,14 @@ def generate_launch_description():
         description="Namespace for the nodes",
     )
 
-    # Typed values for the C++ node (it declares strongly-typed params,
-    # while launch args arrive as strings)
-    threshold_value = PythonExpression(["float('", threshold, "')"])
-    iou_value = PythonExpression(["float('", iou, "')"])
-    image_reliability_value = PythonExpression(["int('", image_reliability, "')"])
-
-    # When tracking is enabled the debug node visualizes the tracked output
-    debug_detections_topic = PythonExpression(
-        ["'tracking' if '", use_tracking, "' == 'True' else 'detections'"]
-    )
-
-    # C++ inference node (ONNX Runtime, GPU)
+    # C++ inference node (ONNX Runtime, GPU). Everything — model, device,
+    # image topic, thresholds, QoS, enable/max_det — comes from the params file.
     yolo_cpp_node_cmd = Node(
         package="yolo_cpp_ros",
         executable="yolo_cpp_ros",
         name="yolo_node",
         namespace=namespace,
-        parameters=[
-            {
-                "model": model,
-                "device": device,
-                "threshold": threshold_value,
-                "iou": iou_value,
-                "image_reliability": image_reliability_value,
-                "image_topic": image_topic,
-            }
-        ],
+        parameters=[params_file],
     )
 
     # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`)
@@ -128,35 +69,23 @@ def generate_launch_description():
         executable="yolo_cpp_tracking",
         name="tracking_node",
         namespace=namespace,
-        parameters=[
-            {"image_reliability": image_reliability_value},
-            params_file,
-        ],
-        remappings=[("image", image_topic)],
+        parameters=[params_file],
         condition=IfCondition(use_tracking),
     )
 
-    # C++ debug node (visualizes detections/tracks on the image)
+    # C++ debug node (visualizes detections/tracks + RViz 3D markers). Reads
+    # the detections topic from the params file (`tracking` by default so the
+    # tracked ids are shown when the tracking node is enabled).
     debug_node_cmd = Node(
         package="yolo_cpp_ros",
         executable="yolo_cpp_debug",
         name="debug_node",
         namespace=namespace,
-        parameters=[{"image_reliability": image_reliability_value}],
-        remappings=[
-            ("image", image_topic),
-            ("detections", debug_detections_topic),
-        ],
+        parameters=[params_file],
     )
 
     return LaunchDescription(
         [
-            model_cmd,
-            device_cmd,
-            image_topic_cmd,
-            image_reliability_cmd,
-            threshold_cmd,
-            iou_cmd,
             use_tracking_cmd,
             params_file_cmd,
             namespace_cmd,

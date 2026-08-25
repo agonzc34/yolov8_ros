@@ -13,56 +13,29 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
 
-    model = LaunchConfiguration("model")
-    model_cmd = DeclareLaunchArgument(
-        "model",
-        default_value="/home/agonzc34/models/yolo11n-segment.onnx",
-        description="Path to a segmentation ONNX model "
-                    "(file name must contain 'segment' so the node selects YoloSegment)",
-    )
-
-    device = LaunchConfiguration("device")
-    device_cmd = DeclareLaunchArgument(
-        "device",
-        default_value="cuda:0",
-        description="Device to use (cuda:0 / cpu)",
-    )
-
-    image_topic = LaunchConfiguration("image_topic")
-    image_topic_cmd = DeclareLaunchArgument(
-        "image_topic",
-        default_value="/webcam_image",
-        description="Camera input topic",
-    )
-
-    image_reliability = LaunchConfiguration("image_reliability")
-    image_reliability_cmd = DeclareLaunchArgument(
-        "image_reliability",
-        default_value="1",
-        choices=["0", "1", "2"],
-        description="QoS of the input image (0=system default, 1=Reliable, 2=Best Effort)",
-    )
-
-    threshold = LaunchConfiguration("threshold")
-    threshold_cmd = DeclareLaunchArgument(
-        "threshold",
-        default_value="0.7",
-        description="Minimum probability of a detection to be published",
-    )
-
-    iou = LaunchConfiguration("iou")
-    iou_cmd = DeclareLaunchArgument(
-        "iou",
-        default_value="0.45",
-        description="IoU threshold",
+    params_file = LaunchConfiguration("params_file")
+    params_file_cmd = DeclareLaunchArgument(
+        "params_file",
+        default_value=os.path.join(
+            get_package_share_directory("yolo_bringup"),
+            "config",
+            "yolo_cpp_segment.yaml",
+        ),
+        description="Path to the ROS 2 parameters file (YAML) with the config for "
+                    "the yolo_node and debug_node blocks. All tuning (model, "
+                    "topics, thresholds, QoS) lives here; the launch makes no "
+                    "topic remaps.",
     )
 
     namespace = LaunchConfiguration("namespace")
@@ -72,28 +45,15 @@ def generate_launch_description():
         description="Namespace for the nodes",
     )
 
-    # Typed values for the C++ node (it declares strongly-typed params,
-    # while launch args arrive as strings)
-    threshold_value = PythonExpression(["float('", threshold, "')"])
-    iou_value = PythonExpression(["float('", iou, "')"])
-    image_reliability_value = PythonExpression(["int('", image_reliability, "')"])
-
-    # C++ inference node (ONNX Runtime, GPU) running the segmentation model
+    # C++ inference node (ONNX Runtime, GPU) running the segmentation model.
+    # `model_type: Segment` in the params file forces the segmentation
+    # postprocessor regardless of the model file name.
     yolo_cpp_node_cmd = Node(
         package="yolo_cpp_ros",
         executable="yolo_cpp_ros",
         name="yolo_node",
         namespace=namespace,
-        parameters=[
-            {
-                "model": model,
-                "device": device,
-                "threshold": threshold_value,
-                "iou": iou_value,
-                "image_reliability": image_reliability_value,
-                "image_topic": image_topic,
-            }
-        ],
+        parameters=[params_file],
     )
 
     # C++ debug node (visualizes detections + masks on the image)
@@ -102,18 +62,12 @@ def generate_launch_description():
         executable="yolo_cpp_debug",
         name="debug_node",
         namespace=namespace,
-        parameters=[{"image_reliability": image_reliability_value}],
-        remappings=[("image", image_topic)],
+        parameters=[params_file],
     )
 
     return LaunchDescription(
         [
-            model_cmd,
-            device_cmd,
-            image_topic_cmd,
-            image_reliability_cmd,
-            threshold_cmd,
-            iou_cmd,
+            params_file_cmd,
             namespace_cmd,
             yolo_cpp_node_cmd,
             debug_node_cmd,

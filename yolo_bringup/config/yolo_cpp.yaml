@@ -1,0 +1,54 @@
+# ROS 2 parameters file for the C++ detection pipeline
+# (yolo_bringup/launch/yolo_cpp.launch.py). The launch passes this file
+# verbatim as `parameters=[params_file]` and makes no topic remaps: every node
+# reads its input topic from a parameter here.
+#
+# IMPORTANT: rclcpp loads `--params-file` sections by the node's fully
+# qualified name, so each block key includes the launch namespace (default
+# "yolo"). If you change `namespace:=`, update the block names to match.
+#
+# Honor status of the README inference knobs in the C++/ONNX implementation:
+#   model / device / threshold / iou / image_reliability / image_topic /
+#   n_threads / model_type / enable / max_det   -> active (drive the pipeline)
+#   imgsz_height / imgsz_width                  -> informational only: the
+#       input size is fixed by the ONNX tensor shape, not configurable at
+#       runtime in the C++ node
+#   half / augment / agnostic_nms / retina_masks -> accepted for config parity
+#       with the Python node; the C++/ONNX pipeline runs FP32 with no TTA, so
+#       they have no effect yet
+/yolo/yolo_node:
+  ros__parameters:
+    model_type: auto          # YOLO (=detect) | Segment | auto (decide by file name)
+    model: /home/agonzc34/models/yolo26m.onnx
+    device: cuda:0
+    threshold: 0.7
+    iou: 0.45
+    imgsz_height: 640         # informational: fixed by the ONNX input tensor
+    imgsz_width: 640          # informational: fixed by the ONNX input tensor
+    half: false               # parity only (pipeline runs FP32)
+    max_det: 300
+    augment: false            # parity only (no TTA)
+    agnostic_nms: false       # parity only (not wired yet)
+    retina_masks: false       # parity only
+    enable: true
+    image_reliability: 2      # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /webcam_image
+    n_threads: -1             # -1 = auto (only used by the CPU EP)
+
+/yolo/tracking_node:
+  ros__parameters:
+    # ByteTrack tuning, mirroring the ultralytics bytetrack.yaml defaults
+    image_reliability: 2      # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /webcam_image
+    track_high_thresh: 0.25   # first-stage association threshold
+    track_low_thresh: 0.1     # second-stage threshold for low-score matches
+    new_track_thresh: 0.25    # start a new track above this score
+    track_buffer: 30          # frames to keep lost tracks alive
+    match_thresh: 0.8         # association similarity threshold (IoU/cost)
+    fuse_score: true          # fuse detection score with IoU cost for matching
+
+/yolo/debug_node:
+  ros__parameters:
+    image_reliability: 2      # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /webcam_image
+    detections_topic: tracking  # "tracking" (tracked ids) or "detections" (raw YOLO)
