@@ -18,7 +18,7 @@
 // The algorithm and constants are preserved verbatim; only the memory handling
 // is replaced with std::vector (no malloc/free, no NULL checks).
 
-#include "yolo_cpp_ros/tracking/lapjv.hpp"
+#include "yolo_cpp_ros/tracking/utils/lapjv.hpp"
 
 #include <cmath>
 #include <cstddef>

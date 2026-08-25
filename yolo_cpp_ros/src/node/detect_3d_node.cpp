@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "yolo_cpp_ros/detect_3d_node.hpp"
+#include "yolo_cpp_ros/node/detect_3d_node.hpp"
 
 #include <algorithm>
 #include <cmath>

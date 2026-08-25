@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "yolo_cpp_ros/tracking/matching.hpp"
+#include "yolo_cpp_ros/tracking/utils/matching.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +20,7 @@
 #include <limits>
 #include <set>
 
-#include "yolo_cpp_ros/tracking/lapjv.hpp"
+#include "yolo_cpp_ros/tracking/utils/lapjv.hpp"
 
 namespace yolo_tracking {
 

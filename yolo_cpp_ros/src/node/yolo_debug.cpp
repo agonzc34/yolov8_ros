@@ -15,14 +15,14 @@
 #include <memory>
 #include <rclcpp/executors.hpp>
 
-#include "yolo_cpp_ros/yolo_node.hpp"
+#include "yolo_cpp_ros/node/debug_node.hpp"
 
 using namespace yolo_rclcpp;
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<YoloNode>();
+  auto node = std::make_shared<DebugNode>();
   node->configure();
   node->activate();
 

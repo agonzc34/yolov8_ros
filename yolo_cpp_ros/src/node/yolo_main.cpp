@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Alejandro González Cantón
+// Copyright (C) 2025 Alejandro González Cantón
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -15,14 +15,14 @@
 #include <memory>
 #include <rclcpp/executors.hpp>
 
-#include "yolo_cpp_ros/detect_3d_node.hpp"
+#include "yolo_cpp_ros/node/yolo_node.hpp"
 
 using namespace yolo_rclcpp;
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<Detect3DNode>();
+  auto node = std::make_shared<YoloNode>();
   node->configure();
   node->activate();
 

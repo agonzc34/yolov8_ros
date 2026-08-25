@@ -15,14 +15,14 @@
 #include <memory>
 #include <rclcpp/executors.hpp>
 
-#include "yolo_cpp_ros/tracking_node.hpp"
+#include "yolo_cpp_ros/node/detect_3d_node.hpp"
 
 using namespace yolo_rclcpp;
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<TrackingNode>();
+  auto node = std::make_shared<Detect3DNode>();
   node->configure();
   node->activate();
 

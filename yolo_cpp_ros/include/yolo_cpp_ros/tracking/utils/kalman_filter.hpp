@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef YOLO_CPP_ROS__TRACKING__KALMAN_FILTER_HPP_
-#define YOLO_CPP_ROS__TRACKING__KALMAN_FILTER_HPP_
+#ifndef YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_
+#define YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_
 
 #include <array>
 #include <utility>
@@ -56,4 +56,4 @@ private:
 
 }  // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__KALMAN_FILTER_HPP_
+#endif  // YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_

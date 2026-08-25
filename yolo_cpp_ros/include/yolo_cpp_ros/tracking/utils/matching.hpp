@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef YOLO_CPP_ROS__TRACKING__MATCHING_HPP_
-#define YOLO_CPP_ROS__TRACKING__MATCHING_HPP_
+#ifndef YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_
+#define YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_
 
 #include <cstddef>
 #include <memory>
@@ -71,4 +71,4 @@ remove_duplicate_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
 
 }  // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__MATCHING_HPP_
+#endif  // YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_

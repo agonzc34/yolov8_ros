@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef YOLO_CPP_ROS__TRACKING_NODE_HPP_
-#define YOLO_CPP_ROS__TRACKING_NODE_HPP_
+#ifndef YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_
+#define YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_
 
 #include <memory>
 
@@ -78,4 +78,4 @@ private:
 
 }  // namespace yolo_rclcpp
 
-#endif  // YOLO_CPP_ROS__TRACKING_NODE_HPP_
+#endif  // YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_

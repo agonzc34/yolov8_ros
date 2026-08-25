@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "yolo_cpp_ros/yolo_node.hpp"
+#include "yolo_cpp_ros/node/yolo_node.hpp"
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
 #include "yolo_cpp_ros/yolo/segment.hpp"

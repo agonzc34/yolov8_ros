@@ -17,7 +17,7 @@
 
 #include <array>
 
-#include "yolo_cpp_ros/tracking/kalman_filter.hpp"
+#include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 
 namespace yolo_tracking {
 

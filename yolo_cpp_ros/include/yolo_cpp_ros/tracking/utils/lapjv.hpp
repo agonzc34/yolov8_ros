@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef YOLO_CPP_ROS__TRACKING__LAPJV_HPP_
-#define YOLO_CPP_ROS__TRACKING__LAPJV_HPP_
+#ifndef YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_
+#define YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_
 
 #include <cstddef>
 #include <vector>
@@ -38,4 +38,4 @@ int lapjv_internal(std::size_t n, const std::vector<std::vector<double>> &cost,
 
 }  // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__LAPJV_HPP_
+#endif  // YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_

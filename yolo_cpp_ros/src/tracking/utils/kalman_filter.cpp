@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "yolo_cpp_ros/tracking/kalman_filter.hpp"
+#include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 
 #include <cmath>
 #include <cstddef>

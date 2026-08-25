@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "yolo_cpp_ros/debug_node.hpp"
+#include "yolo_cpp_ros/node/debug_node.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/imgproc.hpp>
 #include <string>

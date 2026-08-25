@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-#include "yolo_cpp_ros/tracking/kalman_filter.hpp"
+#include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 #include "yolo_cpp_ros/tracking/strack.hpp"
 
 namespace yolo_tracking {
