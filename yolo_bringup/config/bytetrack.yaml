@@ -1,0 +1,15 @@
+# ROS 2 parameters file for the C++ ByteTrack tracking node
+# (yolo_cpp_ros::tracking_node). Pass it with
+# `--ros-args --params-file <this file>` or via the `params_file` argument of
+# `yolo_cpp.launch.py`.
+#
+# Values mirror the defaults of the ultralytics ByteTrack configuration:
+#   references/ultralytics/ultralytics/cfg/trackers/bytetrack.yaml
+tracking_node:
+  ros__parameters:
+    track_high_thresh: 0.25  # (float) first-stage association threshold; raise for cleaner tracks, lower to keep more
+    track_low_thresh: 0.1    # (float) second-stage threshold for low-score matches; balances recovery vs drift
+    new_track_thresh: 0.25   # (float) start a new track if no detection matches above this; higher reduces false tracks
+    track_buffer: 30         # (int) frames to keep lost tracks alive; higher handles occlusion, increases ID-switch risk
+    match_thresh: 0.8        # (float) association similarity threshold (IoU/cost); tune with detector quality
+    fuse_score: true         # (bool) fuse detection score with IoU cost for matching; stabilizes weak detections

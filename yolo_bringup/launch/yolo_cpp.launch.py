@@ -13,8 +13,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
@@ -64,6 +68,24 @@ def generate_launch_description():
         description="IoU threshold",
     )
 
+    use_tracking = LaunchConfiguration("use_tracking")
+    use_tracking_cmd = DeclareLaunchArgument(
+        "use_tracking",
+        default_value="True",
+        description="Whether to enable the ByteTrack tracking node (True/False)",
+    )
+
+    params_file = LaunchConfiguration("params_file")
+    params_file_cmd = DeclareLaunchArgument(
+        "params_file",
+        default_value=os.path.join(
+            get_package_share_directory("yolo_bringup"),
+            "config",
+            "bytetrack.yaml",
+        ),
+        description="Path to a ROS 2 configuration file (YAML) for the tracking node",
+    )
+
     namespace = LaunchConfiguration("namespace")
     namespace_cmd = DeclareLaunchArgument(
         "namespace",
@@ -76,6 +98,11 @@ def generate_launch_description():
     threshold_value = PythonExpression(["float('", threshold, "')"])
     iou_value = PythonExpression(["float('", iou, "')"])
     image_reliability_value = PythonExpression(["int('", image_reliability, "')"])
+
+    # When tracking is enabled the debug node visualizes the tracked output
+    debug_detections_topic = PythonExpression(
+        ["'tracking' if '", use_tracking, "' == 'True' else 'detections'"]
+    )
 
     # C++ inference node (ONNX Runtime, GPU)
     yolo_cpp_node_cmd = Node(
@@ -95,14 +122,31 @@ def generate_launch_description():
         ],
     )
 
-    # C++ debug node (visualizes detections/masks on the image)
+    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`)
+    tracking_node_cmd = Node(
+        package="yolo_cpp_ros",
+        executable="yolo_cpp_tracking",
+        name="tracking_node",
+        namespace=namespace,
+        parameters=[
+            {"image_reliability": image_reliability_value},
+            params_file,
+        ],
+        remappings=[("image", image_topic)],
+        condition=IfCondition(use_tracking),
+    )
+
+    # C++ debug node (visualizes detections/tracks on the image)
     debug_node_cmd = Node(
         package="yolo_cpp_ros",
         executable="yolo_cpp_debug",
         name="debug_node",
         namespace=namespace,
         parameters=[{"image_reliability": image_reliability_value}],
-        remappings=[("image", image_topic)],
+        remappings=[
+            ("image", image_topic),
+            ("detections", debug_detections_topic),
+        ],
     )
 
     return LaunchDescription(
@@ -113,8 +157,11 @@ def generate_launch_description():
             image_reliability_cmd,
             threshold_cmd,
             iou_cmd,
+            use_tracking_cmd,
+            params_file_cmd,
             namespace_cmd,
             yolo_cpp_node_cmd,
+            tracking_node_cmd,
             debug_node_cmd,
         ]
     )
