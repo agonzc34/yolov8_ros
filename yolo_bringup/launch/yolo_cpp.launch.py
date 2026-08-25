@@ -32,6 +32,14 @@ def generate_launch_description():
         description="Whether to enable the ByteTrack tracking node (True/False)",
     )
 
+    use_3d = LaunchConfiguration("use_3d")
+    use_3d_cmd = DeclareLaunchArgument(
+        "use_3d",
+        default_value="False",
+        description="Whether to enable the 3D detection node (needs a "
+                    "depth image + CameraInfo, see the config file)",
+    )
+
     params_file = LaunchConfiguration("params_file")
     params_file_cmd = DeclareLaunchArgument(
         "params_file",
@@ -73,6 +81,18 @@ def generate_launch_description():
         condition=IfCondition(use_tracking),
     )
 
+    # C++ 3D detection node (lifts the 2D detections to 3D using the depth
+    # image; publishes on `detections_3d`). Topics and thresholds come from
+    # the params file.
+    detect_3d_node_cmd = Node(
+        package="yolo_cpp_ros",
+        executable="yolo_cpp_3d",
+        name="detect_3d_node",
+        namespace=namespace,
+        parameters=[params_file],
+        condition=IfCondition(use_3d),
+    )
+
     # C++ debug node (visualizes detections/tracks + RViz 3D markers). Reads
     # the detections topic from the params file (`tracking` by default so the
     # tracked ids are shown when the tracking node is enabled).
@@ -87,10 +107,12 @@ def generate_launch_description():
     return LaunchDescription(
         [
             use_tracking_cmd,
+            use_3d_cmd,
             params_file_cmd,
             namespace_cmd,
             yolo_cpp_node_cmd,
             tracking_node_cmd,
+            detect_3d_node_cmd,
             debug_node_cmd,
         ]
     )
