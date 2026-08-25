@@ -29,8 +29,33 @@
     image_topic: /webcam_image
     n_threads: -1             # -1 = auto (only used by the CPU EP)
 
+/yolo_seg/tracking_node:
+  ros__parameters:
+    # ByteTrack tuning, mirroring the ultralytics bytetrack.yaml defaults
+    image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /webcam_image
+    track_high_thresh: 0.25   # first-stage association threshold
+    track_low_thresh: 0.1     # second-stage threshold for low-score matches
+    new_track_thresh: 0.25    # start a new track above this score
+    track_buffer: 30          # frames to keep lost tracks alive
+    match_thresh: 0.8         # association similarity threshold (IoU/cost)
+    fuse_score: true          # fuse detection score with IoU cost for matching
+
+/yolo_seg/detect_3d_node:
+  ros__parameters:
+    target_frame: base_link
+    maximum_detection_threshold: 0.3   # max z-distance from the reference depth
+    depth_image_units_divisor: 1000    # raw depth units -> meters
+    depth_image_reliability: 2         # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    depth_info_reliability: 2
+    depth_image_topic: /camera/depth/image_raw
+    depth_info_topic: /camera/depth/camera_info
+    detections_topic: tracking         # lift the tracked stream; use "detections" if tracking is off
+
 /yolo_seg/debug_node:
   ros__parameters:
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image
-    detections_topic: detections  # no tracking node in the segment pipeline
+    # "tracking" (tracked ids), "detections" (raw YOLO output) or
+    # "detections_3d" (3D-enriched, populates the RViz markers).
+    detections_topic: tracking
