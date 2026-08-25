@@ -47,10 +47,13 @@ struct BoxWithMask : public Box {
 };
 
 struct YoloParams {
+  std::string model_type;  // "YOLO"|"Detect"|"Segment"|"auto" (by file name)
   std::string model_path;
   std::string device;
   float threshold;
   float iou;
+  bool enable;   // gate inference (matches the Python node's `enable`)
+  int max_det;   // cap on the number of detections published per image
   int image_reliability;
   std::string image_topic;
   int n_threads;
