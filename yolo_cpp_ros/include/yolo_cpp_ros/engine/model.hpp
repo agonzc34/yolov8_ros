@@ -1,14 +1,6 @@
 // Copyright (c) 2025 Alejandro González Cantón
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #ifndef YOLO_CPP_ROS__ENGINE__MODEL_HPP_
 #define YOLO_CPP_ROS__ENGINE__MODEL_HPP_
 
@@ -40,6 +32,9 @@ private:
     std::vector<Ort::Value> inference(std::vector<int64_t> &input_tensor_shape);
     virtual std::vector<yolo_msgs::msg::Detection> postprocess(const cv::Size &original_image_size, const cv::Size &resized_image_size,
         const std::vector<Ort::Value> &preds);
+    // Populate class_names from the ONNX graph metadata ("names"), falling
+    // back to the coco.names file when the model carries no vocabulary.
+    void load_class_names();
 
     Ort::Env env{nullptr};                         // ONNX Runtime environment
     Ort::SessionOptions session_options{nullptr};   // Session options for ONNX Runtime

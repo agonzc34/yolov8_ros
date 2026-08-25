@@ -1,18 +1,13 @@
 // Copyright (c) 2025 Alejandro González Cantón
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #include "yolo_cpp_ros/engine/model.hpp"
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <numeric>
+#include <regex>
+#include <stdexcept>
 #include <thread>
 #include "yolo_cpp_ros/yolo/utils.hpp"
 
@@ -108,16 +103,8 @@ Model::Model(yolo_onnx_utils::YoloParams params)
       static_cast<size_t>(this->input_image_shape.height) *
       this->input_image_shape.width * 3);
 
-  // Load class names from coco.names file
-  std::ifstream class_names_file("src/yolov8_ros/yolo_cpp_ros/conf/coco.names"); // TODO: change this path
-  if (!class_names_file.is_open()) {
-    std::cerr << "Error: Could not open coco.names file." << std::endl;
-    return;
-  }
-  std::string line;
-  while (std::getline(class_names_file, line)) {
-    this->class_names.push_back(line);
-  }
+  // Load the class names (ONNX graph metadata first, coco.names as fallback).
+  this->load_class_names();
 
   this->memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
@@ -126,6 +113,60 @@ Model::Model(yolo_onnx_utils::YoloParams params)
 }
 
 Model::~Model() {}
+
+void yolo_onnx::Model::load_class_names() {
+  // 1) Read the vocabulary embedded in the ONNX graph by ultralytics'
+  //    exporter: key "names", value a Python-dict literal such as
+  //    {0: 'person', 1: 'bicycle', ...} (some exporters write JSON-style
+  //    {"0": "person", ...}; both are handled here).
+  try {
+    const Ort::ModelMetadata metadata = this->session.GetModelMetadata();
+    Ort::AllocatorWithDefaultOptions allocator;
+    auto names_value = metadata.LookupCustomMetadataMapAllocated(
+        "names", static_cast<OrtAllocator *>(allocator));
+    if (names_value) {
+      const std::string names(names_value.get());
+      std::map<int, std::string> indexed_names;
+      int max_index = -1;
+      const std::regex name_re(R"((\d+):\s*['"]([^'"]*)['"])");
+      auto begin = names.cbegin();
+      const auto end = names.cend();
+      std::smatch match;
+      while (std::regex_search(begin, end, match, name_re)) {
+        const int idx = std::stoi(match[1].str());
+        indexed_names[idx] = match[2].str();
+        max_index = std::max(max_index, idx);
+        begin = match.suffix().first;
+      }
+      if (max_index >= 0) {
+        this->class_names.assign(static_cast<size_t>(max_index + 1), "");
+        for (const auto &[idx, name] : indexed_names) {
+          this->class_names[static_cast<size_t>(idx)] = name;
+        }
+        std::cout << "Loaded " << this->class_names.size()
+                  << " class names from the ONNX metadata." << std::endl;
+      }
+    }
+  } catch (const Ort::Exception &e) {
+    std::cerr << "Warning: could not read \"names\" from the ONNX metadata: "
+              << e.what() << std::endl;
+  }
+
+  // 2) Fall back to the coco.names file (previous behaviour) when the model
+  //    does not carry a vocabulary.
+  if (this->class_names.empty()) {
+    std::ifstream class_names_file(
+        "src/yolov8_ros/yolo_cpp_ros/conf/coco.names");  // TODO: change this path
+    if (!class_names_file.is_open()) {
+      std::cerr << "Error: Could not open coco.names file." << std::endl;
+      return;
+    }
+    std::string line;
+    while (std::getline(class_names_file, line)) {
+      this->class_names.push_back(line);
+    }
+  }
+}
 
 std::vector<yolo_msgs::msg::Detection>
 yolo_onnx::Model::detect(const cv::Mat &image) {
