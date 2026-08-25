@@ -46,6 +46,28 @@ struct BoxWithMask : public Box {
         mask_coeffs(mask_coeffs) {}
 };
 
+// A single 2D pose keypoint. `visible` is the sigmoid'd visibility already
+// decoded by the exported ONNX graph; it doubles as the per-keypoint
+// confidence and, compared against conf_threshold, as the publish filter
+// (matches the Python node, which drops keypoints with conf < threshold).
+struct Keypoint {
+  float x = 0.0f;
+  float y = 0.0f;
+  float visible = 0.0f;
+};
+
+struct BoxWithKeypoints : public Box {
+  std::vector<Keypoint> keypoints;  // COCO order, (x, y, visible) per kp
+
+  BoxWithKeypoints() = default;
+  BoxWithKeypoints(Box box)
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index, box.class_id),
+        keypoints(std::vector<Keypoint>()) {}
+  BoxWithKeypoints(Box box, std::vector<Keypoint> keypoints)
+      : Box(box.x1, box.y1, box.x2, box.y2, box.score, box.index, box.class_id),
+        keypoints(std::move(keypoints)) {}
+};
+
 struct YoloParams {
   std::string model_type;  // "YOLO"|"Detect"|"Segment"|"auto" (by file name)
   std::string model_path;
@@ -115,6 +137,10 @@ cv::Mat inverse_letterbox(const cv::Mat &letterboxed,
                           const cv::Size &resized_image_size);
 Box scale_box(const Box &box, const cv::Size &original_image_size,
               const cv::Size &resized_image_size);
+std::vector<Keypoint>
+scale_keypoints(const std::vector<Keypoint> &keypoints,
+                const cv::Size &original_image_size,
+                const cv::Size &resized_image_size);
 yolo_msgs::msg::BoundingBox2D
 convert_to_bounding_box(const yolo_onnx_utils::Box &box);
 

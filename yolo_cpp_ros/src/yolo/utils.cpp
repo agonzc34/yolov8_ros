@@ -75,6 +75,33 @@ yolo_onnx_utils::Box scale_box(const yolo_onnx_utils::Box &box,
   return scaled_box;
 }
 
+std::vector<Keypoint>
+scale_keypoints(const std::vector<Keypoint> &keypoints,
+                const cv::Size &original_image_size,
+                const cv::Size &resized_image_size) {
+  // Same inverse-letterbox geometry as scale_box(): the exported graph decodes
+  // keypoints into the letterboxed (model input) frame, so undo the padding
+  // and resize to map back to the original image.
+  const float gain =
+      std::min(static_cast<float>(resized_image_size.width) /
+                   original_image_size.width,
+               static_cast<float>(resized_image_size.height) /
+                   original_image_size.height);
+  const float pad_x =
+      (resized_image_size.width - original_image_size.width * gain) / 2;
+  const float pad_y =
+      (resized_image_size.height - original_image_size.height * gain) / 2;
+
+  std::vector<Keypoint> scaled = keypoints;
+  for (auto &kp : scaled) {
+    kp.x = std::clamp((kp.x - pad_x) / gain, 0.0f,
+                      static_cast<float>(original_image_size.width));
+    kp.y = std::clamp((kp.y - pad_y) / gain, 0.0f,
+                      static_cast<float>(original_image_size.height));
+  }
+  return scaled;
+}
+
 std::vector<yolo_onnx_utils::Box>
 get_boxes(const std::vector<Ort::Value> &preds,
           const cv::Size &original_image_size,

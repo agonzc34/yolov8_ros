@@ -33,6 +33,7 @@ add_executable(yolo_cpp_ros
 
   src/yolo/segment.cpp
   src/yolo/detect.cpp
+  src/yolo/pose.cpp
   src/yolo/utils.cpp
 
   src/engine/model.cpp

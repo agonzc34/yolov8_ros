@@ -15,6 +15,7 @@
 #include "yolo_cpp_ros/node/yolo_node.hpp"
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
+#include "yolo_cpp_ros/yolo/pose.hpp"
 #include "yolo_cpp_ros/yolo/segment.hpp"
 #include <algorithm>
 #include <cctype>
@@ -130,17 +131,28 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_onnx_utils::YoloParams params) {
                  [](unsigned char c) { return std::tolower(c); });
 
   // An explicit model_type wins; "auto" (or empty) falls back to the
-  // filename heuristic (path containing "segment" -> segmentation).
+  // filename heuristic (path containing "pose" -> pose, "segment" ->
+  // segmentation, otherwise detection).
+  const bool explicit_pose =
+      !model_type.empty() && model_type != "auto" &&
+      (model_type.find("pose") != std::string::npos ||
+       model_type.find("keypoint") != std::string::npos ||
+       model_type == "kpt");
   const bool explicit_segment =
       !model_type.empty() && model_type != "auto" &&
       model_type.find("segment") != std::string::npos;
   const bool explicit_detect = model_type == "yolo" ||
                                model_type == "detect" ||
                                model_type == "det" || model_type == "detection";
+  const bool by_filename_pose =
+      params.model_path.find("pose") != std::string::npos;
   const bool by_filename =
       params.model_path.find("segment") != std::string::npos;
 
-  if (explicit_segment || (by_filename && !explicit_detect)) {
+  if (explicit_pose || (by_filename_pose && !explicit_detect &&
+                        !explicit_segment && !by_filename)) {
+    this->yolo_model = std::make_unique<yolo_onnx::YoloPose>(params);
+  } else if (explicit_segment || (by_filename && !explicit_detect)) {
     this->yolo_model = std::make_unique<yolo_onnx::YoloSegment>(params);
   } else {
     this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
