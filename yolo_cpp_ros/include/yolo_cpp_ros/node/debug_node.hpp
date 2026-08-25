@@ -2,14 +2,6 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #ifndef YOLO_CPP_ROS__NODE__DEBUG_NODE_HPP_
 #define YOLO_CPP_ROS__NODE__DEBUG_NODE_HPP_
 
@@ -79,7 +71,7 @@ private:
 	cv::Mat draw_mask(const cv::Mat &image,
 									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
 	cv::Mat draw_keypoints(const cv::Mat &image,
-												 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
+												 const yolo_msgs::msg::Detection &detection);
 
 	visualization_msgs::msg::Marker create_bb_marker(
 			const yolo_msgs::msg::Detection &detection,

@@ -2,14 +2,6 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 #include "yolo_cpp_ros/node/debug_node.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/imgproc.hpp>
@@ -135,7 +127,7 @@ void DebugNode::recieve_callback(
 
     image = draw_box(image, detection, color);
     image = draw_mask(image, detection, color);
-    image = draw_keypoints(image, detection, color);
+    image = draw_keypoints(image, detection);
 
     // RViz markers for the 3D boxes (emitted only when a detect_3d node has
     // enriched the detection stream with bbox3d).
@@ -212,36 +204,46 @@ cv::Mat DebugNode::draw_mask(const cv::Mat &image,
 	}
 
 cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
-																	const yolo_msgs::msg::Detection &detection,
-																	const cv::Scalar &color) {
+																	const yolo_msgs::msg::Detection &detection) {
 	if (detection.keypoints.data.size() == 0) {
 		return image;
 	}
 
-	// COCO human pose skeleton, 1-based keypoint ids (matches the ids the
-	// yolo_node publishes and ultralytics' plotting skeleton).
+	// COCO human pose skeleton, using the 1-based keypoint ids published by
+	// yolo_node.
 	static const int skeleton[19][2] = {{16, 14}, {14, 12}, {17, 15}, {15, 13},
-																			{12, 13}, {6, 12},  {7, 13},  {6, 7},
-																			{6, 8},   {7, 9},   {8, 10},  {9, 11},
-																			{2, 3},   {1, 2},   {1, 3},   {2, 4},
-																			{3, 5},   {4, 6},   {5, 7}};
+	                                    {12, 13}, {6, 12},  {7, 13},  {6, 7},
+	                                    {6, 8},   {7, 9},   {8, 10},  {9, 11},
+	                                    {2, 3},   {1, 2},   {1, 3},   {2, 4},
+	                                    {3, 5},   {4, 6},   {5, 7}};
+
+	// Generate a stable BGR color directly from the keypoint or limb index.
+	// This keeps adjacent parts visually distinct without a borrowed palette.
+	auto indexed_color = [](int index) {
+		const int i = ((index % 256) + 256) % 256;
+		return cv::Scalar((53 * i + 67) % 256, (97 * i + 149) % 256,
+		                  (193 * i + 43) % 256);
+	};
 
 	std::map<int, cv::Point> points;
 	for (const auto &kp : detection.keypoints.data) {
-		points[kp.id] = cv::Point(cvRound(kp.point.x), cvRound(kp.point.y));
+		const auto pt = cv::Point(cvRound(kp.point.x), cvRound(kp.point.y));
+		points[kp.id] = pt;
+		const auto color_k = indexed_color(kp.id);
+		cv::circle(image, pt, 5, color_k, -1, cv::LINE_AA);
+		cv::putText(image, std::to_string(kp.id), pt, cv::FONT_HERSHEY_SIMPLEX,
+		            1, color_k, 1, cv::LINE_AA);
 	}
 
-	// Draw the skeleton limbs first, then the keypoints on top.
-	for (const auto &limb : skeleton) {
-		auto it1 = points.find(limb[0]);
-		auto it2 = points.find(limb[1]);
+	// Draw the skeleton limbs on top (per-limb colors, only when both
+	// endpoints of the limb are present in the detection).
+	for (int i = 0; i < 19; ++i) {
+		auto it1 = points.find(skeleton[i][0]);
+		auto it2 = points.find(skeleton[i][1]);
 		if (it1 != points.end() && it2 != points.end()) {
-			cv::line(image, it1->second, it2->second, color, 2, cv::LINE_AA);
+			cv::line(image, it1->second, it2->second, indexed_color(i + 32),
+			         2, cv::LINE_AA);
 		}
-	}
-	for (const auto &[id, point] : points) {
-		(void)id;
-		cv::circle(image, point, 3, color, -1, cv::LINE_AA);
 	}
 	return image;
 }
