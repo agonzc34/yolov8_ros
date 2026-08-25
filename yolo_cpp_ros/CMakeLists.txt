@@ -79,8 +79,33 @@ target_link_libraries(yolo_cpp_debug
   ${OpenCV_LIBS}
 )
 
+# Install tracking node
+add_executable(yolo_cpp_tracking
+  src/tracking_node.cpp
+  src/tracking_main.cpp
+
+  src/tracking/byte_tracker.cpp
+  src/tracking/kalman_filter.cpp
+  src/tracking/lapjv.cpp
+  src/tracking/matching.cpp
+  src/tracking/strack.cpp
+)
+
+target_include_directories(yolo_cpp_tracking PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(yolo_cpp_tracking
+  sensor_msgs
+  rclcpp
+  yolo_msgs
+  rclcpp_lifecycle
+  message_filters
+)
+
 install(TARGETS
-  yolo_cpp_ros yolo_cpp_debug
+  yolo_cpp_ros yolo_cpp_debug yolo_cpp_tracking
   DESTINATION lib/${PROJECT_NAME}
 )
 
