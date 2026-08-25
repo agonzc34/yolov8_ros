@@ -63,30 +63,13 @@ public:
   int frame_id() const { return frame_id_; }
 
 private:
-  // Standard end-of-frame bookkeeping over the persistent pools.
-  void merge_track_pools(std::vector<std::shared_ptr<STrack>> &activated,
-                         std::vector<std::shared_ptr<STrack>> &refind,
-                         std::vector<std::shared_ptr<STrack>> &lost,
-                         std::vector<std::shared_ptr<STrack>> &removed);
-
-  // Update or re-activate a matched (pool track, detection) pair.
-  void apply_match(const std::shared_ptr<STrack> &track,
-                   const std::shared_ptr<STrack> &detection,
-                   std::vector<std::shared_ptr<STrack>> &activated,
-                   std::vector<std::shared_ptr<STrack>> &refind);
-
-  // IoU cost matrix fused with detection scores if fuse_score is enabled.
-  std::vector<std::vector<double>> get_dists(
-      const std::vector<std::shared_ptr<STrack>> &tracks,
-      const std::vector<std::shared_ptr<STrack>> &detections) const;
-
   ByteTrackParams params_;
   KalmanFilterXYAH kalman_filter_;
   std::vector<std::shared_ptr<STrack>> tracked_stracks_;
   std::vector<std::shared_ptr<STrack>> lost_stracks_;
   std::vector<std::shared_ptr<STrack>> removed_stracks_;
   int frame_id_ = 0;
-  static constexpr std::size_t kRemovedBuffer = 1000;
+  static constexpr std::size_t kRemovedBuffer = 1000;  // cap on removed_stracks_
 };
 
 }  // namespace yolo_tracking

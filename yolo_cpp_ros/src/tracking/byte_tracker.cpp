@@ -26,6 +26,9 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
   std::vector<std::shared_ptr<STrack>> detections;         // high-score
   std::vector<std::shared_ptr<STrack>> detections_second;  // low-score
   for (const auto &d : dets) {
+    if (d.w <= 0 || d.h <= 0) {
+      continue;  // guard: tlwh_to_xyah divides by height (aspect = w / h)
+    }
     const std::array<float, 4> xywh = {d.cx, d.cy, d.w, d.h};
     auto detection =
         std::make_shared<STrack>(xywh, d.score, d.class_id, d.index);
@@ -175,6 +178,10 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
   lost_stracks_ = sub_stracks(lost_stracks_, removed_stracks_);
   removed_stracks_.insert(removed_stracks_.end(), removed_stracks.begin(),
                           removed_stracks.end());
+  if (removed_stracks_.size() > kRemovedBuffer) {
+    removed_stracks_.erase(removed_stracks_.begin(),
+                           removed_stracks_.end() - kRemovedBuffer);
+  }
 
   auto deduplicated =
       remove_duplicate_stracks(tracked_stracks_, lost_stracks_);
