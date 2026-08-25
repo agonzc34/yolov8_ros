@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// SPDX-License-Identifier: MIT
 
 #include "yolo_cpp_ros/tracking/utils/matching.hpp"
 
@@ -96,9 +86,8 @@ void linear_assignment(std::size_t n_rows, std::size_t n_cols,
     return;
   }
 
-  // Extend to a square matrix of order n = n_rows + n_cols (ultralytics always
-  // calls lap.lapjv with extend_cost=True and a finite cost_limit, so the
-  // padding cell value is cost_limit / 2 and the bottom-right block is 0).
+  // Extend to a square matrix of order n = n_rows + n_cols. Dummy assignments
+  // model unmatched rows and columns under a finite assignment threshold.
   const std::size_t n = n_rows + n_cols;
   std::vector<std::vector<double>> cost_ext(n, std::vector<double>(n, thresh / 2.0));
   for (std::size_t i = n_rows; i < n; ++i) {

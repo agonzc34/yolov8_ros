@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
+// SPDX-License-Identifier: MIT
 
 #include "yolo_cpp_ros/node/tracking_node.hpp"
 
@@ -103,7 +93,7 @@ TrackingNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void TrackingNode::declare_params() {
-  // Same knobs as ultralytics bytetrack.yaml (default values).
+  // ByteTrack configuration parameters and default values.
   this->declare_parameter<int>("image_reliability", 2);
   this->declare_parameter<std::string>("image_topic", "image");
   this->declare_parameter<double>("track_high_thresh", 0.25);
@@ -142,6 +132,9 @@ void TrackingNode::recieve_callback(
   dets.reserve(msg_detections->detections.size());
   for (std::size_t i = 0; i < msg_detections->detections.size(); ++i) {
     const auto &det = msg_detections->detections[i];
+    if (det.bbox.size.x <= 0 || det.bbox.size.y <= 0) {
+      continue;
+    }
     yolo_tracking::TrackDetection td;
     td.cx = det.bbox.center.position.x;
     td.cy = det.bbox.center.position.y;

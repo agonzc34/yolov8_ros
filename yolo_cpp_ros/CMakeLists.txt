@@ -139,4 +139,10 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(FILES
+  LICENSE
+  THIRD_PARTY_NOTICES.md
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

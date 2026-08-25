@@ -225,3 +225,18 @@ ros2 launch yolo_bringup yolo.launch.py model:=yolov8m-pose.pt use_3d:=True
 ```
 
 [![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1j4VjCAsOCx_mtM2KFPOLkpJogM0t227r)](https://drive.google.com/file/d/1j4VjCAsOCx_mtM2KFPOLkpJogM0t227r/view?usp=sharing)
+
+## License
+
+This repository contains independently licensed ROS 2 packages:
+
+- `yolo_cpp_ros`, `yolo_msgs`, `yolo_bringup`, and
+  `yolo_onnxruntime_vendor` are licensed under MIT. See each package's
+  `LICENSE` file; third-party notices are installed with the applicable
+  packages.
+- `yolo_ros` remains licensed under GPL-3.0.
+
+The repository-level `LICENSE` applies where a package does not provide a
+more specific license file. Model weights and exported ONNX files are separate
+artifacts and remain subject to their respective licenses; the MIT license for
+the C++ pipeline does not relicense them.

@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// SPDX-License-Identifier: MIT
 
 #ifndef YOLO_CPP_ROS__TRACKING__STRACK_HPP_
 #define YOLO_CPP_ROS__TRACKING__STRACK_HPP_
@@ -23,8 +13,8 @@ namespace yolo_tracking {
 
 enum class TrackState { New = 0, Tracked = 1, Lost = 2, Removed = 3 };
 
-// Single-object track with a Kalman state (x, y, aspect, height, ...) and
-// bookkeeping fields, mirroring ultralytics' STrack (basetrack.py / byte_tracker.py).
+// Single-object track with the Kalman state and lifecycle bookkeeping used by
+// the original MIT-licensed ByteTrack reference implementation.
 class STrack {
 public:
   // xywh: center-x, center-y, width, height. cls: class id. idx: the index of

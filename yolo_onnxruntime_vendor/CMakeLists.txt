@@ -46,6 +46,20 @@ add_custom_target(download_onnxruntime ALL
 install(DIRECTORY ${ONNXRUNTIME_INSTALL_DIR}/lib DESTINATION .)
 install(DIRECTORY ${ONNXRUNTIME_INSTALL_DIR}/include DESTINATION .)
 
+install(FILES
+    LICENSE
+    THIRD_PARTY_NOTICES.md
+    DESTINATION share/${PROJECT_NAME}
+)
+
+# Preserve the notices shipped with the downloaded ONNX Runtime distribution,
+# including licenses for its bundled third-party components.
+install(FILES
+    ${ONNXRUNTIME_INSTALL_DIR}/LICENSE
+    ${ONNXRUNTIME_INSTALL_DIR}/ThirdPartyNotices.txt
+    DESTINATION share/${PROJECT_NAME}/onnxruntime
+)
+
 # Export the onnxruntime library for downstream packages
 ament_export_include_directories(include)
 ament_export_libraries(onnxruntime)

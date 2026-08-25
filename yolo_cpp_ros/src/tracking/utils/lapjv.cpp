@@ -1,20 +1,13 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// Portions Copyright (c) 2012-2025 Tomas Kazmar
+// SPDX-License-Identifier: MIT AND BSD-2-Clause
 
 // Dense Jonker-Volgenant linear assignment solver.
 // Ported from ByteTrack's C++ deployment (MIT license):
 //   deploy/{ncnn,TensorRT}/cpp/src/lapjv.cpp
+// The deployment implementation incorporates `gatagat/lap` (BSD-2-Clause).
+// See THIRD_PARTY_NOTICES.md.
 // The algorithm and constants are preserved verbatim; only the memory handling
 // is replaced with std::vector (no malloc/free, no NULL checks).
 

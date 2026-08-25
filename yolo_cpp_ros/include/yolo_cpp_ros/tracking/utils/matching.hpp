@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// SPDX-License-Identifier: MIT
 
 #ifndef YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_
 #define YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_
@@ -30,7 +20,7 @@ std::vector<std::vector<double>> iou_distance(
     const std::vector<std::shared_ptr<STrack>> &atracks,
     const std::vector<std::shared_ptr<STrack>> &btracks);
 
-// Fuse the IoU cost with the detection scores (ultralytics fuse_score):
+// Fuse the IoU cost with detection scores as in the ByteTrack reference code:
 //   fuse_cost = 1 - (1 - cost) * det_score   (per column).
 std::vector<std::vector<double>> fuse_score(
     const std::vector<std::vector<double>> &cost_matrix,
@@ -40,9 +30,8 @@ std::vector<std::vector<double>> fuse_score(
 // matrix. Only pairs whose assignment cost <= `thresh` are retained as matches;
 // the rest are reported unmatched. The matrix dims are passed explicitly
 // (`n_rows` x `n_cols`) because an empty cost matrix (no tracks and/or no
-// detections) still needs to report its shape, exactly like numpy. Mirrors
-// ultralytics' `matching.linear_assignment(dists, thresh)`, which calls
-// `lap.lapjv(dists, extend_cost=True, cost_limit=thresh)`.
+// detections) still needs to report its shape. The matrix is extended with
+// dummy assignments so a finite cost threshold can represent unmatched rows.
 void linear_assignment(std::size_t n_rows, std::size_t n_cols,
                        const std::vector<std::vector<double>> &cost_matrix,
                        double thresh,
@@ -62,7 +51,7 @@ std::vector<std::shared_ptr<STrack>> sub_stracks(
 
 // Remove duplicate tracks across two lists based on IoU distance
 // (`dup_thresh = 0.15`); the shorter-lived track is dropped, ties drop from
-// `atracks` (same tie-break as ultralytics).
+// `atracks` (the tie-break used by the ByteTrack reference implementation).
 std::pair<std::vector<std::shared_ptr<STrack>>,
           std::vector<std::shared_ptr<STrack>>>
 remove_duplicate_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,

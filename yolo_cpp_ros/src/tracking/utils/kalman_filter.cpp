@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// SPDX-License-Identifier: MIT
 
 #include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 
@@ -130,8 +120,8 @@ std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::initiate(
     mean[i + 4] = 0.0;
   }
 
-  // h = measurement[3]; std weights follow the original ByteTrack/ultralytics
-  // constants (`std` uses 2*std_position on position, 10*std_velocity on velocity).
+  // The uncertainty weights follow the original ByteTrack reference constants
+  // (2*std_position on position, 10*std_velocity on velocity).
   const double h = measurement[3];
   const double std[8] = {
       2 * kStdWeightPosition * h,

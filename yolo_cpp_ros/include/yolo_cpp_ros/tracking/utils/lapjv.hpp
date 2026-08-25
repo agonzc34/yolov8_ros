@@ -1,16 +1,7 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// Portions Copyright (c) 2012-2025 Tomas Kazmar
+// SPDX-License-Identifier: MIT AND BSD-2-Clause
 
 #ifndef YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_
 #define YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_
@@ -24,7 +15,8 @@ namespace yolo_tracking {
 //
 // Ported from ByteTrack's C++ deployment (MIT license):
 //   deploy/{ncnn,TensorRT}/cpp/src/lapjv.cpp + include/lapjv.h
-// which itself is a C port of the `lap` library's lapjv.
+// which incorporates the BSD-2-Clause `lap` library's LAPJV implementation.
+// See THIRD_PARTY_NOTICES.md.
 //
 //   n          : matrix order (cost must be n x n).
 //   cost       : row-major cost matrix (vector of row vectors).

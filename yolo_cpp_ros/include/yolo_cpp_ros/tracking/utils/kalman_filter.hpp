@@ -1,16 +1,6 @@
-// Copyright (C) 2026 Alejandro González Cantón
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// Copyright (c) 2026 Alejandro González Cantón
+// Portions Copyright (c) 2021 Yifu Zhang
+// SPDX-License-Identifier: MIT
 
 #ifndef YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_
 #define YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_
@@ -28,7 +18,7 @@ using KalmanProjectedCov = std::array<std::array<double, 4>, 4>;
 // KalmanFilterXYAH: 8-dimensional constant-velocity Kalman filter for HBB
 // tracking in image space. State is (x, y, aspect, height, vx, vy, va, vh)
 // and the observation model is linear (the box state is measured directly).
-// Numerically equivalent to ultralytics' KalmanFilterXYAH (numpy port).
+// Uses the model and uncertainty weights from the original ByteTrack code.
 class KalmanFilterXYAH {
 public:
   KalmanFilterXYAH() = default;

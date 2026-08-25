@@ -1,6 +1,15 @@
+# Third-party notices
+
+This package downloads and installs ONNX Runtime 1.20.0 from its official
+release archives:
+
+- Project: <https://github.com/microsoft/onnxruntime>
+- Version: 1.20.0
+- License: MIT
+
 MIT License
 
-Copyright (c) 2025-2026 Alejandro González Cantón
+Copyright (c) Microsoft Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
