@@ -18,6 +18,8 @@ find_package(OpenCV REQUIRED)
 find_package(yolo_onnxruntime_vendor REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(message_filters REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 include_directories(
   include
@@ -104,8 +106,34 @@ ament_target_dependencies(yolo_cpp_tracking
   message_filters
 )
 
+# Install 3D detection node
+add_executable(yolo_cpp_3d
+  src/detect_3d_node.cpp
+  src/detect_3d_main.cpp
+)
+
+target_include_directories(yolo_cpp_3d PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(yolo_cpp_3d
+  sensor_msgs
+  rclcpp
+  yolo_msgs
+  rclcpp_lifecycle
+  cv_bridge
+  message_filters
+  tf2_ros
+  geometry_msgs
+)
+
+target_link_libraries(yolo_cpp_3d
+  ${OpenCV_LIBS}
+)
+
 install(TARGETS
-  yolo_cpp_ros yolo_cpp_debug yolo_cpp_tracking
+  yolo_cpp_ros yolo_cpp_debug yolo_cpp_tracking yolo_cpp_3d
   DESTINATION lib/${PROJECT_NAME}
 )
 
