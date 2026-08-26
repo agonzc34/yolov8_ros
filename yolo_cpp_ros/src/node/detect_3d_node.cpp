@@ -21,9 +21,18 @@ namespace {
 
 double median(std::vector<double> v) {
   if (v.empty()) return 0.0;
-  std::sort(v.begin(), v.end());
-  const size_t mid = v.size() / 2;
-  return (v.size() % 2 == 0) ? 0.5 * (v[mid - 1] + v[mid]) : v[mid];
+  const size_t n = v.size();
+  const size_t mid = n / 2;
+  if (n % 2 == 1) {
+    std::nth_element(v.begin(), v.begin() + mid, v.end());
+    return v[mid];
+  }
+  // Even count: nth_element places one middle element at `mid`; the other
+  // middle is the largest element of the lower half.
+  std::nth_element(v.begin(), v.begin() + mid, v.end());
+  const double hi = v[mid];
+  const double lo = *std::max_element(v.begin(), v.begin() + mid);
+  return 0.5 * (lo + hi);
 }
 
 // Linear-interpolation percentile on an already-sorted vector (q in [0,1]),
@@ -40,9 +49,9 @@ double percentile_sorted(const std::vector<double> &v, double q) {
 
 // Left insertion index into a normalized, monotonically non-decreasing
 // cumulative-weight array (np.searchsorted(cumsum, f, side='left')).
-size_t weighted_searchsorted(const std::vector<double> &cum, double f) {
-  auto it = std::lower_bound(cum.begin(), cum.end(), f);
-  return static_cast<size_t>(it - cum.begin());
+size_t weighted_searchsorted(const std::vector<double> &cum_weights, double f) {
+  auto it = std::lower_bound(cum_weights.begin(), cum_weights.end(), f);
+  return static_cast<size_t>(it - cum_weights.begin());
 }
 
 double weighted_mean(const std::vector<double> &v,
@@ -172,16 +181,16 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
     std::iota(idx.begin(), idx.end(), 0);
     std::sort(idx.begin(), idx.end(),
               [&](size_t a, size_t b) { return d[a] < d[b]; });
-    std::vector<double> cum(d.size());
+    std::vector<double> cum_weights(d.size());
     double acc = 0.0;
     for (size_t i = 0; i < d.size(); ++i) {
       acc += w[idx[i]];
-      cum[i] = acc;
+      cum_weights[i] = acc;
     }
-    if (cum.back() > 0.0) {
-      for (auto &c : cum) c /= cum.back();
-      const double p2v = d[idx[weighted_searchsorted(cum, 0.02)]];
-      const double p85v = d[idx[weighted_searchsorted(cum, 0.85)]];
+    if (cum_weights.back() > 0.0) {
+      for (auto &c : cum_weights) c /= cum_weights.back();
+      const double p2v = d[idx[weighted_searchsorted(cum_weights, 0.02)]];
+      const double p85v = d[idx[weighted_searchsorted(cum_weights, 0.85)]];
       obj_d.clear();
       obj_w.clear();
       for (size_t i = 0; i < d.size(); ++i) {
@@ -197,22 +206,29 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
     obj_w = w;
   }
 
-  // 2%-trimmed weighted center.
-  double z_center;
-  if (std::accumulate(obj_w.begin(), obj_w.end(), 0.0) > 0.0) {
-    std::vector<size_t> idx(obj_d.size());
-    std::iota(idx.begin(), idx.end(), 0);
-    std::sort(idx.begin(), idx.end(),
-              [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
-    std::vector<double> cum(obj_d.size());
+  // Sort the depth samples once and build the weighted cumulative array once;
+  // both the 2%-trimmed center and the 1st/99th weighted percentiles read from
+  // the same arrays (previously each block re-sorted identically).
+  std::vector<size_t> idx(obj_d.size());
+  std::iota(idx.begin(), idx.end(), 0);
+  std::sort(idx.begin(), idx.end(),
+            [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
+  std::vector<double> cum_weights(obj_d.size());
+  {
     double acc = 0.0;
     for (size_t i = 0; i < obj_d.size(); ++i) {
       acc += obj_w[idx[i]];
-      cum[i] = acc;
+      cum_weights[i] = acc;
     }
-    for (auto &c : cum) c /= cum.back();
-    const size_t lo = weighted_searchsorted(cum, 0.02);
-    const size_t hi = weighted_searchsorted(cum, 0.98);
+    if (cum_weights.back() > 0.0) {
+      for (auto &c : cum_weights) c /= cum_weights.back();
+    }
+  }
+
+  double z_center;
+  if (cum_weights.back() > 0.0) {
+    const size_t lo = weighted_searchsorted(cum_weights, 0.02);
+    const size_t hi = weighted_searchsorted(cum_weights, 0.98);
     if (hi > lo) {
       double sw = 0.0;
       double zc = 0.0;
@@ -228,22 +244,10 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
     z_center = median(obj_d);
   }
 
-  // Weighted 1st/99th percentiles for the extent.
-  std::vector<size_t> idx(obj_d.size());
-  std::iota(idx.begin(), idx.end(), 0);
-  std::sort(idx.begin(), idx.end(),
-            [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
-  std::vector<double> cum(obj_d.size());
-  double acc = 0.0;
-  for (size_t i = 0; i < obj_d.size(); ++i) {
-    acc += obj_w[idx[i]];
-    cum[i] = acc;
-  }
   double z_min, z_max;
-  if (cum.back() > 0.0) {
-    for (auto &c : cum) c /= cum.back();
-    z_min = obj_d[idx[weighted_searchsorted(cum, 0.01)]];
-    z_max = obj_d[idx[weighted_searchsorted(cum, 0.99)]];
+  if (cum_weights.back() > 0.0) {
+    z_min = obj_d[idx[weighted_searchsorted(cum_weights, 0.01)]];
+    z_max = obj_d[idx[weighted_searchsorted(cum_weights, 0.99)]];
   } else {
     z_min = *std::min_element(obj_d.begin(), obj_d.end());
     z_max = *std::max_element(obj_d.begin(), obj_d.end());
@@ -286,18 +290,18 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
 
   // Weighted median as reference.
   const std::vector<size_t> idx = sorted_idx();
-  std::vector<double> cum(n, 0.0);
+  std::vector<double> cum_weights(n, 0.0);
   {
     double acc = 0.0;
     for (size_t i = 0; i < n; ++i) {
       acc += w[idx[i]];
-      cum[i] = acc;
+      cum_weights[i] = acc;
     }
-    if (cum.back() > 0.0) {
-      for (auto &c : cum) c /= cum.back();
+    if (cum_weights.back() > 0.0) {
+      for (auto &c : cum_weights) c /= cum_weights.back();
     }
   }
-  const double med = val3[idx[weighted_searchsorted(cum, 0.5)]];
+  const double med = val3[idx[weighted_searchsorted(cum_weights, 0.5)]];
 
   std::vector<double> dev(n);
   for (size_t i = 0; i < n; ++i) dev[i] = std::abs(val3[i] - med);
@@ -317,15 +321,15 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
     fw = w;
   }
 
-  // 5%-trimmed weighted center.
-  double center_val;
+  // One weighted sort serves both the 5%-trimmed center and the 3rd/97th
+  // weighted percentiles (previously each block re-sorted identically).
+  const size_t m = fv.size();
+  std::vector<size_t> i2(m);
+  std::iota(i2.begin(), i2.end(), 0);
+  std::sort(i2.begin(), i2.end(),
+            [&](size_t a, size_t b) { return fv[a] < fv[b]; });
+  std::vector<double> c2(m, 0.0);
   {
-    const size_t m = fv.size();
-    std::vector<size_t> i2(m);
-    std::iota(i2.begin(), i2.end(), 0);
-    std::sort(i2.begin(), i2.end(),
-              [&](size_t a, size_t b) { return fv[a] < fv[b]; });
-    std::vector<double> c2(m, 0.0);
     double acc = 0.0;
     for (size_t i = 0; i < m; ++i) {
       acc += fw[i2[i]];
@@ -334,6 +338,10 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
     if (c2.back() > 0.0) {
       for (auto &c : c2) c /= c2.back();
     }
+  }
+
+  double center_val;
+  if (c2.back() > 0.0) {
     const size_t lo = weighted_searchsorted(c2, 0.05);
     const size_t hi = weighted_searchsorted(c2, 0.95);
     if (hi > lo) {
@@ -347,27 +355,17 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
     } else {
       center_val = median(fv);
     }
+  } else {
+    center_val = median(fv);
   }
 
-  // 3rd/97th weighted percentiles for the extent.
   double vmin, vmax;
-  {
-    const size_t m = fv.size();
-    std::vector<size_t> i2(m);
-    std::iota(i2.begin(), i2.end(), 0);
-    std::sort(i2.begin(), i2.end(),
-              [&](size_t a, size_t b) { return fv[a] < fv[b]; });
-    std::vector<double> c2(m, 0.0);
-    double acc = 0.0;
-    for (size_t i = 0; i < m; ++i) {
-      acc += fw[i2[i]];
-      c2[i] = acc;
-    }
-    if (c2.back() > 0.0) {
-      for (auto &c : c2) c /= c2.back();
-    }
+  if (c2.back() > 0.0) {
     vmin = fv[i2[weighted_searchsorted(c2, 0.03)]];
     vmax = fv[i2[weighted_searchsorted(c2, 0.97)]];
+  } else {
+    vmin = *std::min_element(fv.begin(), fv.end());
+    vmax = *std::max_element(fv.begin(), fv.end());
   }
   const double min_size = 0.02;
   if (vmax - vmin < min_size) {
@@ -599,35 +597,54 @@ std::optional<yolo_msgs::msg::BoundingBox3D> Detect3DNode::convert_bb_to_3d(
     }
   };
 
-  if (!detection.mask.data.empty()) {
-    cv::Mat mask = cv::Mat::zeros(depth_image.size(), CV_8UC1);
-    std::vector<std::vector<cv::Point>> contours(1);
-    contours[0].reserve(detection.mask.data.size());
-    for (const auto &p : detection.mask.data) {
-      contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
-    }
-    cv::fillPoly(mask, contours, cv::Scalar(255));
-    for (int v = 0; v < depth_image.rows; ++v) {
-      for (int u = 0; u < depth_image.cols; ++u) {
-        if (mask.at<uchar>(v, u)) {
+  // Sample the detection region with an adaptive stride: large patches
+    // (>=200 px per side, e.g. a person close to the camera) use step 2 so the
+    // robust depth statistics see a representative 1/4 subset of the pixels.
+    // The histogram/MAD/percentile pipeline is designed for dense sampling of
+    // the same distribution, so this keeps the output statistics materially
+    // unchanged while cutting the sample count (and every sort below) by 4x.
+    const int step = (size_x * size_y >= 40000) ? 2 : 1;
+
+    if (!detection.mask.data.empty()) {
+      // Rasterize only the polygon's bounding rect, not the whole image.
+      std::vector<std::vector<cv::Point>> contours(1);
+      contours[0].reserve(detection.mask.data.size());
+      for (const auto &p : detection.mask.data) {
+        contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
+      }
+      cv::Rect roi = cv::boundingRect(contours[0]);
+      roi &= cv::Rect(0, 0, depth_image.cols, depth_image.rows);
+      if (roi.width <= 0 || roi.height <= 0) {
+        return std::nullopt;
+      }
+      std::vector<std::vector<cv::Point>> local_contours(1);
+      for (const auto &p : contours[0]) {
+        local_contours[0].push_back(p - roi.tl());
+      }
+      cv::Mat mask = cv::Mat::zeros(roi.size(), CV_8UC1);
+      cv::fillPoly(mask, local_contours, cv::Scalar(255));
+      const int s = (roi.width * roi.height >= 40000) ? 2 : 1;
+      for (int v = 0; v < mask.rows; v += s) {
+        for (int u = 0; u < mask.cols; u += s) {
+          if (mask.at<uchar>(v, u)) {
+            collect(v + roi.y, u + roi.x);
+          }
+        }
+      }
+    } else {
+      const int u_min = std::max(center_x - size_x / 2, 0);
+      const int u_max = std::min(center_x + size_x / 2, depth_image.cols - 1);
+      const int v_min = std::max(center_y - size_y / 2, 0);
+      const int v_max = std::min(center_y + size_y / 2, depth_image.rows - 1);
+      if (u_max <= u_min || v_max <= v_min) {
+        return std::nullopt;
+      }
+      for (int v = v_min; v < v_max; v += step) {
+        for (int u = u_min; u < u_max; u += step) {
           collect(v, u);
         }
       }
     }
-  } else {
-    const int u_min = std::max(center_x - size_x / 2, 0);
-    const int u_max = std::min(center_x + size_x / 2, depth_image.cols - 1);
-    const int v_min = std::max(center_y - size_y / 2, 0);
-    const int v_max = std::min(center_y + size_y / 2, depth_image.rows - 1);
-    if (u_max <= u_min || v_max <= v_min) {
-      return std::nullopt;
-    }
-    for (int v = v_min; v < v_max; ++v) {
-      for (int u = u_min; u < u_max; ++u) {
-        collect(v, u);
-      }
-    }
-  }
   if (depths.empty()) {
     return std::nullopt;
   }
