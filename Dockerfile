@@ -13,7 +13,7 @@ RUN apt-get update \
     git \
     python3 \
     python3-pip
-RUN pip3 install -r src/requirements.txt
+RUN pip3 install --upgrade pip
 RUN rosdep install --from-paths src --ignore-src -r -y
 
 # Colcon the ws
