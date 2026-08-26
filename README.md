@@ -1,6 +1,6 @@
-# yolov8_ros
+# yolo_ros
 
-A ROS 2 (Humble) wrapper for running Ultralytics YOLO models with pure C++ /
+A ROS 2 (Humble) wrapper for running YOLO models with pure C++ /
 ONNX Runtime inference. A fork of `mgonz13/yolo_ros` whose Python nodes have
 been replaced by a C++ reimplementation (detection, instance segmentation,
 human pose, ByteTrack tracking, and depth-based 3D detection/tracking).
