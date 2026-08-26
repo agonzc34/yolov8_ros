@@ -30,7 +30,7 @@ include_directories(
 # Install yolo_cpp_ros
 add_executable(yolo_cpp_ros
   src/node/yolo_node.cpp
-  src/node/yolo_main.cpp
+  src/yolo_main.cpp
 
   src/yolo/segment.cpp
   src/yolo/detect.cpp
@@ -62,7 +62,7 @@ target_link_libraries(yolo_cpp_ros
 
 # Install debug node
 add_executable(yolo_cpp_debug
-  src/node/yolo_debug.cpp
+  src/debug_main.cpp
   src/node/debug_node.cpp
 )
 
@@ -87,7 +87,7 @@ target_link_libraries(yolo_cpp_debug
 # Install tracking node
 add_executable(yolo_cpp_tracking
   src/node/tracking_node.cpp
-  src/node/tracking_main.cpp
+  src/tracking_main.cpp
 
   src/tracking/byte_tracker.cpp
   src/tracking/strack.cpp
@@ -113,7 +113,7 @@ ament_target_dependencies(yolo_cpp_tracking
 # Install 3D detection node
 add_executable(yolo_cpp_3d
   src/node/detect_3d_node.cpp
-  src/node/detect_3d_main.cpp
+  src/detect_3d_main.cpp
   src/3d/depth_utils.cpp
 )
 
