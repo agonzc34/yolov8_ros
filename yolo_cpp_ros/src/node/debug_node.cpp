@@ -151,9 +151,13 @@ void DebugNode::recieve_callback(
   }
 
   // Publish ONCE with all detections/masks drawn (not once per detection).
+  // The Mat is always BGR8 (toCvCopy above forced BGR8 and OpenCV draws in
+  // BGR), so advertise BGR8 — reusing the *original* encoding here mislabels
+  // e.g. an rgb8 camera stream as rgb8 while the pixels are BGR, which makes
+  // RViz swap red/blue and the image look blue-tainted.
   auto return_image =
-      cv_bridge::CvImage(msg_image->header, msg_image->encoding, image)
-          .toImageMsg();
+      cv_bridge::CvImage(msg_image->header, sensor_msgs::image_encodings::BGR8,
+                         image).toImageMsg();
   this->debug_publisher->publish(*return_image.get());
 
   this->bb_markers_publisher->publish(bb_marker_array);
