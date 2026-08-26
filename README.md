@@ -25,6 +25,43 @@ removed. See [License](#license) and each package's `LICENSE` / notices.
   the repo — pass `model:=<path>` on every launch (defaults are machine-specific).
 - GPU build needs cuDNN9: `sudo apt install libcudnn9-cuda-12`.
 
+## Models (from Ultralytics)
+
+The C++ pipeline runs any Ultralytics-exported ONNX model (`yolo11n`,
+`yolo26m`, ...). Export a `.pt` checkpoint to ONNX with the `ultralytics`
+package — either with `uv` (no environment needed) or a plain `pip install`:
+
+```shell
+# uv one-liner (fetches ultralytics + ONNX deps on the fly)
+uv run --with ultralytics --with onnx --with onnxruntime --with onnxslim \
+  yolo export model=yolo26m.pt format=onnx imgsz=640 opset=12
+
+# classic: pip install ultralytics, then
+yolo export model=yolo26m.pt format=onnx imgsz=640 opset=12
+```
+
+Notes:
+
+- The exported `.onnx` is self-contained: Ultralytics writes the class
+  vocabulary into the ONNX graph metadata (`names` key), which
+  `Model::load_class_names()` reads at startup; the `coco.names` fallback is
+  only used when a model has no metadata.
+- Keep the exported file outside the repo and pass `model:=<path>` on every
+  launch (the launch defaults are machine-specific paths).
+- `model_type` selects the pipeline: `Segment` for `*-seg.onnx` exports
+  (Ultralytics names them `-seg`, not `-segment`), `Pose` for pose models;
+  `auto` falls back to a filename heuristic.
+- The input size is fixed by the ONNX tensor, so `imgsz_height`/`imgsz_width`
+  are informational and `half`/`augment`/`agnostic_nms`/`retina_masks` are
+  inert in the C++ node.
+
+> **License note**: Ultralytics models and pretrained weights are **not** MIT
+> licensed. They are released under the **AGPL-3.0** license (with commercial
+> / enterprise licensing available from Ultralytics), so the MIT license of
+> this repository does **not** cover them. Check the terms of the specific
+> model you use at <https://ultralytics.com/license> — especially if you ship
+> or deploy the model.
+
 ## Build
 
 GPU build (development default):
@@ -115,4 +152,5 @@ the MIT-licensed C++ pipeline (see `THIRD_PARTY_NOTICES.md`).
 
 Model weights and exported ONNX files are separate artifacts and remain
 subject to their respective licenses; the MIT license for the C++ pipeline
-does not relicense them.
+does not relicense them. In particular, Ultralytics models are AGPL-3.0 —
+see the [Models](#models-from-ultralytics) section above.
