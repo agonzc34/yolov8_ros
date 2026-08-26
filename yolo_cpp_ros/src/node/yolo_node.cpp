@@ -106,6 +106,7 @@ void yolo_rclcpp::YoloNode::declare_params() {
   this->declare_parameter<int>("image_reliability", 2);
   this->declare_parameter<std::string>("image_topic", "image");
   this->declare_parameter<int>("n_threads", -1);
+  this->declare_parameter<int>("max_fps", 0);
 }
 
 yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
@@ -120,6 +121,7 @@ yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   this->get_parameter("image_reliability", params.image_reliability);
   this->get_parameter("image_topic", params.image_topic);
   this->get_parameter("n_threads", params.n_threads);
+  this->get_parameter("max_fps", params.max_fps);
   return params;
 }
 
@@ -171,6 +173,19 @@ void YoloNode::enable_service_callback(
 
 void YoloNode::recieve_image_callback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
+  // Optional frequency cap (max_fps > 0): drop frames so inference and
+  // publishing run at most max_fps Hz. The subscription stays live (DDS still
+  // delivers every frame), we just skip the work for the frames in between.
+  if (this->yolo_params.max_fps > 0) {
+    const auto now = std::chrono::steady_clock::now();
+    const double period_s = 1.0 / this->yolo_params.max_fps;
+    if (std::chrono::duration<double>(now - this->last_inference_time_)
+            .count() < period_s) {
+      return; // too soon since the last processed frame: drop this one
+    }
+    this->last_inference_time_ = now;
+  }
+
   auto detection_array = yolo_msgs::msg::DetectionArray();
 
   if (this->yolo_model && this->enable_inference_.load()) {

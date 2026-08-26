@@ -8,6 +8,7 @@
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 
 #include "sensor_msgs/msg/image.hpp"
@@ -49,6 +50,10 @@ protected:
   // `enable` parameter only provides the initial value. Atomic because the
   // image subscription and the service may run on different executor threads.
   std::atomic<bool> enable_inference_{true};
+
+  // Timestamp of the last processed frame, used by the max_fps frequency cap
+  // to decide whether the current frame should be dropped.
+  std::chrono::steady_clock::time_point last_inference_time_{};
 
   void create_yolo(yolo_onnx_utils::YoloParams params);
   void destroy_yolo();

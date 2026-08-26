@@ -28,6 +28,7 @@
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image
     n_threads: -1             # -1 = auto (only used by the CPU EP)
+    max_fps: 0                # 0 = unlimited (process every frame); >0 caps inference/publish rate in Hz
 
 /yolo_seg/tracking_node:
   ros__parameters:

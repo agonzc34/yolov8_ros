@@ -68,6 +68,9 @@ struct YoloParams {
   int image_reliability;
   std::string image_topic;
   int n_threads;
+  int max_fps;   // cap on the inference/publish rate in Hz; 0 = unlimited
+                 // (process every received frame). Frames are dropped by the
+                 // node, the subscription stays live.
 };
 
 template <typename BoxT>

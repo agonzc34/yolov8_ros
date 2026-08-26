@@ -9,7 +9,7 @@
 #
 # Honor status of the README inference knobs in the C++/ONNX implementation:
 #   model / device / threshold / iou / image_reliability / image_topic /
-#   n_threads / model_type / enable / max_det   -> active (drive the pipeline)
+#   n_threads / model_type / enable / max_det / max_fps -> active (drive the pipeline)
 #   imgsz_height / imgsz_width                  -> informational only: the
 #       input size is fixed by the ONNX tensor shape, not configurable at
 #       runtime in the C++ node
@@ -34,6 +34,7 @@
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /head_front_camera/rgb/image_raw
     n_threads: -1 # -1 = auto (only used by the CPU EP)
+    max_fps: 0 # 0 = unlimited (process every frame); >0 caps inference/publish rate in Hz
 
 /yolo/tracking_node:
   ros__parameters:
