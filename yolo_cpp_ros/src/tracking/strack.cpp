@@ -36,7 +36,7 @@ void STrack::predict() {
   }
   KalmanMean mean_state = mean_;
   if (state_ != TrackState::Tracked) {
-    mean_state[7] = 0;  // freeze height velocity for lost tracks
+    mean_state[7] = 0; // freeze height velocity for lost tracks
   }
   auto predicted = kf_->predict(mean_state, covariance_);
   mean_ = predicted.first;
@@ -59,7 +59,8 @@ void STrack::activate(const KalmanFilterXYAH *kalman_filter, int frame_id) {
 }
 
 void STrack::re_activate(const STrack &new_track, int frame_id, bool new_id) {
-  auto updated = kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
+  auto updated =
+      kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
   mean_ = updated.first;
   covariance_ = updated.second;
 
@@ -79,7 +80,8 @@ void STrack::update(const STrack &new_track, int frame_id) {
   frame_id_ = frame_id;
   tracklet_len_ += 1;
 
-  auto updated = kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
+  auto updated =
+      kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
   mean_ = updated.first;
   covariance_ = updated.second;
   state_ = TrackState::Tracked;
@@ -122,9 +124,10 @@ std::array<double, 4> STrack::tlwh_to_xyah(const std::array<float, 4> &tlwh) {
   std::array<double, 4> out;
   out[0] = static_cast<double>(tlwh[0] + tlwh[2] / 2);
   out[1] = static_cast<double>(tlwh[1] + tlwh[3] / 2);
-  out[2] = static_cast<double>(tlwh[2]) / tlwh[3];  // aspect (h > 0 guaranteed upstream)
+  out[2] = static_cast<double>(tlwh[2]) /
+           tlwh[3]; // aspect (h > 0 guaranteed upstream)
   out[3] = static_cast<double>(tlwh[3]);
   return out;
 }
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking

@@ -28,6 +28,6 @@ namespace yolo_tracking {
 int lapjv_internal(std::size_t n, const std::vector<std::vector<double>> &cost,
                    std::vector<int> &rowsol, std::vector<int> &colsol);
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_
+#endif // YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_

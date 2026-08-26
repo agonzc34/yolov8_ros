@@ -174,4 +174,4 @@ std::vector<yolo_utils::BoxWithMask> get_segmentation_with_nms(
   return filtered_boxes;
 }
 
-}  // namespace yolo_onnx
+} // namespace yolo_onnx

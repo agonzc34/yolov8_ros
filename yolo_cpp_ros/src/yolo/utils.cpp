@@ -31,8 +31,8 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
 }
 
 yolo_utils::Box scale_box(const yolo_utils::Box &box,
-                               const cv::Size &original_image_size,
-                               const cv::Size &resized_image_size) {
+                          const cv::Size &original_image_size,
+                          const cv::Size &resized_image_size) {
   yolo_utils::Box scaled_box;
   float gain = std::min(static_cast<float>(resized_image_size.width) /
                             original_image_size.width,
@@ -64,18 +64,16 @@ yolo_utils::Box scale_box(const yolo_utils::Box &box,
   return scaled_box;
 }
 
-std::vector<Keypoint>
-scale_keypoints(const std::vector<Keypoint> &keypoints,
-                const cv::Size &original_image_size,
-                const cv::Size &resized_image_size) {
+std::vector<Keypoint> scale_keypoints(const std::vector<Keypoint> &keypoints,
+                                      const cv::Size &original_image_size,
+                                      const cv::Size &resized_image_size) {
   // Same inverse-letterbox geometry as scale_box(): the exported graph decodes
   // keypoints into the letterboxed (model input) frame, so undo the padding
   // and resize to map back to the original image.
-  const float gain =
-      std::min(static_cast<float>(resized_image_size.width) /
-                   original_image_size.width,
-               static_cast<float>(resized_image_size.height) /
-                   original_image_size.height);
+  const float gain = std::min(static_cast<float>(resized_image_size.width) /
+                                  original_image_size.width,
+                              static_cast<float>(resized_image_size.height) /
+                                  original_image_size.height);
   const float pad_x =
       (resized_image_size.width - original_image_size.width * gain) / 2;
   const float pad_y =
@@ -91,10 +89,10 @@ scale_keypoints(const std::vector<Keypoint> &keypoints,
   return scaled;
 }
 
-std::vector<yolo_utils::Box>
-get_boxes(const std::vector<Ort::Value> &preds,
-          const cv::Size &original_image_size,
-          const cv::Size &resized_image_size, const int num_classes) {
+std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
+                                       const cv::Size &original_image_size,
+                                       const cv::Size &resized_image_size,
+                                       const int num_classes) {
   std::vector<yolo_utils::Box> boxes;
 
   const float *raw_output =
@@ -129,8 +127,8 @@ get_boxes(const std::vector<Ort::Value> &preds,
     box.score = max_score;
     box.class_id = class_id;
 
-    yolo_utils::Box scaled_box = yolo_utils::scale_box(
-        box, original_image_size, resized_image_size);
+    yolo_utils::Box scaled_box =
+        yolo_utils::scale_box(box, original_image_size, resized_image_size);
     boxes.push_back(scaled_box);
   }
 
@@ -147,21 +145,19 @@ convert_to_bounding_box(const yolo_utils::Box &box) {
   return bounding_box;
 }
 
-cv::Mat inverse_letterbox(
-  const cv::Mat& letterboxed,
-  const cv::Size &original_image_size,
-  const cv::Size &resized_image_size
-) {
+cv::Mat inverse_letterbox(const cv::Mat &letterboxed,
+                          const cv::Size &original_image_size,
+                          const cv::Size &resized_image_size) {
   // Resize the (low-res) mask up to the letterboxed / model-input frame.
   cv::Mat resized_image;
   cv::resize(letterboxed, resized_image, resized_image_size, 0, 0,
              cv::INTER_LINEAR);
 
   // Size of the actual (unpadded) image content inside the letterboxed frame.
-  float scale = std::min(
-      static_cast<float>(resized_image_size.width) / original_image_size.width,
-      static_cast<float>(resized_image_size.height) / original_image_size.height
-  );
+  float scale = std::min(static_cast<float>(resized_image_size.width) /
+                             original_image_size.width,
+                         static_cast<float>(resized_image_size.height) /
+                             original_image_size.height);
   int new_w = static_cast<int>(original_image_size.width * scale);
   int new_h = static_cast<int>(original_image_size.height * scale);
 
@@ -173,9 +169,8 @@ cv::Mat inverse_letterbox(
   cv::Mat cropped = resized_image(content_roi);
 
   cv::Mat restored;
-  cv::resize(cropped, restored, original_image_size, 0, 0,
-             cv::INTER_LINEAR);
+  cv::resize(cropped, restored, original_image_size, 0, 0, cv::INTER_LINEAR);
 
   return restored;
 }
-}  // namespace yolo_utils
+} // namespace yolo_utils

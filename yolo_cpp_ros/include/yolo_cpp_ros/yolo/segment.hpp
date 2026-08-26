@@ -27,5 +27,5 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-}  // namespace yolo_onnx
+} // namespace yolo_onnx
 #endif // YOLO_CPP_ROS__YOLO__SEGMENT_HPP_

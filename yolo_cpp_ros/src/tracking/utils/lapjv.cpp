@@ -20,9 +20,9 @@ namespace yolo_tracking {
 
 namespace {
 
-constexpr double kLarge = 1e6;  // LARGE in the original lapjv.h
+constexpr double kLarge = 1e6; // LARGE in the original lapjv.h
 
-using cost_t = double;  // matches original typedef
+using cost_t = double; // matches original typedef
 
 // Column-reduction and reduction transfer for a dense cost matrix.
 int ccrrt_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
@@ -82,8 +82,9 @@ int ccrrt_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
 
 // Augmenting row reduction for a dense cost matrix.
 int carr_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
-               int n_free_rows, std::vector<int> &free_rows, std::vector<int> &x,
-               std::vector<int> &y, std::vector<double> &v) {
+               int n_free_rows, std::vector<int> &free_rows,
+               std::vector<int> &x, std::vector<int> &y,
+               std::vector<double> &v) {
   std::size_t current = 0;
   int new_free_rows = 0;
   std::size_t rr_cnt = 0;
@@ -251,8 +252,8 @@ int ca_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
              std::vector<int> &y, std::vector<double> &v) {
   std::vector<int> pred(n);
 
-  for (int *pfree_i = free_rows.data(); pfree_i < free_rows.data() + n_free_rows;
-       pfree_i++) {
+  for (int *pfree_i = free_rows.data();
+       pfree_i < free_rows.data() + n_free_rows; pfree_i++) {
     int i = -1, j;
     std::size_t k = 0;
 
@@ -262,7 +263,7 @@ int ca_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
       y[j] = i;
       const int old_j = x[i];
       x[i] = j;
-      j = old_j;  // SWAP_INDICES(j, x[i])
+      j = old_j; // SWAP_INDICES(j, x[i])
       k++;
       if (k >= n) {
         // unreachable in practice for valid cost matrices
@@ -273,10 +274,9 @@ int ca_dense(std::size_t n, const std::vector<std::vector<double>> &cost,
   return 0;
 }
 
-}  // namespace
+} // namespace
 
-int lapjv_internal(std::size_t n,
-                   const std::vector<std::vector<double>> &cost,
+int lapjv_internal(std::size_t n, const std::vector<std::vector<double>> &cost,
                    std::vector<int> &rowsol, std::vector<int> &colsol) {
   rowsol.assign(n, -1);
   colsol.assign(n, -1);
@@ -295,4 +295,4 @@ int lapjv_internal(std::size_t n,
   return ret;
 }
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking

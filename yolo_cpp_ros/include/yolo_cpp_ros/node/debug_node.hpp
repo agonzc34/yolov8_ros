@@ -81,18 +81,18 @@ private:
   cv::Mat draw_box(const cv::Mat &image,
                    const yolo_msgs::msg::Detection &detection,
                    const cv::Scalar &color);
-	cv::Mat draw_mask(const cv::Mat &image,
-									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
-	cv::Mat draw_keypoints(const cv::Mat &image,
-												 const yolo_msgs::msg::Detection &detection);
+  cv::Mat draw_mask(const cv::Mat &image,
+                    const yolo_msgs::msg::Detection &detection,
+                    const cv::Scalar &color);
+  cv::Mat draw_keypoints(const cv::Mat &image,
+                         const yolo_msgs::msg::Detection &detection);
 
-	visualization_msgs::msg::Marker create_bb_marker(
-			const yolo_msgs::msg::Detection &detection,
-			const cv::Scalar &color);
-	visualization_msgs::msg::Marker create_kp_marker(
-			const yolo_msgs::msg::KeyPoint3D &keypoint);
-
-					};
-}  // namespace yolo_rclcpp
+  visualization_msgs::msg::Marker
+  create_bb_marker(const yolo_msgs::msg::Detection &detection,
+                   const cv::Scalar &color);
+  visualization_msgs::msg::Marker
+  create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint);
+};
+} // namespace yolo_rclcpp
 
 #endif // YOLO_CPP_ROS__NODE__DEBUG_NODE_HPP_

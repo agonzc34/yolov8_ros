@@ -66,8 +66,8 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
       box.class_id = static_cast<int>(pred[j * 6 + 5]);
       box.index = j;
 
-      yolo_utils::Box scaled_box = yolo_utils::scale_box(
-          box, original_image_size, resized_image_size);
+      yolo_utils::Box scaled_box =
+          yolo_utils::scale_box(box, original_image_size, resized_image_size);
       boxes.push_back(scaled_box);
     }
   }
@@ -98,4 +98,4 @@ std::vector<yolo_utils::Box> get_detection_with_nms(
   return filtered_boxes;
 }
 
-}  // namespace yolo_onnx
+} // namespace yolo_onnx

@@ -46,9 +46,9 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 TrackingNode::on_activate(const rclcpp_lifecycle::State &) {
-  this->image_subscription_.subscribe(
-      this->shared_from_this(), this->image_topic_,
-      image_qos_profile_.get_rmw_qos_profile());
+  this->image_subscription_.subscribe(this->shared_from_this(),
+                                      this->image_topic_,
+                                      image_qos_profile_.get_rmw_qos_profile());
   this->detection_subscription_.subscribe(
       this->shared_from_this(), "detections",
       image_qos_profile_.get_rmw_qos_profile());
@@ -115,8 +115,8 @@ void TrackingNode::load_params() {
   this->get_parameter("match_thresh", this->tracker_params_.match_thresh);
   this->get_parameter("fuse_score", this->tracker_params_.fuse_score);
   this->tracker_.reset();
-  this->tracker_ = std::make_unique<yolo_tracking::ByteTrack>(
-      this->tracker_params_);
+  this->tracker_ =
+      std::make_unique<yolo_tracking::ByteTrack>(this->tracker_params_);
 }
 
 void TrackingNode::recieve_callback(
@@ -168,4 +168,4 @@ void TrackingNode::recieve_callback(
   this->tracking_publisher_->publish(tracked_msg);
 }
 
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp

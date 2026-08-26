@@ -16,13 +16,12 @@ namespace {
 
 // Left insertion index into a normalized, monotonically non-decreasing
 // cumulative-weight array (np.searchsorted(cumsum, f, side='left')).
-size_t weighted_searchsorted(const std::vector<double> &cum_weights,
-                             double f) {
+size_t weighted_searchsorted(const std::vector<double> &cum_weights, double f) {
   auto it = std::lower_bound(cum_weights.begin(), cum_weights.end(), f);
   return static_cast<size_t>(it - cum_weights.begin());
 }
 
-}  // namespace
+} // namespace
 
 double median(std::vector<double> v) {
   if (v.empty()) return 0.0;
@@ -94,10 +93,10 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
   const double d_min = *std::min_element(d.begin(), d.end());
   const double d_max = *std::max_element(d.begin(), d.end());
   const double range = d_max - d_min;
-  const int n_bins = (!std::isfinite(range) || range <= 0.0)
-                         ? 30
-                         : std::clamp(
-                               static_cast<int>(std::lround(range / 0.01)), 20, 60);
+  const int n_bins =
+      (!std::isfinite(range) || range <= 0.0)
+          ? 30
+          : std::clamp(static_cast<int>(std::lround(range / 0.01)), 20, 60);
   const double bin_w = (d_max - d_min) / n_bins;
   if (!(bin_w > 0.0)) {
     // Degenerate: all depths identical (zero-width histogram). The median
@@ -107,8 +106,8 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
   }
   std::vector<double> hist(n_bins, 0.0);
   for (size_t i = 0; i < d.size(); ++i) {
-    const int idx = std::clamp(
-        static_cast<int>((d[i] - d_min) / bin_w), 0, n_bins - 1);
+    const int idx =
+        std::clamp(static_cast<int>((d[i] - d_min) / bin_w), 0, n_bins - 1);
     hist[idx] += w[i];
   }
   std::vector<double> smooth = hist;
@@ -362,11 +361,9 @@ double depth_at_pixel(const cv::Mat &depth_image, int v, int u,
   return static_cast<double>(depth_image.at<float>(v, u));
 }
 
-std::optional<yolo_msgs::msg::BoundingBox3D>
-convert_bb_to_3d(const cv::Mat &depth_image,
-                 const sensor_msgs::msg::CameraInfo &depth_info,
-                 const yolo_msgs::msg::Detection &detection,
-                 int depth_units_divisor) {
+std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
+    const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor) {
   const int center_x = static_cast<int>(detection.bbox.center.position.x);
   const int center_y = static_cast<int>(detection.bbox.center.position.y);
   const int size_x = static_cast<int>(detection.bbox.size.x);
@@ -449,7 +446,7 @@ convert_bb_to_3d(const cv::Mat &depth_image,
     return std::nullopt;
   }
 
-  const auto &k = depth_info.k;  // [fx, 0, cx, 0, fy, cy, 0, 0, 1]
+  const auto &k = depth_info.k; // [fx, 0, cx, 0, fy, cy, 0, 0, 1]
   const double fx = k[0], fy = k[4], px = k[2], py = k[5];
   if (fx == 0.0 || fy == 0.0) {
     return std::nullopt;
@@ -495,11 +492,9 @@ convert_bb_to_3d(const cv::Mat &depth_image,
   return bbox3d;
 }
 
-yolo_msgs::msg::KeyPoint3DArray
-convert_keypoints_to_3d(const cv::Mat &depth_image,
-                        const sensor_msgs::msg::CameraInfo &depth_info,
-                        const yolo_msgs::msg::Detection &detection,
-                        int depth_units_divisor) {
+yolo_msgs::msg::KeyPoint3DArray convert_keypoints_to_3d(
+    const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor) {
   const auto &k = depth_info.k;
   const double fx = k[0], fy = k[4], px = k[2], py = k[5];
 
@@ -536,8 +531,7 @@ std::array<double, 3> qv_mult(const std::array<double, 4> &q,
   const double qx = q[1], qy = q[2], qz = q[3], qw = q[0];
 
   // qvec = (qx, qy, qz); uv = qvec x v; uuv = qvec x uv
-  const std::array<double, 3> uv{qy * v[2] - qz * v[1],
-                                 qz * v[0] - qx * v[2],
+  const std::array<double, 3> uv{qy * v[2] - qz * v[1], qz * v[0] - qx * v[2],
                                  qx * v[1] - qy * v[0]};
   const std::array<double, 3> uuv{qy * uv[2] - qz * uv[1],
                                   qz * uv[0] - qx * uv[2],
@@ -548,23 +542,22 @@ std::array<double, 3> qv_mult(const std::array<double, 4> &q,
           v[2] + 2.0 * (uv[2] * qw + uuv[2])};
 }
 
-yolo_msgs::msg::BoundingBox3D transform_3d_box(
-    const yolo_msgs::msg::BoundingBox3D &bbox,
-    const std::array<double, 3> &translation,
-    const std::array<double, 4> &rotation) {
+yolo_msgs::msg::BoundingBox3D
+transform_3d_box(const yolo_msgs::msg::BoundingBox3D &bbox,
+                 const std::array<double, 3> &translation,
+                 const std::array<double, 4> &rotation) {
   yolo_msgs::msg::BoundingBox3D out = bbox;
 
   // Position: rotate + translate.
-  const auto position = qv_mult(
-      rotation, {bbox.center.position.x, bbox.center.position.y,
-                 bbox.center.position.z});
+  const auto position =
+      qv_mult(rotation, {bbox.center.position.x, bbox.center.position.y,
+                         bbox.center.position.z});
   out.center.position.x = position[0] + translation[0];
   out.center.position.y = position[1] + translation[1];
   out.center.position.z = position[2] + translation[2];
 
   // Size: only rotate (axis-aligned extents after the rotation).
-  const auto size =
-      qv_mult(rotation, {bbox.size.x, bbox.size.y, bbox.size.z});
+  const auto size = qv_mult(rotation, {bbox.size.x, bbox.size.y, bbox.size.z});
   out.size.x = std::abs(size[0]);
   out.size.y = std::abs(size[1]);
   out.size.z = std::abs(size[2]);
@@ -572,15 +565,15 @@ yolo_msgs::msg::BoundingBox3D transform_3d_box(
   return out;
 }
 
-yolo_msgs::msg::KeyPoint3DArray transform_3d_keypoints(
-    const yolo_msgs::msg::KeyPoint3DArray &keypoints,
-    const std::array<double, 3> &translation,
-    const std::array<double, 4> &rotation) {
+yolo_msgs::msg::KeyPoint3DArray
+transform_3d_keypoints(const yolo_msgs::msg::KeyPoint3DArray &keypoints,
+                       const std::array<double, 3> &translation,
+                       const std::array<double, 4> &rotation) {
   yolo_msgs::msg::KeyPoint3DArray out = keypoints;
 
   for (auto &point : out.data) {
-    const auto position = qv_mult(
-        rotation, {point.point.x, point.point.y, point.point.z});
+    const auto position =
+        qv_mult(rotation, {point.point.x, point.point.y, point.point.z});
     point.point.x = position[0] + translation[0];
     point.point.y = position[1] + translation[1];
     point.point.z = position[2] + translation[2];
@@ -589,4 +582,4 @@ yolo_msgs::msg::KeyPoint3DArray transform_3d_keypoints(
   return out;
 }
 
-}  // namespace yolo_3d
+} // namespace yolo_3d

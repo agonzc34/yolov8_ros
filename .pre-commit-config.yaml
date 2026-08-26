@@ -1,0 +1,22 @@
+# Pre-commit hooks for yolo_ros.
+#
+# Install:  pre-commit install
+# Run all:  pre-commit run --all-files
+#
+# - black formats the launch files (line length 90, matching CI
+#   .github/workflows/python-formatter.yml)
+# - clang-format formats the C++ sources with the style in .clang-format
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        args: ["--line-length", "90"]
+        files: \.launch\.py$
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v14.0.6  # matches the local clang-format-14 on Ubuntu 22.04
+    hooks:
+      - id: clang-format
+        args: ["--style=file"]  # the hook passes -i itself
+        files: \.(cpp|hpp)$

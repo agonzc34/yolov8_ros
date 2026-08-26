@@ -110,10 +110,10 @@ MatX mul48(const KalmanProjectedCov &a4,
   return out;
 }
 
-}  // namespace
+} // namespace
 
-std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::initiate(
-    const KalmanMeasurement &measurement) const {
+std::pair<KalmanMean, KalmanCovariance>
+KalmanFilterXYAH::initiate(const KalmanMeasurement &measurement) const {
   KalmanMean mean{};
   for (std::size_t i = 0; i < 4; ++i) {
     mean[i] = measurement[i];
@@ -141,8 +141,9 @@ std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::initiate(
   return {mean, covariance};
 }
 
-std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::predict(
-    const KalmanMean &mean, const KalmanCovariance &covariance) const {
+std::pair<KalmanMean, KalmanCovariance>
+KalmanFilterXYAH::predict(const KalmanMean &mean,
+                          const KalmanCovariance &covariance) const {
   // Constant-velocity motion model F = [I, dt*I; 0, I] with dt = 1.
   KalmanCovariance motion_mat{};
   for (std::size_t i = 0; i < 8; ++i) {
@@ -205,9 +206,10 @@ void KalmanFilterXYAH::project(const KalmanMean &mean,
   }
 }
 
-std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::update(
-    const KalmanMean &mean, const KalmanCovariance &covariance,
-    const KalmanMeasurement &measurement) const {
+std::pair<KalmanMean, KalmanCovariance>
+KalmanFilterXYAH::update(const KalmanMean &mean,
+                         const KalmanCovariance &covariance,
+                         const KalmanMeasurement &measurement) const {
   KalmanMeasurement projected_mean{};
   KalmanProjectedCov projected_cov{};
   project(mean, covariance, projected_mean, projected_cov);
@@ -225,7 +227,7 @@ std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::update(
       b[i][j] = covariance[j][i];
     }
   }
-  MatX x = mul48(s_inv, b);  // X (4x8) = S^{-1} * B
+  MatX x = mul48(s_inv, b); // X (4x8) = S^{-1} * B
   // K (8x4):  K[j][i] = X[i][j]
   double k[8][4];
   for (std::size_t j = 0; j < 8; ++j) {
@@ -275,4 +277,4 @@ std::pair<KalmanMean, KalmanCovariance> KalmanFilterXYAH::update(
   return {new_mean, new_covariance};
 }
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking

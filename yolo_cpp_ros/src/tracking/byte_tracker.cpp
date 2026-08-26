@@ -22,12 +22,13 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
   std::vector<std::shared_ptr<STrack>> lost_stracks;
   std::vector<std::shared_ptr<STrack>> removed_stracks;
 
-  // --- Step 1: split detections into high / low score pools. ------------------
-  std::vector<std::shared_ptr<STrack>> detections;         // high-score
-  std::vector<std::shared_ptr<STrack>> detections_second;  // low-score
+  // --- Step 1: split detections into high / low score pools.
+  // ------------------
+  std::vector<std::shared_ptr<STrack>> detections;        // high-score
+  std::vector<std::shared_ptr<STrack>> detections_second; // low-score
   for (const auto &d : dets) {
     if (d.w <= 0 || d.h <= 0) {
-      continue;  // guard: tlwh_to_xyah divides by height (aspect = w / h)
+      continue; // guard: tlwh_to_xyah divides by height (aspect = w / h)
     }
     const std::array<float, 4> xywh = {d.cx, d.cy, d.w, d.h};
     auto detection =
@@ -40,21 +41,24 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     }
   }
 
-  // --- Step 2: split the tracked pool into unconfirmed / confirmed. -----------
+  // --- Step 2: split the tracked pool into unconfirmed / confirmed.
+  // -----------
   std::vector<std::shared_ptr<STrack>> unconfirmed;
   std::vector<std::shared_ptr<STrack>> tracked;
   for (auto &t : tracked_stracks_) {
     (t->is_activated() ? tracked : unconfirmed).push_back(t);
   }
 
-  // --- Step 3: joint pool (confirmed tracked + lost) and Kalman predict. ------
+  // --- Step 3: joint pool (confirmed tracked + lost) and Kalman predict.
+  // ------
   std::vector<std::shared_ptr<STrack>> strack_pool =
       joint_stracks(tracked, lost_stracks_);
   for (auto &t : strack_pool) {
     t->predict();
   }
 
-  // --- Step 4: first association, high-score detections. ----------------------
+  // --- Step 4: first association, high-score detections.
+  // ----------------------
   std::vector<std::pair<int, int>> matches;
   std::vector<int> u_track;
   std::vector<int> u_detection;
@@ -78,7 +82,8 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     }
   }
 
-  // --- Step 5: second association with low-score detections. -------------------
+  // --- Step 5: second association with low-score detections.
+  // -------------------
   std::vector<std::shared_ptr<STrack>> r_tracked_stracks;
   for (int i : u_track) {
     if (strack_pool[i]->state() == TrackState::Tracked) {
@@ -88,10 +93,10 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
   std::vector<int> u_track_second;
   if (!r_tracked_stracks.empty() && !detections_second.empty()) {
     matches.clear();
-    std::vector<int> tmp_detection;  // unmatched low detections are discarded
-    auto dists = iou_distance(r_tracked_stracks, detections_second);  // no fuse
-    linear_assignment(r_tracked_stracks.size(), detections_second.size(),
-                      dists, 0.5, matches, u_track_second, tmp_detection);
+    std::vector<int> tmp_detection; // unmatched low detections are discarded
+    auto dists = iou_distance(r_tracked_stracks, detections_second); // no fuse
+    linear_assignment(r_tracked_stracks.size(), detections_second.size(), dists,
+                      0.5, matches, u_track_second, tmp_detection);
     for (const auto &m : matches) {
       auto track = r_tracked_stracks[m.first];
       auto detection = detections_second[m.second];
@@ -115,7 +120,8 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     }
   }
 
-  // --- Step 6: associate unconfirmed tracks with leftover high detections. ----
+  // --- Step 6: associate unconfirmed tracks with leftover high detections.
+  // ----
   std::vector<std::shared_ptr<STrack>> detections_left;
   for (int i : u_detection) {
     detections_left.push_back(detections[i]);
@@ -144,7 +150,8 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     std::iota(u_detection_left.begin(), u_detection_left.end(), 0);
   }
 
-  // --- Step 7: activate brand-new tracks. --------------------------------------
+  // --- Step 7: activate brand-new tracks.
+  // --------------------------------------
   for (int inew : u_detection_left) {
     auto track = detections_left[inew];
     if (track->score() < params_.new_track_thresh) {
@@ -154,7 +161,8 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     activated_stracks.push_back(track);
   }
 
-  // --- Step 8: remove lost tracks aged past the buffer. ------------------------
+  // --- Step 8: remove lost tracks aged past the buffer.
+  // ------------------------
   for (auto &track : lost_stracks_) {
     if (frame_id_ - track->end_frame() > params_.track_buffer) {
       track->mark_removed();
@@ -162,7 +170,8 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     }
   }
 
-  // --- Step 9: update the persistent pools in the original ByteTrack order. ----
+  // --- Step 9: update the persistent pools in the original ByteTrack order.
+  // ----
   tracked_stracks_.erase(
       std::remove_if(tracked_stracks_.begin(), tracked_stracks_.end(),
                      [](const std::shared_ptr<STrack> &track) {
@@ -183,12 +192,12 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
                            removed_stracks_.end() - kRemovedBuffer);
   }
 
-  auto deduplicated =
-      remove_duplicate_stracks(tracked_stracks_, lost_stracks_);
+  auto deduplicated = remove_duplicate_stracks(tracked_stracks_, lost_stracks_);
   tracked_stracks_ = std::move(deduplicated.first);
   lost_stracks_ = std::move(deduplicated.second);
 
-  // --- Step 10: format output (only activated tracks). --------------------------
+  // --- Step 10: format output (only activated tracks).
+  // --------------------------
   std::vector<Track> output;
   output.reserve(tracked_stracks_.size());
   for (auto &t : tracked_stracks_) {
@@ -219,4 +228,4 @@ void ByteTrack::reset() {
   STrack::reset_id();
 }
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking

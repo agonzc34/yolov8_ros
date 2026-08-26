@@ -8,41 +8,41 @@
 #include <memory>
 #include <vector>
 
-#include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 #include "yolo_cpp_ros/tracking/strack.hpp"
+#include "yolo_cpp_ros/tracking/utils/kalman_filter.hpp"
 
 namespace yolo_tracking {
 
 // One raw detection fed to the tracker.
 struct TrackDetection {
-  float cx = 0;  // bounding box center x
-  float cy = 0;  // bounding box center y
-  float w = 0;   // width
-  float h = 0;   // height
+  float cx = 0; // bounding box center x
+  float cy = 0; // bounding box center y
+  float w = 0;  // width
+  float h = 0;  // height
   float score = 0;
   int class_id = 0;
-  int index = 0;  // position in the original detection array (to fetch metadata)
+  int index = 0; // position in the original detection array (to fetch metadata)
 };
 
 // One tracked object returned by ByteTrack::update().
 struct Track {
-  int id = 0;  // stable track id
+  int id = 0; // stable track id
   float x1 = 0;
   float y1 = 0;
   float x2 = 0;
-  float y2 = 0;  // Kalman-refined min/max box corners
+  float y2 = 0; // Kalman-refined min/max box corners
   float score = 0;
   int class_id = 0;
-  int index = 0;  // detection index (from TrackDetection::index)
+  int index = 0; // detection index (from TrackDetection::index)
 };
 
 struct ByteTrackParams {
-  double track_high_thresh = 0.25;  // first-stage match threshold
-  double track_low_thresh = 0.1;    // second-stage low-score threshold
-  double new_track_thresh = 0.25;   // min score to start a new track
-  int track_buffer = 30;            // frames a lost track is kept alive
-  double match_thresh = 0.8;        // association cost threshold
-  bool fuse_score = true;           // fuse IoU cost with detection score
+  double track_high_thresh = 0.25; // first-stage match threshold
+  double track_low_thresh = 0.1;   // second-stage low-score threshold
+  double new_track_thresh = 0.25;  // min score to start a new track
+  int track_buffer = 30;           // frames a lost track is kept alive
+  double match_thresh = 0.8;       // association cost threshold
+  bool fuse_score = true;          // fuse IoU cost with detection score
 };
 
 // ByteTrack implementation based on the original paper and MIT-licensed
@@ -69,9 +69,9 @@ private:
   std::vector<std::shared_ptr<STrack>> lost_stracks_;
   std::vector<std::shared_ptr<STrack>> removed_stracks_;
   int frame_id_ = 0;
-  static constexpr std::size_t kRemovedBuffer = 1000;  // cap on removed_stracks_
+  static constexpr std::size_t kRemovedBuffer = 1000; // cap on removed_stracks_
 };
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_
+#endif // YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_

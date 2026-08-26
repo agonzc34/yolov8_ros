@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_cpp_ros/engine/model.hpp"
+#include "yolo_cpp_ros/yolo/utils.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -9,13 +10,12 @@
 #include <regex>
 #include <stdexcept>
 #include <thread>
-#include "yolo_cpp_ros/yolo/utils.hpp"
 
 namespace yolo_onnx {
 Model::Model(yolo_utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
-      input_image_shape(), num_input_nodes(0),
-      num_output_nodes(0), memory_info(nullptr) {
+      input_image_shape(), num_input_nodes(0), num_output_nodes(0),
+      memory_info(nullptr) {
   // Initialize session options
   int n_threads = params.n_threads;
   this->conf_threshold = params.threshold;
@@ -30,9 +30,8 @@ Model::Model(yolo_utils::YoloParams params)
       GraphOptimizationLevel::ORT_ENABLE_ALL);
 
   auto providers = Ort::GetAvailableProviders();
-  bool use_cuda =
-      std::find(providers.begin(), providers.end(), "CUDAExecutionProvider") !=
-      providers.end();
+  bool use_cuda = std::find(providers.begin(), providers.end(),
+                            "CUDAExecutionProvider") != providers.end();
 
   if (use_cuda) {
     // The GPU graph does the compute: a single intra-op thread avoids the
@@ -45,15 +44,14 @@ Model::Model(yolo_utils::YoloParams params)
     // (less GPU memory over-allocation).
     OrtCUDAProviderOptionsV2 *cuda_options = nullptr;
     Ort::GetApi().CreateCUDAProviderOptions(&cuda_options);
-    std::vector<const char *> keys = {
-        "device_id", "arena_extend_strategy", "cudnn_conv_algo_search"};
+    std::vector<const char *> keys = {"device_id", "arena_extend_strategy",
+                                      "cudnn_conv_algo_search"};
     std::vector<const char *> values = {"0", "kSameAsRequested", "HEURISTIC"};
     Ort::GetApi().UpdateCUDAProviderOptions(cuda_options, keys.data(),
                                             values.data(), keys.size());
     this->session_options.AppendExecutionProvider_CUDA_V2(*cuda_options);
     Ort::GetApi().ReleaseCUDAProviderOptions(cuda_options);
-    std::cout << "CUDA Execution Provider has been added (tuned)."
-              << std::endl;
+    std::cout << "CUDA Execution Provider has been added (tuned)." << std::endl;
   } else {
     this->session_options.SetIntraOpNumThreads(n_threads);
     std::cout << "CUDA Execution Provider is not available." << std::endl;
@@ -88,8 +86,9 @@ Model::Model(yolo_utils::YoloParams params)
       input_type_info.GetTensorTypeAndShapeInfo().GetShape();
 
   if (input_tensor_shape_vec.size() >= 4) {
-    this->input_image_shape = cv::Size(static_cast<int>(input_tensor_shape_vec[3]),
-                                     static_cast<int>(input_tensor_shape_vec[2]));
+    this->input_image_shape =
+        cv::Size(static_cast<int>(input_tensor_shape_vec[3]),
+                 static_cast<int>(input_tensor_shape_vec[2]));
     if (input_tensor_shape_vec[2] == -1 && input_tensor_shape_vec[3] == -1) {
       this->input_image_shape = cv::Size(640, 480); // Default size
     }
@@ -106,7 +105,8 @@ Model::Model(yolo_utils::YoloParams params)
   // Load the class names (ONNX graph metadata first, coco.names as fallback).
   this->load_class_names();
 
-  this->memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+  this->memory_info =
+      Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
   std::cout << "Model " << model_path << " has been successfully loaded."
             << std::endl;
@@ -156,7 +156,8 @@ void yolo_onnx::Model::load_class_names() {
   //    does not carry a vocabulary.
   if (this->class_names.empty()) {
     std::ifstream class_names_file(
-        "src/yolov8_ros/yolo_cpp_ros/conf/coco.names");  // TODO: change this path
+        "src/yolov8_ros/yolo_cpp_ros/conf/coco.names"); // TODO: change this
+                                                        // path
     if (!class_names_file.is_open()) {
       std::cerr << "Error: Could not open coco.names file." << std::endl;
       return;
@@ -170,8 +171,8 @@ void yolo_onnx::Model::load_class_names() {
 
 std::vector<yolo_msgs::msg::Detection>
 yolo_onnx::Model::detect(const cv::Mat &image) {
-  std::vector<int64_t> input_tensor_shape = {1, 3, this->input_image_shape.height,
-                                           this->input_image_shape.width};
+  std::vector<int64_t> input_tensor_shape = {
+      1, 3, this->input_image_shape.height, this->input_image_shape.width};
   preprocess(image, input_tensor_shape);
   auto preds = inference(input_tensor_shape);
   return postprocess(cv::Size(image.cols, image.rows), this->input_image_shape,
@@ -180,8 +181,9 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
 
 void yolo_onnx::Model::preprocess(const cv::Mat &image,
                                   std::vector<int64_t> &input_tensor_shape) {
-  cv::Mat resized_image =
-    yolo_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114));
+  cv::Mat resized_image = yolo_utils::letterbox(
+      image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]),
+      cv::Scalar(114, 114, 114));
 
   // Normalize to float (OpenCV-optimized), then split channels straight into
   // the persistent buffer. This keeps the fast SIMD convertTo+split path while
@@ -191,10 +193,9 @@ void yolo_onnx::Model::preprocess(const cv::Mat &image,
   const int W = static_cast<int>(input_tensor_shape[3]);
   std::vector<cv::Mat> chw(resized_image.channels());
   for (int i = 0; i < resized_image.channels(); ++i) {
-    chw[i] = cv::Mat(H, W, CV_32FC1,
-                     input_buffer_.data() + i * H * W);
+    chw[i] = cv::Mat(H, W, CV_32FC1, input_buffer_.data() + i * H * W);
   }
-  cv::split(resized_image, chw);  // Split channels into the persistent blob
+  cv::split(resized_image, chw); // Split channels into the persistent blob
 }
 
 std::vector<Ort::Value>
@@ -222,4 +223,4 @@ Model::postprocess(const cv::Size &original_image_size,
   return std::vector<yolo_msgs::msg::Detection>();
 }
 
-}  // namespace yolo_onnx
+} // namespace yolo_onnx

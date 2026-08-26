@@ -51,7 +51,8 @@ struct DepthBounds {
 };
 
 // Weighted histogram peak + MAD/IQR adaptive filtering + trimmed weighted
-// center and 1st/99th weighted percentiles (Python _compute_depth_bounds_weighted).
+// center and 1st/99th weighted percentiles (Python
+// _compute_depth_bounds_weighted).
 DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
                                           std::vector<double> weight);
 
@@ -62,7 +63,8 @@ struct AxisBounds {
 };
 
 // Outlier-filtered (MAD), trimmed weighted center + 3rd/97th weighted
-// percentiles for one 3D axis (Python _compute_height_bounds / _compute_width_bounds).
+// percentiles for one 3D axis (Python _compute_height_bounds /
+// _compute_width_bounds).
 AxisBounds compute_axis_bounds(const std::vector<double> &val3,
                                const std::vector<double> &w, double mad_mult,
                                double clip_lo, double clip_hi);
@@ -75,19 +77,15 @@ double depth_at_pixel(const cv::Mat &depth_image, int v, int u,
 // Lift a 2D detection (bbox, optionally mask-guided depth sampling) into a
 // BoundingBox3D in the depth camera frame, using the camera intrinsics and
 // the robust depth statistics above.
-std::optional<yolo_msgs::msg::BoundingBox3D>
-convert_bb_to_3d(const cv::Mat &depth_image,
-                 const sensor_msgs::msg::CameraInfo &depth_info,
-                 const yolo_msgs::msg::Detection &detection,
-                 int depth_units_divisor);
+std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
+    const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor);
 
 // Back-project the 2D pose keypoints of a detection into 3D (depth camera
 // frame), keeping id/score; keypoints with no valid depth are skipped.
-yolo_msgs::msg::KeyPoint3DArray
-convert_keypoints_to_3d(const cv::Mat &depth_image,
-                        const sensor_msgs::msg::CameraInfo &depth_info,
-                        const yolo_msgs::msg::Detection &detection,
-                        int depth_units_divisor);
+yolo_msgs::msg::KeyPoint3DArray convert_keypoints_to_3d(
+    const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor);
 
 // Quaternion-vector rotation: v' = q v q^-1 (q = [w, x, y, z]).
 std::array<double, 3> qv_mult(const std::array<double, 4> &q,
@@ -96,16 +94,16 @@ std::array<double, 3> qv_mult(const std::array<double, 4> &q,
 // Apply a rigid transform (translation + rotation) to a 3D box: the position
 // is rotated and translated, the axis-aligned size only rotated (abs of the
 // rotated extents).
-yolo_msgs::msg::BoundingBox3D transform_3d_box(
-    const yolo_msgs::msg::BoundingBox3D &bbox,
-    const std::array<double, 3> &translation,
-    const std::array<double, 4> &rotation);
+yolo_msgs::msg::BoundingBox3D
+transform_3d_box(const yolo_msgs::msg::BoundingBox3D &bbox,
+                 const std::array<double, 3> &translation,
+                 const std::array<double, 4> &rotation);
 
-yolo_msgs::msg::KeyPoint3DArray transform_3d_keypoints(
-    const yolo_msgs::msg::KeyPoint3DArray &keypoints,
-    const std::array<double, 3> &translation,
-    const std::array<double, 4> &rotation);
+yolo_msgs::msg::KeyPoint3DArray
+transform_3d_keypoints(const yolo_msgs::msg::KeyPoint3DArray &keypoints,
+                       const std::array<double, 3> &translation,
+                       const std::array<double, 4> &rotation);
 
-}  // namespace yolo_3d
+} // namespace yolo_3d
 
-#endif  // YOLO_CPP_ROS__3D__DEPTH_UTILS_HPP_
+#endif // YOLO_CPP_ROS__3D__DEPTH_UTILS_HPP_

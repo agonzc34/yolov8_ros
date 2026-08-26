@@ -23,21 +23,19 @@ double box_iou(const std::array<float, 4> &box1,
   const double x2 = std::min(box1[2], box2[2]);
   const double y2 = std::min(box1[3], box2[3]);
   const double inter = std::max(0.0, x2 - x1) * std::max(0.0, y2 - y1);
-  const double area1 =
-      std::max(0.0, static_cast<double>(box1[2]) - box1[0]) *
-      std::max(0.0, static_cast<double>(box1[3]) - box1[1]);
-  const double area2 =
-      std::max(0.0, static_cast<double>(box2[2]) - box2[0]) *
-      std::max(0.0, static_cast<double>(box2[3]) - box2[1]);
+  const double area1 = std::max(0.0, static_cast<double>(box1[2]) - box1[0]) *
+                       std::max(0.0, static_cast<double>(box1[3]) - box1[1]);
+  const double area2 = std::max(0.0, static_cast<double>(box2[2]) - box2[0]) *
+                       std::max(0.0, static_cast<double>(box2[3]) - box2[1]);
   const double uni = area1 + area2 - inter;
   return uni > 0 ? inter / uni : 0.0;
 }
 
-}  // namespace
+} // namespace
 
-std::vector<std::vector<double>> iou_distance(
-    const std::vector<std::shared_ptr<STrack>> &atracks,
-    const std::vector<std::shared_ptr<STrack>> &btracks) {
+std::vector<std::vector<double>>
+iou_distance(const std::vector<std::shared_ptr<STrack>> &atracks,
+             const std::vector<std::shared_ptr<STrack>> &btracks) {
   const std::size_t rows = atracks.size();
   const std::size_t cols = btracks.size();
   std::vector<std::vector<double>> cost(rows, std::vector<double>(cols, 1.0));
@@ -50,9 +48,9 @@ std::vector<std::vector<double>> iou_distance(
   return cost;
 }
 
-std::vector<std::vector<double>> fuse_score(
-    const std::vector<std::vector<double>> &cost_matrix,
-    const std::vector<std::shared_ptr<STrack>> &detections) {
+std::vector<std::vector<double>>
+fuse_score(const std::vector<std::vector<double>> &cost_matrix,
+           const std::vector<std::shared_ptr<STrack>> &detections) {
   const std::size_t rows = cost_matrix.size();
   const std::size_t cols = rows ? cost_matrix[0].size() : 0;
   std::vector<std::vector<double>> fused(rows, std::vector<double>(cols, 1.0));
@@ -68,8 +66,7 @@ std::vector<std::vector<double>> fuse_score(
 
 void linear_assignment(std::size_t n_rows, std::size_t n_cols,
                        const std::vector<std::vector<double>> &cost_matrix,
-                       double thresh,
-                       std::vector<std::pair<int, int>> &matches,
+                       double thresh, std::vector<std::pair<int, int>> &matches,
                        std::vector<int> &unmatched_a,
                        std::vector<int> &unmatched_b) {
   matches.clear();
@@ -89,7 +86,8 @@ void linear_assignment(std::size_t n_rows, std::size_t n_cols,
   // Extend to a square matrix of order n = n_rows + n_cols. Dummy assignments
   // model unmatched rows and columns under a finite assignment threshold.
   const std::size_t n = n_rows + n_cols;
-  std::vector<std::vector<double>> cost_ext(n, std::vector<double>(n, thresh / 2.0));
+  std::vector<std::vector<double>> cost_ext(
+      n, std::vector<double>(n, thresh / 2.0));
   for (std::size_t i = n_rows; i < n; ++i) {
     for (std::size_t j = n_cols; j < n; ++j) {
       cost_ext[i][j] = 0.0;
@@ -119,9 +117,9 @@ void linear_assignment(std::size_t n_rows, std::size_t n_cols,
   }
 }
 
-std::vector<std::shared_ptr<STrack>> joint_stracks(
-    const std::vector<std::shared_ptr<STrack>> &atracks,
-    const std::vector<std::shared_ptr<STrack>> &btracks) {
+std::vector<std::shared_ptr<STrack>>
+joint_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
+              const std::vector<std::shared_ptr<STrack>> &btracks) {
   std::set<int> seen_ids;
   for (const auto &t : atracks) {
     seen_ids.insert(t->track_id());
@@ -137,9 +135,9 @@ std::vector<std::shared_ptr<STrack>> joint_stracks(
   return res;
 }
 
-std::vector<std::shared_ptr<STrack>> sub_stracks(
-    const std::vector<std::shared_ptr<STrack>> &atracks,
-    const std::vector<std::shared_ptr<STrack>> &btracks) {
+std::vector<std::shared_ptr<STrack>>
+sub_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
+            const std::vector<std::shared_ptr<STrack>> &btracks) {
   std::set<int> btrack_ids;
   for (const auto &t : btracks) {
     btrack_ids.insert(t->track_id());
@@ -191,4 +189,4 @@ remove_duplicate_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
   return {resa, resb};
 }
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking

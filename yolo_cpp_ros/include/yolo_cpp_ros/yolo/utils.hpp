@@ -6,8 +6,8 @@
 
 #include "onnxruntime_cxx_api.h"
 #include "yolo_msgs/msg/bounding_box2_d.hpp"
-#include <opencv2/opencv.hpp>
 #include <algorithm>
+#include <opencv2/opencv.hpp>
 #include <vector>
 
 namespace yolo_utils {
@@ -46,7 +46,7 @@ struct Keypoint {
 };
 
 struct BoxWithKeypoints : public Box {
-  std::vector<Keypoint> keypoints;  // COCO order, (x, y, visible) per kp
+  std::vector<Keypoint> keypoints; // COCO order, (x, y, visible) per kp
 
   BoxWithKeypoints() = default;
   BoxWithKeypoints(Box box)
@@ -58,23 +58,22 @@ struct BoxWithKeypoints : public Box {
 };
 
 struct YoloParams {
-  std::string model_type;  // "YOLO"|"Detect"|"Segment"|"auto" (by file name)
+  std::string model_type; // "YOLO"|"Detect"|"Segment"|"auto" (by file name)
   std::string model_path;
   std::string device;
   float threshold;
   float iou;
-  bool enable;   // gate inference (matches the Python node's `enable`)
-  int max_det;   // cap on the number of detections published per image
+  bool enable; // gate inference (matches the Python node's `enable`)
+  int max_det; // cap on the number of detections published per image
   int image_reliability;
   std::string image_topic;
   int n_threads;
-  int max_fps;   // cap on the inference/publish rate in Hz; 0 = unlimited
-                 // (process every received frame). Frames are dropped by the
-                 // node, the subscription stays live.
+  int max_fps; // cap on the inference/publish rate in Hz; 0 = unlimited
+               // (process every received frame). Frames are dropped by the
+               // node, the subscription stays live.
 };
 
-template <typename BoxT>
-float iou(const BoxT &box1, const BoxT &box2) {
+template <typename BoxT> float iou(const BoxT &box1, const BoxT &box2) {
   float x1 = std::max(box1.x1, box2.x1);
   float y1 = std::max(box1.y1, box2.y1);
   float x2 = std::min(box1.x2, box2.x2);
@@ -129,18 +128,17 @@ cv::Mat inverse_letterbox(const cv::Mat &letterboxed,
                           const cv::Size &resized_image_size);
 Box scale_box(const Box &box, const cv::Size &original_image_size,
               const cv::Size &resized_image_size);
-std::vector<Keypoint>
-scale_keypoints(const std::vector<Keypoint> &keypoints,
-                const cv::Size &original_image_size,
-                const cv::Size &resized_image_size);
+std::vector<Keypoint> scale_keypoints(const std::vector<Keypoint> &keypoints,
+                                      const cv::Size &original_image_size,
+                                      const cv::Size &resized_image_size);
 yolo_msgs::msg::BoundingBox2D
 convert_to_bounding_box(const yolo_utils::Box &box);
 
-std::vector<yolo_utils::Box>
-get_boxes(const std::vector<Ort::Value> &preds,
-          const cv::Size &original_image_size,
-          const cv::Size &resized_image_size, const int num_classes);
+std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
+                                       const cv::Size &original_image_size,
+                                       const cv::Size &resized_image_size,
+                                       const int num_classes);
 
-}  // namespace yolo_utils
+} // namespace yolo_utils
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

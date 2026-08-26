@@ -51,9 +51,8 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
 
   // Runtime toggle for inference (matches the Python node's `enable` service).
   this->enable_service_ = this->create_service<std_srvs::srv::SetBool>(
-      "enable",
-      std::bind(&YoloNode::enable_service_callback, this, std::placeholders::_1,
-                std::placeholders::_2));
+      "enable", std::bind(&YoloNode::enable_service_callback, this,
+                          std::placeholders::_1, std::placeholders::_2));
 
   this->create_yolo(this->yolo_params);
   RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
@@ -136,13 +135,10 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
   const bool explicit_pose =
       !model_type.empty() && model_type != "auto" &&
       (model_type.find("pose") != std::string::npos ||
-       model_type.find("keypoint") != std::string::npos ||
-       model_type == "kpt");
-  const bool explicit_segment =
-      !model_type.empty() && model_type != "auto" &&
-      model_type.find("segment") != std::string::npos;
-  const bool explicit_detect = model_type == "yolo" ||
-                               model_type == "detect" ||
+       model_type.find("keypoint") != std::string::npos || model_type == "kpt");
+  const bool explicit_segment = !model_type.empty() && model_type != "auto" &&
+                                model_type.find("segment") != std::string::npos;
+  const bool explicit_detect = model_type == "yolo" || model_type == "detect" ||
                                model_type == "det" || model_type == "detection";
   const bool by_filename_pose =
       params.model_path.find("pose") != std::string::npos;
@@ -226,4 +222,4 @@ void YoloNode::recieve_image_callback(
   }
 }
 
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp

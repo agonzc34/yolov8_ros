@@ -15,10 +15,10 @@ namespace {
 // triple per keypoint, with the coordinates (like the boxes) already decoded
 // into the letterboxed model-input frame and the visibility sigmoid'd.
 constexpr int kNumKeypoints = 17;
-constexpr int kKeypointDims = 3;  // x, y, visible
-constexpr int kKeypointValues = kNumKeypoints * kKeypointDims;  // 51
+constexpr int kKeypointDims = 3;                               // x, y, visible
+constexpr int kKeypointValues = kNumKeypoints * kKeypointDims; // 51
 
-}  // namespace
+} // namespace
 
 YoloPose::YoloPose(yolo_utils::YoloParams params) : Model(params) {}
 
@@ -46,9 +46,8 @@ YoloPose::postprocess(const cv::Size &original_image_size,
 
   if (baked_head) {
     const float *raw = preds[0].GetTensorData<float>();
-    const size_t num_rows = shape.size() == 3
-                                ? static_cast<size_t>(shape[1])
-                                : static_cast<size_t>(shape[0]);
+    const size_t num_rows = shape.size() == 3 ? static_cast<size_t>(shape[1])
+                                              : static_cast<size_t>(shape[0]);
     const size_t stride = static_cast<size_t>(shape.back());
 
     for (size_t i = 0; i < num_rows; ++i) {
@@ -62,17 +61,17 @@ YoloPose::postprocess(const cv::Size &original_image_size,
       box.score = row[4];
       box.class_id = static_cast<int>(row[5]);
       box.index = static_cast<int>(i);
-      box = yolo_utils::scale_box(box, original_image_size,
-                                       resized_image_size);
+      box = yolo_utils::scale_box(box, original_image_size, resized_image_size);
 
-      std::vector<yolo_utils::Keypoint> kpts(static_cast<size_t>(kNumKeypoints));
+      std::vector<yolo_utils::Keypoint> kpts(
+          static_cast<size_t>(kNumKeypoints));
       for (int k = 0; k < kNumKeypoints; ++k) {
         kpts[static_cast<size_t>(k)].x = row[6 + k * kKeypointDims + 0];
         kpts[static_cast<size_t>(k)].y = row[6 + k * kKeypointDims + 1];
         kpts[static_cast<size_t>(k)].visible = row[6 + k * kKeypointDims + 2];
       }
-      kpts = yolo_utils::scale_keypoints(
-          kpts, original_image_size, resized_image_size);
+      kpts = yolo_utils::scale_keypoints(kpts, original_image_size,
+                                         resized_image_size);
 
       boxes_with_kpts.emplace_back(box, std::move(kpts));
     }
@@ -125,21 +124,24 @@ YoloPose::postprocess(const cv::Size &original_image_size,
       box.score = max_score;
       box.class_id = class_id;
       box.index = static_cast<int>(i);
-      box = yolo_utils::scale_box(box, original_image_size,
-                                       resized_image_size);
+      box = yolo_utils::scale_box(box, original_image_size, resized_image_size);
 
       // Keypoint channels sit after the class scores; each keypoint is one
       // (x, y, visible) triple.
-      std::vector<yolo_utils::Keypoint> kpts(static_cast<size_t>(kNumKeypoints));
+      std::vector<yolo_utils::Keypoint> kpts(
+          static_cast<size_t>(kNumKeypoints));
       for (int k = 0; k < kNumKeypoints; ++k) {
         const size_t channel = 4 + static_cast<size_t>(num_classes) +
                                static_cast<size_t>(k) * kKeypointDims;
-        kpts[static_cast<size_t>(k)].x = raw[(channel + 0) * num_detections + i];
-        kpts[static_cast<size_t>(k)].y = raw[(channel + 1) * num_detections + i];
-        kpts[static_cast<size_t>(k)].visible = raw[(channel + 2) * num_detections + i];
+        kpts[static_cast<size_t>(k)].x =
+            raw[(channel + 0) * num_detections + i];
+        kpts[static_cast<size_t>(k)].y =
+            raw[(channel + 1) * num_detections + i];
+        kpts[static_cast<size_t>(k)].visible =
+            raw[(channel + 2) * num_detections + i];
       }
-      kpts = yolo_utils::scale_keypoints(
-          kpts, original_image_size, resized_image_size);
+      kpts = yolo_utils::scale_keypoints(kpts, original_image_size,
+                                         resized_image_size);
 
       boxes_with_kpts.emplace_back(box, std::move(kpts));
     }
@@ -153,8 +155,8 @@ YoloPose::postprocess(const cv::Size &original_image_size,
                        }),
         boxes_with_kpts.end());
 
-    const auto indices = yolo_utils::nms(
-        boxes_with_kpts, this->iou_threshold, this->conf_threshold);
+    const auto indices = yolo_utils::nms(boxes_with_kpts, this->iou_threshold,
+                                         this->conf_threshold);
     std::vector<yolo_utils::BoxWithKeypoints> filtered;
     filtered.reserve(indices.size());
     for (size_t i = 0; i < indices.size(); ++i) {
@@ -197,4 +199,4 @@ YoloPose::postprocess(const cv::Size &original_image_size,
   return detection_array;
 }
 
-}  // namespace yolo_onnx
+} // namespace yolo_onnx

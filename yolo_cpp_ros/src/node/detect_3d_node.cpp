@@ -30,8 +30,8 @@ Detect3DNode::on_configure(const rclcpp_lifecycle::State &) {
       this->tf_buffer_, this->shared_from_this());
 
   RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::
-      SUCCESS;
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -71,8 +71,8 @@ Detect3DNode::on_activate(const rclcpp_lifecycle::State &) {
                 std::placeholders::_2, std::placeholders::_3));
 
   RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::
-      SUCCESS;
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -83,8 +83,8 @@ Detect3DNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->synchronizer_.reset();
 
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::
-      SUCCESS;
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -93,15 +93,15 @@ Detect3DNode::on_cleanup(const rclcpp_lifecycle::State &) {
   this->detections_3d_publisher_.reset();
 
   RCLCPP_INFO(get_logger(), "[%s] Cleaned up", this->get_name());
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::
-      SUCCESS;
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 Detect3DNode::on_shutdown(const rclcpp_lifecycle::State &) {
   RCLCPP_INFO(get_logger(), "[%s] Shutting down", this->get_name());
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::
-      SUCCESS;
+  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS;
 }
 
 void Detect3DNode::declare_params() {
@@ -150,8 +150,7 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
     return new_detections;
   }
 
-  auto transform =
-      this->get_transform(depth_info_msg->header.frame_id);
+  auto transform = this->get_transform(depth_info_msg->header.frame_id);
   if (!transform) {
     return new_detections;
   }
@@ -161,8 +160,8 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
   // (or 32FC1 meters) and divide by depth_image_units_divisor below.
   cv::Mat depth_image;
   try {
-    auto cv_ptr =
-        cv_bridge::toCvShare(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
+    auto cv_ptr = cv_bridge::toCvShare(
+        depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
     depth_image = cv_ptr->image;
   } catch (cv_bridge::Exception &e) {
     RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
@@ -170,17 +169,16 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
   }
 
   for (const auto &detection : detections_msg->detections) {
-    auto bbox3d = yolo_3d::convert_bb_to_3d(
-        depth_image, *depth_info_msg, detection,
-        this->depth_image_units_divisor_);
+    auto bbox3d =
+        yolo_3d::convert_bb_to_3d(depth_image, *depth_info_msg, detection,
+                                  this->depth_image_units_divisor_);
     if (!bbox3d) {
       continue;
     }
 
     yolo_msgs::msg::Detection new_detection = detection;
     new_detection.bbox3d =
-        yolo_3d::transform_3d_box(*bbox3d, transform->first,
-                                        transform->second);
+        yolo_3d::transform_3d_box(*bbox3d, transform->first, transform->second);
     new_detection.bbox3d.frame_id = this->target_frame_;
     new_detections.push_back(new_detection);
 
@@ -202,13 +200,12 @@ std::optional<std::pair<std::array<double, 3>, std::array<double, 4>>>
 Detect3DNode::get_transform(const std::string &frame_id) {
   try {
     // Zero time = latest available transform (same as the Python node).
-    const auto transform =
-        this->tf_buffer_.lookupTransform(this->target_frame_, frame_id,
-                                         tf2::TimePointZero);
+    const auto transform = this->tf_buffer_.lookupTransform(
+        this->target_frame_, frame_id, tf2::TimePointZero);
 
-    std::array<double, 3> translation{
-        transform.transform.translation.x, transform.transform.translation.y,
-        transform.transform.translation.z};
+    std::array<double, 3> translation{transform.transform.translation.x,
+                                      transform.transform.translation.y,
+                                      transform.transform.translation.z};
     std::array<double, 4> rotation{
         transform.transform.rotation.w, transform.transform.rotation.x,
         transform.transform.rotation.y, transform.transform.rotation.z};
@@ -220,4 +217,4 @@ Detect3DNode::get_transform(const std::string &frame_id) {
   }
 }
 
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp

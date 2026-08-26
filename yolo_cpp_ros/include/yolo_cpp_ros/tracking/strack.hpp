@@ -67,11 +67,11 @@ public:
   static int count_;
 
 private:
-  std::array<float, 4> _tlwh_{};  // original detection box (tlwh)
+  std::array<float, 4> _tlwh_{}; // original detection box (tlwh)
   const KalmanFilterXYAH *kf_ = nullptr;
   KalmanMean mean_{};
   KalmanCovariance covariance_{};
-  bool has_state_ = false;  // mean/covariance valid (activated at least once)
+  bool has_state_ = false; // mean/covariance valid (activated at least once)
 
   bool is_activated_ = false;
   int track_id_ = 0;
@@ -84,6 +84,6 @@ private:
   int idx_ = -1;
 };
 
-}  // namespace yolo_tracking
+} // namespace yolo_tracking
 
-#endif  // YOLO_CPP_ROS__TRACKING__STRACK_HPP_
+#endif // YOLO_CPP_ROS__TRACKING__STRACK_HPP_

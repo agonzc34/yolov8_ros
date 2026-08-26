@@ -14,8 +14,8 @@
 #include "sensor_msgs/msg/image.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "yolo_cpp_ros/engine/model.hpp"
-#include "yolo_msgs/msg/detection_array.hpp"
 #include "yolo_cpp_ros/yolo/utils.hpp"
+#include "yolo_msgs/msg/detection_array.hpp"
 
 namespace yolo_rclcpp {
 class YoloNode : public rclcpp_lifecycle::LifecycleNode {
@@ -65,6 +65,6 @@ private:
       std::shared_ptr<std_srvs::srv::SetBool::Response> response);
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
 };
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp
 
 #endif // YOLO_CPP_ROS__NODE__YOLO_NODE_HPP_

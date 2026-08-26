@@ -90,15 +90,15 @@ private:
       const sensor_msgs::msg::CameraInfo::ConstSharedPtr &depth_info_msg,
       const yolo_msgs::msg::DetectionArray::ConstSharedPtr &detections_msg);
 
-  std::vector<yolo_msgs::msg::Detection>
-  process_detections(const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg,
-                     const sensor_msgs::msg::CameraInfo::ConstSharedPtr &depth_info_msg,
-                     const yolo_msgs::msg::DetectionArray::ConstSharedPtr &detections_msg);
+  std::vector<yolo_msgs::msg::Detection> process_detections(
+      const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg,
+      const sensor_msgs::msg::CameraInfo::ConstSharedPtr &depth_info_msg,
+      const yolo_msgs::msg::DetectionArray::ConstSharedPtr &detections_msg);
 
   std::optional<std::pair<std::array<double, 3>, std::array<double, 4>>>
   get_transform(const std::string &frame_id);
 };
 
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp
 
-#endif  // YOLO_CPP_ROS__NODE__DETECT_3D_NODE_HPP_
+#endif // YOLO_CPP_ROS__NODE__DETECT_3D_NODE_HPP_

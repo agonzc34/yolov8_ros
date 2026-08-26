@@ -66,6 +66,6 @@ private:
       const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections);
 };
 
-}  // namespace yolo_rclcpp
+} // namespace yolo_rclcpp
 
-#endif  // YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_
+#endif // YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_
