@@ -98,7 +98,11 @@ dispatch is selected with the `model_type` param (`YOLO`/`Detect`/`Segment`/
 
 ## License
 
-This repository contains independently licensed ROS 2 packages:
+The whole repository is licensed under the **MIT License**. See the root
+[`LICENSE`](./LICENSE) file; it applies across the repository where a package
+does not provide a more specific license file.
+
+Specifically, the repository contains independently licensed ROS 2 packages:
 
 - `yolo_cpp_ros`, `yolo_msgs`, `yolo_bringup`, and `yolo_onnxruntime_vendor`
   are licensed under **MIT**. See each package's `LICENSE` file; third-party
