@@ -114,6 +114,7 @@ ament_target_dependencies(yolo_cpp_tracking
 add_executable(yolo_cpp_3d
   src/node/detect_3d_node.cpp
   src/node/detect_3d_main.cpp
+  src/3d/depth_utils.cpp
 )
 
 target_include_directories(yolo_cpp_3d PUBLIC

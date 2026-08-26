@@ -95,31 +95,8 @@ private:
                      const sensor_msgs::msg::CameraInfo::ConstSharedPtr &depth_info_msg,
                      const yolo_msgs::msg::DetectionArray::ConstSharedPtr &detections_msg);
 
-  std::optional<yolo_msgs::msg::BoundingBox3D>
-  convert_bb_to_3d(const cv::Mat &depth_image,
-                   const sensor_msgs::msg::CameraInfo &depth_info,
-                   const yolo_msgs::msg::Detection &detection);
-
-  yolo_msgs::msg::KeyPoint3DArray
-  convert_keypoints_to_3d(const cv::Mat &depth_image,
-                          const sensor_msgs::msg::CameraInfo &depth_info,
-                          const yolo_msgs::msg::Detection &detection);
-
   std::optional<std::pair<std::array<double, 3>, std::array<double, 4>>>
   get_transform(const std::string &frame_id);
-
-  static yolo_msgs::msg::BoundingBox3D
-  transform_3d_box(const yolo_msgs::msg::BoundingBox3D &bbox,
-                   const std::array<double, 3> &translation,
-                   const std::array<double, 4> &rotation);
-
-  static yolo_msgs::msg::KeyPoint3DArray
-  transform_3d_keypoints(const yolo_msgs::msg::KeyPoint3DArray &keypoints,
-                         const std::array<double, 3> &translation,
-                         const std::array<double, 4> &rotation);
-
-  static std::array<double, 3> qv_mult(const std::array<double, 4> &q,
-                                       const std::array<double, 3> &v);
 };
 
 }  // namespace yolo_rclcpp
