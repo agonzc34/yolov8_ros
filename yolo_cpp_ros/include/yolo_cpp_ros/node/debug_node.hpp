@@ -59,15 +59,28 @@ private:
 
   std::string image_topic_;
   std::string detections_topic_;
+  std::string markers_topic_;
+
+  // Independently subscribes to the 3D-enriched stream (detections_3d) purely
+  // to drive the RViz 3D markers. Keeping this separate from the
+  // image<->2D-detections sync means debug_image publishes at the full 2D
+  // detection rate while the (slower) 3D stream only gates the markers.
+  rclcpp::Subscription<yolo_msgs::msg::DetectionArray>::SharedPtr
+      markers_subscription_;
 
   std::map<std::string, cv::Scalar> class_to_color;
 
   void recieve_callback(
       const sensor_msgs::msg::Image::ConstSharedPtr &msg_image,
       const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections);
-	
-	cv::Mat draw_box(const cv::Mat &image,
-									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
+  void markers_callback(
+      const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections);
+
+  cv::Scalar color_for_class(const std::string &class_name);
+
+  cv::Mat draw_box(const cv::Mat &image,
+                   const yolo_msgs::msg::Detection &detection,
+                   const cv::Scalar &color);
 	cv::Mat draw_mask(const cv::Mat &image,
 									 const yolo_msgs::msg::Detection &detection, const cv::Scalar &color);
 	cv::Mat draw_keypoints(const cv::Mat &image,

@@ -16,6 +16,7 @@ DebugNode::DebugNode()
   this->declare_parameter("image_reliability", 2);
   this->declare_parameter("image_topic", "image");
   this->declare_parameter("detections_topic", "detections");
+  this->declare_parameter("markers_topic", "detections_3d");
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -24,6 +25,7 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
 
   this->image_topic_ = this->get_parameter("image_topic").as_string();
   this->detections_topic_ = this->get_parameter("detections_topic").as_string();
+  this->markers_topic_ = this->get_parameter("markers_topic").as_string();
 
   int image_reliability = this->get_parameter("image_reliability").as_int();
   rclcpp::ReliabilityPolicy qos_reliability_policy;
@@ -73,6 +75,15 @@ DebugNode::on_activate(const rclcpp_lifecycle::State &) {
                                                  this, std::placeholders::_1,
                                                  std::placeholders::_2));
 
+  // Separate subscription to the 3D-enriched stream purely for the RViz
+  // markers. It is NOT part of the image sync, so a slow 3D/depth stream only
+  // throttles the markers, never the debug image.
+  this->markers_subscription_ =
+      this->create_subscription<yolo_msgs::msg::DetectionArray>(
+          this->markers_topic_, rclcpp::QoS(1),
+          std::bind(&DebugNode::markers_callback, this,
+                    std::placeholders::_1));
+
   RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;
@@ -80,6 +91,7 @@ DebugNode::on_activate(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_deactivate(const rclcpp_lifecycle::State &) {
+  this->markers_subscription_.reset();
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;
@@ -112,28 +124,43 @@ void DebugNode::recieve_callback(
   }
   cv::Mat image = cv_ptr->image;
 
+  // Draw ALL detections onto one image, then publish ONCE (not per-detection).
+  for (const auto &detection : msg_detections->detections) {
+    auto color = color_for_class(detection.class_name);
+    image = draw_box(image, detection, color);
+    image = draw_mask(image, detection, color);
+    image = draw_keypoints(image, detection);
+  }
+
+  // The debug image is only gated by the image<->2D-detections sync, so it
+  // publishes at the full 2D detection rate regardless of the 3D stream.
+  // The Mat is always BGR8 (toCvCopy above forced BGR8 and OpenCV draws in
+  // BGR), so advertise BGR8 — reusing the *original* encoding here mislabels
+  // e.g. an rgb8 camera stream as rgb8 while the pixels are BGR, which makes
+  // RViz swap red/blue and the image look blue-tainted.
+  auto return_image =
+      cv_bridge::CvImage(msg_image->header, sensor_msgs::image_encodings::BGR8,
+                         image).toImageMsg();
+  this->debug_publisher->publish(*return_image.get());
+}
+
+// Drives the RViz 3D box / keypoint markers from the 3D-enriched stream. This
+// runs on its OWN subscription (markers_topic_), so its publish rate is the 3D
+// stream's rate (min(debug image, 3D detections)) and does not throttle the
+// debug image.
+void DebugNode::markers_callback(
+    const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections) {
   visualization_msgs::msg::MarkerArray bb_marker_array;
   visualization_msgs::msg::MarkerArray kp_marker_array;
 
   for (const auto &detection : msg_detections->detections) {
-    auto class_name = detection.class_name;
-    auto color_it = class_to_color.find(class_name);
-    if (color_it == class_to_color.end()) {
-      class_to_color[class_name] =
-          cv::Scalar(rand() % 256, rand() % 256, rand() % 256);
-      color_it = class_to_color.find(class_name);
-    }
-    cv::Scalar color = color_it->second;
-
-    image = draw_box(image, detection, color);
-    image = draw_mask(image, detection, color);
-    image = draw_keypoints(image, detection);
+    auto color = color_for_class(detection.class_name);
 
     // RViz markers for the 3D boxes (emitted only when a detect_3d node has
-    // enriched the detection stream with bbox3d).
+    // enriched the stream with bbox3d).
     if (!detection.bbox3d.frame_id.empty()) {
       auto marker = create_bb_marker(detection, color);
-      marker.header.stamp = msg_image->header.stamp;
+      marker.header.stamp = msg_detections->header.stamp;
       marker.id = bb_marker_array.markers.size();
       bb_marker_array.markers.push_back(marker);
     }
@@ -143,25 +170,25 @@ void DebugNode::recieve_callback(
       for (const auto &keypoint : detection.keypoints3d.data) {
         auto marker = create_kp_marker(keypoint);
         marker.header.frame_id = detection.keypoints3d.frame_id;
-        marker.header.stamp = msg_image->header.stamp;
+        marker.header.stamp = msg_detections->header.stamp;
         marker.id = kp_marker_array.markers.size();
         kp_marker_array.markers.push_back(marker);
       }
     }
   }
 
-  // Publish ONCE with all detections/masks drawn (not once per detection).
-  // The Mat is always BGR8 (toCvCopy above forced BGR8 and OpenCV draws in
-  // BGR), so advertise BGR8 — reusing the *original* encoding here mislabels
-  // e.g. an rgb8 camera stream as rgb8 while the pixels are BGR, which makes
-  // RViz swap red/blue and the image look blue-tainted.
-  auto return_image =
-      cv_bridge::CvImage(msg_image->header, sensor_msgs::image_encodings::BGR8,
-                         image).toImageMsg();
-  this->debug_publisher->publish(*return_image.get());
-
   this->bb_markers_publisher->publish(bb_marker_array);
   this->kp_markers_publisher->publish(kp_marker_array);
+}
+
+cv::Scalar DebugNode::color_for_class(const std::string &class_name) {
+  auto color_it = class_to_color.find(class_name);
+  if (color_it == class_to_color.end()) {
+    class_to_color[class_name] =
+        cv::Scalar(rand() % 256, rand() % 256, rand() % 256);
+    color_it = class_to_color.find(class_name);
+  }
+  return color_it->second;
 }
 
 cv::Mat DebugNode::draw_box(const cv::Mat &image,
@@ -279,7 +306,7 @@ visualization_msgs::msg::Marker DebugNode::create_bb_marker(
   marker.color.a = 0.4;
 
   marker.lifetime.sec = 0;
-  marker.lifetime.nanosec = 500000000;
+  marker.lifetime.nanosec = 0; // persistent: stays visible until next update
   marker.text = detection.class_name;
 
   return marker;
@@ -310,7 +337,7 @@ visualization_msgs::msg::Marker DebugNode::create_kp_marker(
   marker.color.a = 0.4;
 
   marker.lifetime.sec = 0;
-  marker.lifetime.nanosec = 500000000;
+  marker.lifetime.nanosec = 0; // persistent: stays visible until next update
   marker.text = std::to_string(keypoint.id);
 
   return marker;

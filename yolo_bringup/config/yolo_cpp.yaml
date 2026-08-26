@@ -65,12 +65,18 @@
 
 /yolo/debug_node:
   ros__parameters:
-    image_reliability: 2      # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /head_front_camera/rgb/image_raw
-    # Detection stream the debug node reads. This is the ONLY way to select
-    # it (the launch passes this file verbatim and makes no overrides):
-    #   detections_3d  -> 3D-enriched stream, populates the RViz 3D box /
-    #                     keypoint markers (use with use_3d:=True). Default.
-    #   tracking       -> tracked 2D IDs (use_3d:=False, use_tracking:=True)
-    #   detections     -> raw YOLO 2D output (tracking off)
-    detections_topic: detections_3d
+    # 2D detection stream the debug node SYNCs with the image to draw and
+    # publish debug_image. It runs at the full camera rate and is NOT gated by
+    # the 3D/depth node, so debug_image always keeps the input frequency even
+    # when depth is slow/absent:
+    #   tracking   -> tracked 2D IDs (use_3d:=False, use_tracking:=True). Default.
+    #   detections -> raw YOLO 2D output (tracking off)
+    detections_topic: tracking
+    # 3D-enriched stream read SEPARATELY just to drive the RViz 3D box /
+    # keypoint markers (use_3d:=True). Markers publish at this stream's rate
+    # (min(debug image, 3D detections)) and are decoupled from debug_image by
+    # the node's own markers_topic subscription. Markers are persistent (lifetime
+    # 0), staying visible until the next marker array updates them.
+    markers_topic: detections_3d
