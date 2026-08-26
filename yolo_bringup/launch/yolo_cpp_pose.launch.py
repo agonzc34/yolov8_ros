@@ -26,7 +26,7 @@ def generate_launch_description():
         "use_3d",
         default_value="False",
         description="Whether to enable the 3D detection node (needs a "
-                    "depth image + CameraInfo, see the config file)",
+        "depth image + CameraInfo, see the config file)",
     )
 
     params_file = LaunchConfiguration("params_file")
@@ -38,9 +38,9 @@ def generate_launch_description():
             "yolo_cpp_pose.yaml",
         ),
         description="Path to the ROS 2 parameters file (YAML) with the config for "
-                    "the yolo_node, tracking_node, detect_3d_node and debug_node "
-                    "blocks. All tuning (model, topics, thresholds, QoS) lives "
-                    "here; the launch makes no topic remaps.",
+        "the yolo_node, tracking_node, detect_3d_node and debug_node "
+        "blocks. All tuning (model, topics, thresholds, QoS) lives "
+        "here; the launch makes no topic remaps.",
     )
 
     namespace = LaunchConfiguration("namespace")
