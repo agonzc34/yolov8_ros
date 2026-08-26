@@ -50,7 +50,11 @@
 /yolo/detect_3d_node:
   ros__parameters:
     target_frame: base_link
-    maximum_detection_threshold: 0.3   # max z-distance from the reference depth
+    # maximum_detection_threshold:  # informational: the old fixed z-cluster
+    #   guard was superseded by the robust, spatially weighted depth
+    #   statistics ported from the Python detect_3d_node (mode/MAD/percentile
+    #   based). Kept for config parity; does not gate inference anymore.
+    maximum_detection_threshold: 0.3
     depth_image_units_divisor: 1000    # raw depth units -> meters
     depth_image_reliability: 2         # 0=SystemDefault, 1=Reliable, 2=BestEffort
     depth_info_reliability: 2

@@ -6,8 +6,378 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 namespace yolo_rclcpp {
+
+// ---------------------------------------------------------------------------
+// Robust depth-statistics helpers, ported from the Python detect_3d_node.py
+// (_compute_spatial_weights, _compute_depth_bounds_weighted,
+// _compute_height_bounds, _compute_width_bounds). They turn the raw depth
+// samples of a detection into a 3D box: a spatially weighted, trimmed-mean
+// center and MAD/percentile-based extents per axis.
+// ---------------------------------------------------------------------------
+namespace {
+
+double median(std::vector<double> v) {
+  if (v.empty()) return 0.0;
+  std::sort(v.begin(), v.end());
+  const size_t mid = v.size() / 2;
+  return (v.size() % 2 == 0) ? 0.5 * (v[mid - 1] + v[mid]) : v[mid];
+}
+
+// Linear-interpolation percentile on an already-sorted vector (q in [0,1]),
+// matching numpy.percentile(..., method='linear').
+double percentile_sorted(const std::vector<double> &v, double q) {
+  if (v.empty()) return 0.0;
+  const double pos = q * (static_cast<double>(v.size()) - 1.0);
+  const size_t lo = static_cast<size_t>(std::floor(pos));
+  const size_t hi = static_cast<size_t>(std::ceil(pos));
+  if (lo == hi) return v[lo];
+  const double frac = pos - lo;
+  return v[lo] * (1.0 - frac) + v[hi] * frac;
+}
+
+// Left insertion index into a normalized, monotonically non-decreasing
+// cumulative-weight array (np.searchsorted(cumsum, f, side='left')).
+size_t weighted_searchsorted(const std::vector<double> &cum, double f) {
+  auto it = std::lower_bound(cum.begin(), cum.end(), f);
+  return static_cast<size_t>(it - cum.begin());
+}
+
+double weighted_mean(const std::vector<double> &v,
+                     const std::vector<double> &w) {
+  const double sw = std::accumulate(w.begin(), w.end(), 0.0);
+  if (sw <= 0.0) return median(v);
+  double acc = 0.0;
+  for (size_t i = 0; i < v.size(); ++i) acc += v[i] * w[i];
+  return acc / sw;
+}
+
+// Gaussian falloff from the bbox center, floored at 0.3
+// (Python _compute_spatial_weights).
+std::vector<double> compute_spatial_weights(const std::vector<int> &xs,
+                                            const std::vector<int> &ys,
+                                            int center_x, int center_y,
+                                            int size_x, int size_y) {
+  const double hx = size_x / 2.0 + 1e-6;
+  const double hy = size_y / 2.0 + 1e-6;
+  std::vector<double> w(xs.size());
+  for (size_t i = 0; i < xs.size(); ++i) {
+    const double dx = (xs[i] - center_x) / hx;
+    const double dy = (ys[i] - center_y) / hy;
+    const double d = std::sqrt(dx * dx + dy * dy);
+    w[i] = std::max(std::exp(-0.5 * std::pow(d / 0.8, 2.0)), 0.3);
+  }
+  return w;
+}
+
+struct DepthBounds {
+  double center;
+  double min;
+  double max;
+};
+
+// Weighted histogram peak + MAD/IQR adaptive filtering + trimmed weighted
+// center and 1st/99th weighted percentiles (Python _compute_depth_bounds_weighted).
+DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
+                                          std::vector<double> weight) {
+  std::vector<double> d, w;
+  for (size_t i = 0; i < depth.size(); ++i) {
+    if (std::isfinite(depth[i]) && std::isfinite(weight[i])) {
+      d.push_back(depth[i]);
+      w.push_back(weight[i]);
+    }
+  }
+  if (d.empty()) return {0.0, 0.0, 0.0};
+  if (d.size() < 4) {
+    const auto mm = std::minmax_element(d.begin(), d.end());
+    return {median(d), *mm.first, *mm.second};
+  }
+
+  // Weighted histogram + smoothing for robust mode detection.
+  const double d_min = *std::min_element(d.begin(), d.end());
+  const double d_max = *std::max_element(d.begin(), d.end());
+  const double range = d_max - d_min;
+  const int n_bins = (!std::isfinite(range) || range <= 0.0)
+                         ? 30
+                         : std::clamp(
+                               static_cast<int>(std::lround(range / 0.01)), 20, 60);
+  const double bin_w = (d_max - d_min) / n_bins;
+  if (!(bin_w > 0.0)) {
+    // Degenerate: all depths identical (zero-width histogram). The median
+    // equals min and max, so return them directly.
+    const auto mm = std::minmax_element(d.begin(), d.end());
+    return {median(d), *mm.first, *mm.second};
+  }
+  std::vector<double> hist(n_bins, 0.0);
+  for (size_t i = 0; i < d.size(); ++i) {
+    const int idx = std::clamp(
+        static_cast<int>((d[i] - d_min) / bin_w), 0, n_bins - 1);
+    hist[idx] += w[i];
+  }
+  std::vector<double> smooth = hist;
+  const int ks = std::min(5, n_bins / 4);
+  if (ks >= 1) {
+    const int half = ks / 2;
+    for (int i = 0; i < n_bins; ++i) {
+      double acc = 0.0;
+      int cnt = 0;
+      for (int k = -half; k <= half; ++k) {
+        const int j = i + k;
+        if (j >= 0 && j < n_bins) {
+          acc += hist[j];
+          ++cnt;
+        }
+      }
+      smooth[i] = (cnt > 0) ? acc / cnt : hist[i];
+    }
+  }
+  int peak = 0;
+  for (int i = 1; i < n_bins; ++i) {
+    if (smooth[i] > smooth[peak]) peak = i;
+  }
+  const double mode_depth = d_min + bin_w * (peak + 0.5);
+
+  std::vector<double> dev(d.size());
+  for (size_t i = 0; i < d.size(); ++i) dev[i] = std::abs(d[i] - mode_depth);
+  const double mad = median(dev);
+  std::vector<double> ds(d);
+  std::sort(ds.begin(), ds.end());
+  const double q25 = percentile_sorted(ds, 0.25);
+  const double q75 = percentile_sorted(ds, 0.75);
+  const double iqr = q75 - q25;
+
+  double thr;
+  if (iqr < 0.03) {
+    thr = std::clamp(3.5 * mad, 0.08, 0.30);
+  } else if (iqr < 0.10) {
+    thr = std::clamp(4.0 * mad, 0.12, 0.40);
+  } else {
+    thr = std::clamp(5.0 * mad, 0.15, 0.60);
+  }
+
+  std::vector<double> obj_d, obj_w;
+  for (size_t i = 0; i < d.size(); ++i) {
+    if (std::abs(d[i] - mode_depth) <= thr) {
+      obj_d.push_back(d[i]);
+      obj_w.push_back(w[i]);
+    }
+  }
+  const size_t min_points =
+      std::max<size_t>(6, static_cast<size_t>(d.size() * 0.15));
+  if (obj_d.size() < min_points) {
+    // Fallback: weighted 2nd..85th percentile range.
+    std::vector<size_t> idx(d.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(),
+              [&](size_t a, size_t b) { return d[a] < d[b]; });
+    std::vector<double> cum(d.size());
+    double acc = 0.0;
+    for (size_t i = 0; i < d.size(); ++i) {
+      acc += w[idx[i]];
+      cum[i] = acc;
+    }
+    if (cum.back() > 0.0) {
+      for (auto &c : cum) c /= cum.back();
+      const double p2v = d[idx[weighted_searchsorted(cum, 0.02)]];
+      const double p85v = d[idx[weighted_searchsorted(cum, 0.85)]];
+      obj_d.clear();
+      obj_w.clear();
+      for (size_t i = 0; i < d.size(); ++i) {
+        if (d[i] >= p2v && d[i] <= p85v) {
+          obj_d.push_back(d[i]);
+          obj_w.push_back(w[i]);
+        }
+      }
+    }
+  }
+  if (obj_d.empty()) {
+    obj_d = d;
+    obj_w = w;
+  }
+
+  // 2%-trimmed weighted center.
+  double z_center;
+  if (std::accumulate(obj_w.begin(), obj_w.end(), 0.0) > 0.0) {
+    std::vector<size_t> idx(obj_d.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(),
+              [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
+    std::vector<double> cum(obj_d.size());
+    double acc = 0.0;
+    for (size_t i = 0; i < obj_d.size(); ++i) {
+      acc += obj_w[idx[i]];
+      cum[i] = acc;
+    }
+    for (auto &c : cum) c /= cum.back();
+    const size_t lo = weighted_searchsorted(cum, 0.02);
+    const size_t hi = weighted_searchsorted(cum, 0.98);
+    if (hi > lo) {
+      double sw = 0.0;
+      double zc = 0.0;
+      for (size_t i = lo; i < hi; ++i) {
+        zc += obj_d[idx[i]] * obj_w[idx[i]];
+        sw += obj_w[idx[i]];
+      }
+      z_center = (sw > 0.0) ? zc / sw : median(obj_d);
+    } else {
+      z_center = weighted_mean(obj_d, obj_w);
+    }
+  } else {
+    z_center = median(obj_d);
+  }
+
+  // Weighted 1st/99th percentiles for the extent.
+  std::vector<size_t> idx(obj_d.size());
+  std::iota(idx.begin(), idx.end(), 0);
+  std::sort(idx.begin(), idx.end(),
+            [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
+  std::vector<double> cum(obj_d.size());
+  double acc = 0.0;
+  for (size_t i = 0; i < obj_d.size(); ++i) {
+    acc += obj_w[idx[i]];
+    cum[i] = acc;
+  }
+  double z_min, z_max;
+  if (cum.back() > 0.0) {
+    for (auto &c : cum) c /= cum.back();
+    z_min = obj_d[idx[weighted_searchsorted(cum, 0.01)]];
+    z_max = obj_d[idx[weighted_searchsorted(cum, 0.99)]];
+  } else {
+    z_min = *std::min_element(obj_d.begin(), obj_d.end());
+    z_max = *std::max_element(obj_d.begin(), obj_d.end());
+  }
+  if (z_center < z_min || z_center > z_max) {
+    const double ext = std::max(z_max - z_min, 0.02);
+    z_min = z_center - ext / 2.0;
+    z_max = z_center + ext / 2.0;
+  }
+  if (z_max - z_min < 0.02) {
+    z_min = z_center - 0.01;
+    z_max = z_center + 0.01;
+  }
+  return {z_center, z_min, z_max};
+}
+
+struct AxisBounds {
+  double center;
+  double min;
+  double max;
+};
+
+// Outlier-filtered (MAD), trimmed weighted center + 3rd/97th weighted
+// percentiles for one 3D axis (Python _compute_height_bounds / _compute_width_bounds).
+AxisBounds compute_axis_bounds(const std::vector<double> &val3,
+                               const std::vector<double> &w, double mad_mult,
+                               double clip_lo, double clip_hi) {
+  const size_t n = val3.size();
+  if (n < 4) {
+    const auto mm = std::minmax_element(val3.begin(), val3.end());
+    return {median(val3), *mm.first, *mm.second};
+  }
+  auto sorted_idx = [&]() {
+    std::vector<size_t> idx(n);
+    std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(),
+              [&](size_t a, size_t b) { return val3[a] < val3[b]; });
+    return idx;
+  };
+
+  // Weighted median as reference.
+  const std::vector<size_t> idx = sorted_idx();
+  std::vector<double> cum(n, 0.0);
+  {
+    double acc = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      acc += w[idx[i]];
+      cum[i] = acc;
+    }
+    if (cum.back() > 0.0) {
+      for (auto &c : cum) c /= cum.back();
+    }
+  }
+  const double med = val3[idx[weighted_searchsorted(cum, 0.5)]];
+
+  std::vector<double> dev(n);
+  for (size_t i = 0; i < n; ++i) dev[i] = std::abs(val3[i] - med);
+  const double mad = median(dev);
+  const double thr = std::clamp(mad_mult * mad, clip_lo, clip_hi);
+
+  std::vector<double> fv, fw;
+  for (size_t i = 0; i < n; ++i) {
+    if (dev[i] <= thr) {
+      fv.push_back(val3[i]);
+      fw.push_back(w[i]);
+    }
+  }
+  const double min_pts = std::max(4.0, static_cast<double>(n) * 0.12);
+  if (fv.size() < min_pts) {
+    fv = val3;
+    fw = w;
+  }
+
+  // 5%-trimmed weighted center.
+  double center_val;
+  {
+    const size_t m = fv.size();
+    std::vector<size_t> i2(m);
+    std::iota(i2.begin(), i2.end(), 0);
+    std::sort(i2.begin(), i2.end(),
+              [&](size_t a, size_t b) { return fv[a] < fv[b]; });
+    std::vector<double> c2(m, 0.0);
+    double acc = 0.0;
+    for (size_t i = 0; i < m; ++i) {
+      acc += fw[i2[i]];
+      c2[i] = acc;
+    }
+    if (c2.back() > 0.0) {
+      for (auto &c : c2) c /= c2.back();
+    }
+    const size_t lo = weighted_searchsorted(c2, 0.05);
+    const size_t hi = weighted_searchsorted(c2, 0.95);
+    if (hi > lo) {
+      double sw = 0.0;
+      double zc = 0.0;
+      for (size_t i = lo; i < hi; ++i) {
+        zc += fv[i2[i]] * fw[i2[i]];
+        sw += fw[i2[i]];
+      }
+      center_val = (sw > 0.0) ? zc / sw : median(fv);
+    } else {
+      center_val = median(fv);
+    }
+  }
+
+  // 3rd/97th weighted percentiles for the extent.
+  double vmin, vmax;
+  {
+    const size_t m = fv.size();
+    std::vector<size_t> i2(m);
+    std::iota(i2.begin(), i2.end(), 0);
+    std::sort(i2.begin(), i2.end(),
+              [&](size_t a, size_t b) { return fv[a] < fv[b]; });
+    std::vector<double> c2(m, 0.0);
+    double acc = 0.0;
+    for (size_t i = 0; i < m; ++i) {
+      acc += fw[i2[i]];
+      c2[i] = acc;
+    }
+    if (c2.back() > 0.0) {
+      for (auto &c : c2) c /= c2.back();
+    }
+    vmin = fv[i2[weighted_searchsorted(c2, 0.03)]];
+    vmax = fv[i2[weighted_searchsorted(c2, 0.97)]];
+  }
+  const double min_size = 0.02;
+  if (vmax - vmin < min_size) {
+    vmin = center_val - min_size / 2.0;
+    vmax = center_val + min_size / 2.0;
+  }
+  return {center_val, vmin, vmax};
+}
+
+}  // namespace
 
 Detect3DNode::Detect3DNode()
     : rclcpp_lifecycle::LifecycleNode("detect_3d_node"),
@@ -205,9 +575,31 @@ std::optional<yolo_msgs::msg::BoundingBox3D> Detect3DNode::convert_bb_to_3d(
   const int size_x = static_cast<int>(detection.bbox.size.x);
   const int size_y = static_cast<int>(detection.bbox.size.y);
 
-  cv::Mat roi;
+  // Raw depth at a pixel: 16UC1 is in depth-units (divide by the divisor to
+  // get metres), 32FC1 is already in metres.
+  auto depth_at = [&](int v, int u) -> double {
+    if (depth_image.type() == CV_16UC1) {
+      return static_cast<double>(depth_image.at<uint16_t>(v, u)) /
+             this->depth_image_units_divisor_;
+    }
+    return static_cast<double>(depth_image.at<float>(v, u));
+  };
+
+  // Gather the valid depth pixels (depth > 0 and finite) of the detection
+  // together with their image coordinates, cropped either by the segmentation
+  // mask polygon or by the 2D bounding box.
+  std::vector<double> depths;
+  std::vector<int> xs, ys;
+  auto collect = [&](int v, int u) {
+    const double d = depth_at(v, u);
+    if (std::isfinite(d) && d > 0.0) {
+      depths.push_back(d);
+      xs.push_back(u);
+      ys.push_back(v);
+    }
+  };
+
   if (!detection.mask.data.empty()) {
-    // Crop the depth image by the segmentation mask polygon.
     cv::Mat mask = cv::Mat::zeros(depth_image.size(), CV_8UC1);
     std::vector<std::vector<cv::Point>> contours(1);
     contours[0].reserve(detection.mask.data.size());
@@ -215,9 +607,14 @@ std::optional<yolo_msgs::msg::BoundingBox3D> Detect3DNode::convert_bb_to_3d(
       contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
     }
     cv::fillPoly(mask, contours, cv::Scalar(255));
-    cv::bitwise_and(depth_image, depth_image, roi, mask);
+    for (int v = 0; v < depth_image.rows; ++v) {
+      for (int u = 0; u < depth_image.cols; ++u) {
+        if (mask.at<uchar>(v, u)) {
+          collect(v, u);
+        }
+      }
+    }
   } else {
-    // Crop the depth image by the 2D bounding box.
     const int u_min = std::max(center_x - size_x / 2, 0);
     const int u_max = std::min(center_x + size_x / 2, depth_image.cols - 1);
     const int v_min = std::max(center_y - size_y / 2, 0);
@@ -225,82 +622,69 @@ std::optional<yolo_msgs::msg::BoundingBox3D> Detect3DNode::convert_bb_to_3d(
     if (u_max <= u_min || v_max <= v_min) {
       return std::nullopt;
     }
-    roi = depth_image(cv::Rect(u_min, v_min, u_max - u_min, v_max - v_min));
-  }
-
-  // Convert to meters and bail out if there is no valid depth at all.
-  cv::Mat roi_float;
-  roi.convertTo(roi_float, CV_32FC1);
-  roi_float /= static_cast<float>(this->depth_image_units_divisor_);
-  if (cv::countNonZero(roi) == 0) {
-    return std::nullopt;
-  }
-
-  double bb_center_z = 0.0;
-  std::vector<float> roi_values;
-  roi_values.reserve(roi_float.total());
-
-  if (!detection.mask.data.empty()) {
-    // Only the masked (nonzero) pixels take part in the z estimation.
-    for (auto it = roi_float.begin<float>(); it != roi_float.end<float>();
-         ++it) {
-      if (*it > 0.0f) {
-        roi_values.push_back(*it);
+    for (int v = v_min; v < v_max; ++v) {
+      for (int u = u_min; u < u_max; ++u) {
+        collect(v, u);
       }
     }
-    if (roi_values.empty()) {
-      return std::nullopt;
-    }
-    std::vector<float> sorted(roi_values);
-    std::sort(sorted.begin(), sorted.end());
-    const size_t mid = sorted.size() / 2;
-    bb_center_z = (sorted.size() % 2 == 0)
-                      ? 0.5 * (sorted[mid - 1] + sorted[mid])
-                      : sorted[mid];
-  } else {
-    // Center pixel depth of the full image as the reference z.
-    const int cy = std::clamp(center_y, 0, depth_image.rows - 1);
-    const int cx = std::clamp(center_x, 0, depth_image.cols - 1);
-    if (depth_image.type() == CV_16UC1) {
-      bb_center_z = static_cast<double>(depth_image.at<uint16_t>(cy, cx)) /
-                    this->depth_image_units_divisor_;
-    } else {
-      bb_center_z = static_cast<double>(depth_image.at<float>(cy, cx));
-    }
-    roi_values.insert(roi_values.end(), roi_float.begin<float>(),
-                      roi_float.end<float>());
   }
-
-  // Keep only the pixels close to the reference depth (same z-cluster).
-  std::vector<float> filtered;
-  filtered.reserve(roi_values.size());
-  for (const float v : roi_values) {
-    if (std::abs(v - bb_center_z) <= this->maximum_detection_threshold_) {
-      filtered.push_back(v);
-    }
-  }
-  if (filtered.empty()) {
+  if (depths.empty()) {
     return std::nullopt;
   }
 
-  const auto [z_min_it, z_max_it] =
-      std::minmax_element(filtered.begin(), filtered.end());
-  const double z = (*z_min_it + *z_max_it) / 2.0;
-  if (z == 0.0) {
+  // Weight the samples by their distance from the bbox centre so that
+  // background/occluding pixels at the edges weigh less.
+  const std::vector<double> weights =
+      compute_spatial_weights(xs, ys, center_x, center_y, size_x, size_y);
+
+  // Robust, depth-statistics based bounding box (position + per-axis extent).
+  const DepthBounds db = compute_depth_bounds_weighted(depths, weights);
+  if (!std::isfinite(db.center) || db.center == 0.0) {
     return std::nullopt;
   }
 
-  // Project from image space to camera frame using the intrinsics.
   const auto &k = depth_info.k;  // [fx, 0, cx, 0, fy, cy, 0, 0, 1]
   const double fx = k[0], fy = k[4], px = k[2], py = k[5];
+  if (fx == 0.0 || fy == 0.0) {
+    return std::nullopt;
+  }
+
+  // Back-project each valid pixel to 3D and derive the per-axis bounds from
+  // the actual 3D points (not just by projecting the 2D bbox).
+  std::vector<double> x3(depths.size()), y3(depths.size());
+  for (size_t i = 0; i < depths.size(); ++i) {
+    x3[i] = depths[i] * (xs[i] - px) / fx;
+    y3[i] = depths[i] * (ys[i] - py) / fy;
+  }
+
+  // Height uses a fixed MAD multiplier; width adapts to the depth variance to
+  // distinguish occluded/3D objects from flat ones.
+  const AxisBounds hb = compute_axis_bounds(y3, weights, 4.5, 0.06, 0.50);
+  const double d_mean =
+      std::accumulate(depths.begin(), depths.end(), 0.0) / depths.size();
+  double d_var = 0.0;
+  for (const double d : depths) {
+    d_var += (d - d_mean) * (d - d_mean);
+  }
+  const double depth_std = std::sqrt(d_var / depths.size());
+  const double w_mult = (depth_std > 0.15) ? 4.0 : 4.5;
+  const double w_lo = (depth_std > 0.15) ? 0.06 : 0.08;
+  const double w_hi = (depth_std > 0.15) ? 0.40 : 0.50;
+  const AxisBounds wb = compute_axis_bounds(x3, weights, w_mult, w_lo, w_hi);
+
+  if (!std::isfinite(hb.center) || !std::isfinite(hb.min) ||
+      !std::isfinite(hb.max) || !std::isfinite(wb.center) ||
+      !std::isfinite(wb.min) || !std::isfinite(wb.max)) {
+    return std::nullopt;
+  }
 
   yolo_msgs::msg::BoundingBox3D bbox3d;
-  bbox3d.center.position.x = z * (center_x - px) / fx;
-  bbox3d.center.position.y = z * (center_y - py) / fy;
-  bbox3d.center.position.z = z;
-  bbox3d.size.x = z * (size_x / fx);
-  bbox3d.size.y = z * (size_y / fy);
-  bbox3d.size.z = *z_max_it - *z_min_it;
+  bbox3d.center.position.x = wb.center;
+  bbox3d.center.position.y = hb.center;
+  bbox3d.center.position.z = db.center;
+  bbox3d.size.x = wb.max - wb.min;
+  bbox3d.size.y = hb.max - hb.min;
+  bbox3d.size.z = db.max - db.min;
 
   return bbox3d;
 }
