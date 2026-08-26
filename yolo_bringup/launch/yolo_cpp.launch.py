@@ -8,7 +8,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -82,28 +82,15 @@ def generate_launch_description():
         condition=IfCondition(use_3d),
     )
 
-    # C++ debug node (visualizes detections/tracks + RViz 3D markers). The
-    # input detection stream is chosen to match the enabled pipeline: when the
-    # 3D node is on it consumes `detections_3d` so the RViz 3D box/keypoint
-    # markers are drawn; otherwise the tracked (or raw) detections.
-    debug_detections_topic = PythonExpression(
-        [
-            "'detections_3d' if ",
-            use_3d,
-            " else ('tracking' if ",
-            use_tracking,
-            " else 'detections')",
-        ]
-    )
+    # C++ debug node (visualizes detections/tracks + RViz 3D markers). Reads
+    # its input detection stream from the params file (`config/yolo_cpp.yaml`,
+    # `/yolo/debug_node.detections_topic`).
     debug_node_cmd = Node(
         package="yolo_cpp_ros",
         executable="yolo_cpp_debug",
         name="debug_node",
         namespace=namespace,
-        parameters=[
-            params_file,
-            {"detections_topic": debug_detections_topic},
-        ],
+        parameters=[params_file],
     )
 
     return LaunchDescription(
