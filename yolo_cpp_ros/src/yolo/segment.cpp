@@ -10,7 +10,7 @@
 
 namespace yolo_onnx {
 
-YoloSegment::YoloSegment(yolo_onnx_utils::YoloParams params) : Model(params) {}
+YoloSegment::YoloSegment(yolo_utils::YoloParams params) : Model(params) {}
 
 YoloSegment::~YoloSegment() {}
 
@@ -19,7 +19,7 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
                          const cv::Size &resized_image_size,
                          const std::vector<Ort::Value> &preds) {
   std::vector<yolo_msgs::msg::Detection> detection_array;
-  std::vector<yolo_onnx_utils::BoxWithMask> bbox_array;
+  std::vector<yolo_utils::BoxWithMask> bbox_array;
 
   std::vector<int64_t> box_shape =
       preds[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -65,7 +65,7 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
     filtered_seg_mask.convertTo(filtered_seg_mask, CV_8U);
 
     // Rescale the mask to the original image size
-    auto resized_mask = yolo_onnx_utils::inverse_letterbox(
+    auto resized_mask = yolo_utils::inverse_letterbox(
         filtered_seg_mask, original_image_size, resized_image_size);
 
     // Crop to bounding box
@@ -103,7 +103,7 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
 
   for (size_t i = 0; i < bbox_array.size(); ++i) {
     yolo_msgs::msg::Detection detection;
-    detection.bbox = yolo_onnx_utils::convert_to_bounding_box(bbox_array[i]);
+    detection.bbox = yolo_utils::convert_to_bounding_box(bbox_array[i]);
 
     // Segmentation mask
     detection.mask.height = original_image_size.height;
@@ -131,7 +131,7 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
   return detection_array;
 }
 
-std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
+std::vector<yolo_utils::BoxWithMask> get_segmentation_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold) {
@@ -141,19 +141,19 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
   const size_t num_detections =
       preds[0].GetTensorTypeAndShapeInfo().GetShape()[2];
 
-  std::vector<yolo_onnx_utils::BoxWithMask> seg_boxes;
+  std::vector<yolo_utils::BoxWithMask> seg_boxes;
 
   // 1. Get the bounding boxes
-  std::vector<yolo_onnx_utils::Box> boxes = yolo_onnx_utils::get_boxes(
+  std::vector<yolo_utils::Box> boxes = yolo_utils::get_boxes(
       preds, original_image_size, resized_image_size, num_classes);
 
   // 2. Add the mask coefficients to the boxes
-  std::vector<yolo_onnx_utils::BoxWithMask> boxes_with_mask;
+  std::vector<yolo_utils::BoxWithMask> boxes_with_mask;
   for (size_t i = 0; i < boxes.size(); ++i) {
     if (boxes[i].score < conf_threshold) {
       continue;
     }
-    yolo_onnx_utils::BoxWithMask box_with_mask(boxes[i]);
+    yolo_utils::BoxWithMask box_with_mask(boxes[i]);
     std::vector<float> mask_coeffs(32);
     for (size_t m = 0; m < 32; ++m) {
       mask_coeffs[m] = raw_output[(num_classes + 4 + m) * num_detections + i];
@@ -164,9 +164,9 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
 
   // BoxesWithMask are sorted in place by nms(); indices index the same vector.
   auto indices =
-      yolo_onnx_utils::nms(boxes_with_mask, iou_threshold, conf_threshold);
+      yolo_utils::nms(boxes_with_mask, iou_threshold, conf_threshold);
 
-  std::vector<yolo_onnx_utils::BoxWithMask> filtered_boxes;
+  std::vector<yolo_utils::BoxWithMask> filtered_boxes;
   for (size_t i = 0; i < indices.size(); ++i) {
     filtered_boxes.push_back(boxes_with_mask[indices[i]]);
   }
@@ -174,4 +174,4 @@ std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
   return filtered_boxes;
 }
 
-} // namespace yolo_onnx
+}  // namespace yolo_onnx

@@ -11,18 +11,18 @@
 
 namespace yolo_onnx {
 
-std::vector<yolo_onnx_utils::Box> get_detection_without_nms(
+std::vector<yolo_utils::Box> get_detection_without_nms(
     const std::vector<Ort::Value> &preds, std::vector<int64_t> output_shape,
     const cv::Size &original_image_size, const cv::Size &resized_image_size);
 
-std::vector<yolo_onnx_utils::Box> get_detection_with_nms(
+std::vector<yolo_utils::Box> get_detection_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold);
 
 class YoloDetect : public Model {
 public:
-  YoloDetect(yolo_onnx_utils::YoloParams params);
+  YoloDetect(yolo_utils::YoloParams params);
   ~YoloDetect();
 
 protected:
@@ -31,5 +31,5 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+}  // namespace yolo_onnx
 #endif // YOLO_CPP_ROS__YOLO__DETECT_HPP_

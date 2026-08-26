@@ -10,7 +10,7 @@
 
 #include <opencv2/imgproc.hpp>
 
-namespace yolo_3d_utils {
+namespace yolo_3d {
 
 namespace {
 
@@ -589,4 +589,4 @@ yolo_msgs::msg::KeyPoint3DArray transform_3d_keypoints(
   return out;
 }
 
-}  // namespace yolo_3d_utils
+}  // namespace yolo_3d

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-using namespace yolo_rclcpp;
+namespace yolo_rclcpp {
 
 TrackingNode::TrackingNode()
     : rclcpp_lifecycle::LifecycleNode("tracking_node"), image_qos_profile_(1) {
@@ -167,3 +167,5 @@ void TrackingNode::recieve_callback(
 
   this->tracking_publisher_->publish(tracked_msg);
 }
+
+}  // namespace yolo_rclcpp

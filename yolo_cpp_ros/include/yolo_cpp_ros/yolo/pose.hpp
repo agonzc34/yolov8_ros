@@ -13,7 +13,7 @@ namespace yolo_onnx {
 
 class YoloPose : public Model {
 public:
-  YoloPose(yolo_onnx_utils::YoloParams params);
+  YoloPose(yolo_utils::YoloParams params);
   ~YoloPose();
 
 protected:
@@ -22,5 +22,5 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+}  // namespace yolo_onnx
 #endif // YOLO_CPP_ROS__YOLO__POSE_HPP_

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 
-namespace yolo_onnx_utils {
+namespace yolo_utils {
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
                   const cv::Scalar &color) {
   float ratio = std::min(static_cast<float>(new_shape.width) / img.cols,
@@ -30,10 +30,10 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   return img_out;
 }
 
-yolo_onnx_utils::Box scale_box(const yolo_onnx_utils::Box &box,
+yolo_utils::Box scale_box(const yolo_utils::Box &box,
                                const cv::Size &original_image_size,
                                const cv::Size &resized_image_size) {
-  yolo_onnx_utils::Box scaled_box;
+  yolo_utils::Box scaled_box;
   float gain = std::min(static_cast<float>(resized_image_size.width) /
                             original_image_size.width,
                         static_cast<float>(resized_image_size.height) /
@@ -91,11 +91,11 @@ scale_keypoints(const std::vector<Keypoint> &keypoints,
   return scaled;
 }
 
-std::vector<yolo_onnx_utils::Box>
+std::vector<yolo_utils::Box>
 get_boxes(const std::vector<Ort::Value> &preds,
           const cv::Size &original_image_size,
           const cv::Size &resized_image_size, const int num_classes) {
-  std::vector<yolo_onnx_utils::Box> boxes;
+  std::vector<yolo_utils::Box> boxes;
 
   const float *raw_output =
       preds[0].GetTensorData<float>(); // Extract raw output data from the
@@ -105,7 +105,7 @@ get_boxes(const std::vector<Ort::Value> &preds,
 
   const float *ptr = raw_output;
   for (size_t i = 0; i < num_detections; ++i) {
-    yolo_onnx_utils::Box box;
+    yolo_utils::Box box;
     float center_x = ptr[0 * num_detections + i];
     float center_y = ptr[1 * num_detections + i];
     float width = ptr[2 * num_detections + i];
@@ -129,7 +129,7 @@ get_boxes(const std::vector<Ort::Value> &preds,
     box.score = max_score;
     box.class_id = class_id;
 
-    yolo_onnx_utils::Box scaled_box = yolo_onnx_utils::scale_box(
+    yolo_utils::Box scaled_box = yolo_utils::scale_box(
         box, original_image_size, resized_image_size);
     boxes.push_back(scaled_box);
   }
@@ -138,7 +138,7 @@ get_boxes(const std::vector<Ort::Value> &preds,
 }
 
 yolo_msgs::msg::BoundingBox2D
-convert_to_bounding_box(const yolo_onnx_utils::Box &box) {
+convert_to_bounding_box(const yolo_utils::Box &box) {
   yolo_msgs::msg::BoundingBox2D bounding_box;
   bounding_box.center.position.x = (box.x1 + box.x2) / 2;
   bounding_box.center.position.y = (box.y1 + box.y2) / 2;
@@ -178,4 +178,4 @@ cv::Mat inverse_letterbox(
 
   return restored;
 }
-} // namespace yolo_onnx_utils
+}  // namespace yolo_utils

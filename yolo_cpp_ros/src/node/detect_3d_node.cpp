@@ -170,7 +170,7 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
   }
 
   for (const auto &detection : detections_msg->detections) {
-    auto bbox3d = yolo_3d_utils::convert_bb_to_3d(
+    auto bbox3d = yolo_3d::convert_bb_to_3d(
         depth_image, *depth_info_msg, detection,
         this->depth_image_units_divisor_);
     if (!bbox3d) {
@@ -179,16 +179,16 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
 
     yolo_msgs::msg::Detection new_detection = detection;
     new_detection.bbox3d =
-        yolo_3d_utils::transform_3d_box(*bbox3d, transform->first,
+        yolo_3d::transform_3d_box(*bbox3d, transform->first,
                                         transform->second);
     new_detection.bbox3d.frame_id = this->target_frame_;
     new_detections.push_back(new_detection);
 
     if (!detection.keypoints.data.empty()) {
-      auto keypoints3d = yolo_3d_utils::convert_keypoints_to_3d(
+      auto keypoints3d = yolo_3d::convert_keypoints_to_3d(
           depth_image, *depth_info_msg, detection,
           this->depth_image_units_divisor_);
-      keypoints3d = yolo_3d_utils::transform_3d_keypoints(
+      keypoints3d = yolo_3d::transform_3d_keypoints(
           keypoints3d, transform->first, transform->second);
       keypoints3d.frame_id = this->target_frame_;
       new_detections.back().keypoints3d = keypoints3d;

@@ -8,7 +8,7 @@
 #include <map>
 #include <string>
 
-using namespace yolo_rclcpp;
+namespace yolo_rclcpp {
 
 DebugNode::DebugNode()
     : rclcpp_lifecycle::LifecycleNode("yolo_node"), image_qos_profile(1),
@@ -342,4 +342,6 @@ visualization_msgs::msg::Marker DebugNode::create_kp_marker(
 
   return marker;
 }
+
+}  // namespace yolo_rclcpp
 

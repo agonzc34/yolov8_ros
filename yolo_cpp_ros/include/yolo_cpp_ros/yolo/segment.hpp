@@ -11,14 +11,14 @@
 
 namespace yolo_onnx {
 
-std::vector<yolo_onnx_utils::BoxWithMask> get_segmentation_with_nms(
+std::vector<yolo_utils::BoxWithMask> get_segmentation_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold);
 
 class YoloSegment : public Model {
 public:
-  YoloSegment(yolo_onnx_utils::YoloParams params);
+  YoloSegment(yolo_utils::YoloParams params);
   ~YoloSegment();
 
 protected:
@@ -27,5 +27,5 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+}  // namespace yolo_onnx
 #endif // YOLO_CPP_ROS__YOLO__SEGMENT_HPP_

@@ -12,7 +12,7 @@
 #include "yolo_cpp_ros/yolo/utils.hpp"
 
 namespace yolo_onnx {
-Model::Model(yolo_onnx_utils::YoloParams params)
+Model::Model(yolo_utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
       input_image_shape(), num_input_nodes(0),
       num_output_nodes(0), memory_info(nullptr) {
@@ -181,7 +181,7 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
 void yolo_onnx::Model::preprocess(const cv::Mat &image,
                                   std::vector<int64_t> &input_tensor_shape) {
   cv::Mat resized_image =
-    yolo_onnx_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114));
+    yolo_utils::letterbox(image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]), cv::Scalar(114, 114, 114));
 
   // Normalize to float (OpenCV-optimized), then split channels straight into
   // the persistent buffer. This keeps the fast SIMD convertTo+split path while
@@ -222,4 +222,4 @@ Model::postprocess(const cv::Size &original_image_size,
   return std::vector<yolo_msgs::msg::Detection>();
 }
 
-} // namespace yolo_onnx
+}  // namespace yolo_onnx

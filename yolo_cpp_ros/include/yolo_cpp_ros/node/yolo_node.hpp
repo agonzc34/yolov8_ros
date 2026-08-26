@@ -41,9 +41,9 @@ protected:
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
 
   void declare_params();
-  yolo_onnx_utils::YoloParams get_params();
+  yolo_utils::YoloParams get_params();
 
-  yolo_onnx_utils::YoloParams yolo_params;
+  yolo_utils::YoloParams yolo_params;
   bool params_declared = false;
 
   // Runtime inference gate, toggled by the `enable` service (SetBool); the
@@ -55,7 +55,7 @@ protected:
   // to decide whether the current frame should be dropped.
   std::chrono::steady_clock::time_point last_inference_time_{};
 
-  void create_yolo(yolo_onnx_utils::YoloParams params);
+  void create_yolo(yolo_utils::YoloParams params);
   void destroy_yolo();
 
 private:
@@ -65,6 +65,6 @@ private:
       std::shared_ptr<std_srvs::srv::SetBool::Response> response);
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
 };
-} // namespace yolo_rclcpp
+}  // namespace yolo_rclcpp
 
 #endif // YOLO_CPP_ROS__NODE__YOLO_NODE_HPP_

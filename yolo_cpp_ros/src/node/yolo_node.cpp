@@ -11,7 +11,7 @@
 #include <cctype>
 #include <string>
 
-using namespace yolo_rclcpp;
+namespace yolo_rclcpp {
 
 YoloNode::YoloNode() : rclcpp_lifecycle::LifecycleNode("yolo_node") {}
 
@@ -109,8 +109,8 @@ void yolo_rclcpp::YoloNode::declare_params() {
   this->declare_parameter<int>("max_fps", 0);
 }
 
-yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
-  yolo_onnx_utils::YoloParams params;
+yolo_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
+  yolo_utils::YoloParams params;
   this->get_parameter("model_type", params.model_type);
   this->get_parameter("model", params.model_path);
   this->get_parameter("device", params.device);
@@ -125,7 +125,7 @@ yolo_onnx_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   return params;
 }
 
-void yolo_rclcpp::YoloNode::create_yolo(yolo_onnx_utils::YoloParams params) {
+void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
   std::string model_type = params.model_type;
   std::transform(model_type.begin(), model_type.end(), model_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -225,3 +225,5 @@ void YoloNode::recieve_image_callback(
     this->detection_publisher->publish(detection_array);
   }
 }
+
+}  // namespace yolo_rclcpp

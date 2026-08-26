@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace yolo_onnx_utils {
+namespace yolo_utils {
 struct Box {
   float x1, y1, x2, y2, score;
   int index, class_id;
@@ -134,13 +134,13 @@ scale_keypoints(const std::vector<Keypoint> &keypoints,
                 const cv::Size &original_image_size,
                 const cv::Size &resized_image_size);
 yolo_msgs::msg::BoundingBox2D
-convert_to_bounding_box(const yolo_onnx_utils::Box &box);
+convert_to_bounding_box(const yolo_utils::Box &box);
 
-std::vector<yolo_onnx_utils::Box>
+std::vector<yolo_utils::Box>
 get_boxes(const std::vector<Ort::Value> &preds,
           const cv::Size &original_image_size,
           const cv::Size &resized_image_size, const int num_classes);
 
-} // namespace yolo_onnx_utils
+}  // namespace yolo_utils
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

@@ -11,12 +11,11 @@
 #include <cv_bridge/cv_bridge.h>
 #include "yolo_cpp_ros/yolo/utils.hpp"
 
-namespace yolo_onnx
-{
+namespace yolo_onnx {
 class Model
 {
 public:
-    Model(yolo_onnx_utils::YoloParams params);
+    Model(yolo_utils::YoloParams params);
     ~Model();
 
     std::vector<yolo_msgs::msg::Detection> detect(const cv::Mat &image);

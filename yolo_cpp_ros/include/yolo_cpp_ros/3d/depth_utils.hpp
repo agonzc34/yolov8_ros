@@ -17,7 +17,7 @@
 #include "yolo_msgs/msg/detection.hpp"
 #include "yolo_msgs/msg/key_point3_d_array.hpp"
 
-namespace yolo_3d_utils {
+namespace yolo_3d {
 
 // ---------------------------------------------------------------------------
 // Robust depth-statistics helpers, ported from the Python detect_3d_node.py
@@ -106,6 +106,6 @@ yolo_msgs::msg::KeyPoint3DArray transform_3d_keypoints(
     const std::array<double, 3> &translation,
     const std::array<double, 4> &rotation);
 
-}  // namespace yolo_3d_utils
+}  // namespace yolo_3d
 
 #endif  // YOLO_CPP_ROS__3D__DEPTH_UTILS_HPP_
