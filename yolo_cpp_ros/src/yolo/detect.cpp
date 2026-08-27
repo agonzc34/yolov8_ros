@@ -56,7 +56,16 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
   std::vector<yolo_utils::Box> boxes;
   for (size_t i = 0; i < preds.size(); ++i) {
     auto pred = preds[i].GetTensorData<float>();
-    for (size_t j = 0; j < static_cast<size_t>(output_shape[0]); ++j) {
+
+    // The end-to-end/baked-head layout is [1, K, 6] (batch, detections,
+    // features); the classic layout is [K, 6]. The number of detections is
+    // the last-but-one dimension, not the batch dim (output_shape[0] == 1).
+    const size_t num_detections =
+        output_shape.size() >= 3
+            ? static_cast<size_t>(output_shape[output_shape.size() - 2])
+            : static_cast<size_t>(output_shape[0]);
+
+    for (size_t j = 0; j < num_detections; ++j) {
       yolo_utils::Box box;
       box.x1 = pred[j * 6 + 0];
       box.y1 = pred[j * 6 + 1];
