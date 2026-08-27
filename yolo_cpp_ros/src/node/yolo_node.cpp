@@ -185,7 +185,16 @@ void YoloNode::recieve_image_callback(
   auto detection_array = yolo_msgs::msg::DetectionArray();
 
   if (this->yolo_model && this->enable_inference_.load()) {
-    auto image = cv_bridge::toCvShare(msg, "bgr8")->image;
+    // Convert to BGR8 (handles rgb8/mono8/... sources). toCvCopy throws on an
+    // unsupported source encoding, so guard it to avoid crashing the callback.
+    cv::Mat image;
+    try {
+      image =
+          cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
+    } catch (const cv_bridge::Exception &e) {
+      RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
+      return;
+    }
     auto detections = this->yolo_model->detect(image);
 
     // Cap published detections to max_det (post-NMS output is already
