@@ -105,10 +105,10 @@ ros2 launch yolo_bringup yolo_cpp_pose.launch.py
 
 Add `use_3d:=True` to any of the above to also start the C++ 3D detection
 node (subscribes to depth + CameraInfo and publishes `detections_3d`). The
-segment/pose launches also start the ByteTrack `tracking_node`
-(`use_tracking`, default True); with `use_3d:=True` the 3D node drives the
-depth ROI with the mask polygon for segmentation and back-projects pose
-keypoints to 3D (`debug_kp_markers`).
+segment/pose launches also start the tracking `tracking_node` (`use_tracking`,
+default True; ByteTrack by default, switchable via `tracker_type`); with
+`use_3d:=True` the 3D node drives the depth ROI with the mask polygon for
+segmentation and back-projects pose keypoints to 3D (`debug_kp_markers`).
 
 ### Topics
 
@@ -116,7 +116,7 @@ All topics are published under the launch namespace (default `yolo`):
 
 - `detections` — Detections with bounding box and class name (plus mask /
   keypoints for segment/pose models).
-- `tracking` — Detections with stable ByteTrack IDs.
+- `tracking` — Detections with stable tracker IDs (ByteTrack by default).
 - `detections_3d` — 3D boxes/keypoints, when `use_3d:=True`.
 - `debug_image`, `debug_bb_markers` / `debug_kp_markers` — debug visualization
   and RViz MarkerArrays.
@@ -131,7 +131,9 @@ is configured through the params file passed to the launch; the C++ launches
 make **no** topic remaps and use no inline parameter dictionaries. Model
 dispatch is selected with the `model_type` param (`YOLO`/`Detect`/`Segment`/
 `Pose`/`auto`, case-insensitive); `auto` falls back to a filename heuristic
-(`segment` → segmentation, `pose` → pose, else detection).
+(`segment` → segmentation, `pose` → pose, else detection). Tracking is
+selected with the `tracker_type` param on the `tracking_node` (default
+`bytetrack`, case-insensitive).
 
 ## License
 
