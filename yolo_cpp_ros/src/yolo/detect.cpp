@@ -20,9 +20,18 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
   std::vector<int64_t> shape = preds[0].GetTensorTypeAndShapeInfo().GetShape();
 
   if (shape.back() == 6) {
-    // Process predictions without applying NMS
+    // Process predictions without applying NMS. The end-to-end head emits the
+    // full max_det top-k (e.g. 300 rows), most of which are near-zero
+    // confidence; drop anything below the threshold (rows are already sorted
+    // by descending confidence, so this keeps the strongest detections —
+    // mirroring the pose node's baked-head path).
     detections = get_detection_without_nms(preds, shape, original_image_size,
                                            resized_image_size);
+    detections.erase(std::remove_if(detections.begin(), detections.end(),
+                                    [this](const yolo_utils::Box &b) {
+                                      return b.score < this->conf_threshold;
+                                    }),
+                     detections.end());
   } else {
     // Process predictions applying NMS
     const size_t num_features = shape[1];
