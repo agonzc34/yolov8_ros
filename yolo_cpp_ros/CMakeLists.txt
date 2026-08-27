@@ -21,6 +21,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 include_directories(
   include
@@ -53,6 +54,7 @@ ament_target_dependencies(yolo_cpp_ros
   rclcpp_lifecycle
   cv_bridge
   yolo_onnxruntime_vendor
+  ament_index_cpp
 )
 
 target_link_libraries(yolo_cpp_ros
@@ -146,6 +148,12 @@ install(TARGETS
 install(FILES
   LICENSE
   THIRD_PARTY_NOTICES.md
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install the class-name vocabulary used as a fallback when the ONNX graph
+# carries no "names" metadata (resolved at runtime via the ament index).
+install(DIRECTORY conf
   DESTINATION share/${PROJECT_NAME}
 )
 

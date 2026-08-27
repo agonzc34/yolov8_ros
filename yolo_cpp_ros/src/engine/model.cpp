@@ -3,6 +3,8 @@
 
 #include "yolo_cpp_ros/engine/model.hpp"
 #include "yolo_cpp_ros/yolo/utils.hpp"
+#include <ament_index_cpp/get_package_prefix.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -153,13 +155,24 @@ void yolo_onnx::Model::load_class_names() {
   }
 
   // 2) Fall back to the coco.names file (previous behaviour) when the model
-  //    does not carry a vocabulary.
+  //    does not carry a vocabulary. The file is installed into the package
+  //    share directory, so resolve it through the ament index instead of a
+  //    hardcoded relative path (which only worked from the workspace root).
   if (this->class_names.empty()) {
-    std::ifstream class_names_file(
-        "src/yolov8_ros/yolo_cpp_ros/conf/coco.names"); // TODO: change this
-                                                        // path
+    std::string class_names_path;
+    try {
+      class_names_path =
+          ament_index_cpp::get_package_share_directory("yolo_cpp_ros") +
+          "/conf/coco.names";
+    } catch (const ament_index_cpp::PackageNotFoundError &e) {
+      std::cerr << "Error: could not locate yolo_cpp_ros share directory: "
+                << e.what() << std::endl;
+      return;
+    }
+    std::ifstream class_names_file(class_names_path);
     if (!class_names_file.is_open()) {
-      std::cerr << "Error: Could not open coco.names file." << std::endl;
+      std::cerr << "Error: Could not open coco.names file at "
+                << class_names_path << std::endl;
       return;
     }
     std::string line;
