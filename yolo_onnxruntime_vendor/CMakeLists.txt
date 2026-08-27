@@ -35,11 +35,23 @@ if(NOT CURL_EXECUTABLE)
     message(FATAL_ERROR "curl is required to download ONNX Runtime but was not found.")
 endif()
 
-# Add custom command to download and extract the ONNX Runtime
-add_custom_target(download_onnxruntime ALL
+# The extracted shared library acts as the build output marker: CMake only
+# runs the download+extract commands when it is missing, so a clean rebuild
+# does not re-download the ~200 MB tarball every time.
+set(ONNXRUNTIME_TGZ "${CMAKE_BINARY_DIR}/onnxruntime.tgz")
+set(ONNXRUNTIME_LIB "${ONNXRUNTIME_INSTALL_DIR}/lib/libonnxruntime.so")
+
+add_custom_command(
+    OUTPUT ${ONNXRUNTIME_LIB}
+    COMMAND ${CURL_EXECUTABLE} -L -o ${ONNXRUNTIME_TGZ} ${ONNXRUNTIME_URL}
+    COMMAND ${CMAKE_COMMAND} -E tar xzf ${ONNXRUNTIME_TGZ}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Downloading and extracting ONNX Runtime ${ONNXRUNTIME_VERSION}"
-    COMMAND ${CURL_EXECUTABLE} -L -o onnxruntime.tgz ${ONNXRUNTIME_URL} >/dev/null 2>&1
-    COMMAND ${CMAKE_COMMAND} -E tar xzf onnxruntime.tgz
+    VERBATIM
+)
+
+add_custom_target(download_onnxruntime ALL
+    DEPENDS ${ONNXRUNTIME_LIB}
 )
 
 # Install the ONNX Runtime library and include files
