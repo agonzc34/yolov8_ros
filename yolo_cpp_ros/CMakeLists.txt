@@ -89,6 +89,7 @@ add_executable(yolo_cpp_tracking
   src/node/tracking_node.cpp
   src/tracking_main.cpp
 
+  src/tracking/tracker.cpp
   src/tracking/byte_tracker.cpp
   src/tracking/strack.cpp
 

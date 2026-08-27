@@ -4,10 +4,27 @@
 
 #include "yolo_cpp_ros/node/tracking_node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 #include <vector>
 
+#include "rclcpp/exceptions.hpp"
+#include "yolo_cpp_ros/tracking/byte_tracker.hpp"
+
 namespace yolo_rclcpp {
+
+namespace {
+
+// Normalized (lowercase) form of the `tracker_type` parameter, matching the
+// case-insensitive dispatch used for `model_type` elsewhere in the package.
+std::string lowercase(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return s;
+}
+
+} // namespace
 
 TrackingNode::TrackingNode()
     : rclcpp_lifecycle::LifecycleNode("tracking_node"), image_qos_profile_(1) {
@@ -93,30 +110,56 @@ TrackingNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void TrackingNode::declare_params() {
-  // ByteTrack configuration parameters and default values.
+  // Generic tracking node parameters (algorithm-independent).
   this->declare_parameter<int>("image_reliability", 2);
   this->declare_parameter<std::string>("image_topic", "image");
-  this->declare_parameter<double>("track_high_thresh", 0.25);
-  this->declare_parameter<double>("track_low_thresh", 0.1);
-  this->declare_parameter<double>("new_track_thresh", 0.25);
-  this->declare_parameter<int>("track_buffer", 30);
-  this->declare_parameter<double>("match_thresh", 0.8);
-  this->declare_parameter<bool>("fuse_score", true);
+
+  // Tracker selection: the key of the tracker implementation to run
+  // ("bytetrack" is the built-in default; unknown values disable tracking —
+  // the node forwards detections unchanged — instead of crashing). Each
+  // tracker declares and loads its own parameters through its specific
+  // functions, so the node only dispatches by this key.
+  this->declare_parameter<std::string>("tracker_type", "bytetrack");
+  const std::string tracker_type =
+      lowercase(this->get_parameter("tracker_type").as_string());
+
+  if (tracker_type == "bytetrack") {
+    yolo_tracking::declare_byte_track_params(*this);
+  }
+  // --- add new trackers here: declare their parameters when selected ---
 }
 
 void TrackingNode::load_params() {
-  this->get_parameter("track_high_thresh",
-                      this->tracker_params_.track_high_thresh);
-  this->get_parameter("track_low_thresh",
-                      this->tracker_params_.track_low_thresh);
-  this->get_parameter("new_track_thresh",
-                      this->tracker_params_.new_track_thresh);
-  this->get_parameter("track_buffer", this->tracker_params_.track_buffer);
-  this->get_parameter("match_thresh", this->tracker_params_.match_thresh);
-  this->get_parameter("fuse_score", this->tracker_params_.fuse_score);
   this->tracker_.reset();
-  this->tracker_ =
-      std::make_unique<yolo_tracking::ByteTrack>(this->tracker_params_);
+
+  const std::string tracker_type =
+      lowercase(this->get_parameter("tracker_type").as_string());
+
+  if (tracker_type == "bytetrack") {
+    try {
+      const yolo_tracking::ByteTrackParams params =
+          yolo_tracking::load_byte_track_params(*this);
+      this->tracker_ = yolo_tracking::create_tracker(params);
+    } catch (const rclcpp::exceptions::ParameterNotDeclaredException &e) {
+      // Only reachable when the tracker's parameters were never declared on
+      // this node (e.g. `tracker_type` switched to bytetrack on a node that
+      // configured with another tracker); fall back to the passthrough path.
+      RCLCPP_ERROR(this->get_logger(),
+                   "[%s] ByteTrack parameters not declared: %s",
+                   this->get_name(), e.what());
+    }
+  }
+  // --- add new trackers here: load their parameters and create the tracker ---
+
+  if (this->tracker_ == nullptr) {
+    RCLCPP_ERROR(this->get_logger(),
+                 "[%s] No tracker created for tracker_type '%s' "
+                 "(supported: bytetrack); forwarding detections unchanged",
+                 this->get_name(), tracker_type.c_str());
+  } else {
+    RCLCPP_INFO(this->get_logger(), "[%s] Using tracker '%s'", this->get_name(),
+                tracker_type.c_str());
+  }
 }
 
 void TrackingNode::recieve_callback(
@@ -124,6 +167,18 @@ void TrackingNode::recieve_callback(
     const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections) {
   yolo_msgs::msg::DetectionArray tracked_msg;
   tracked_msg.header = msg_image->header;
+
+  // Safety fallback: no tracker (unknown `tracker_type`). Keep the pipeline
+  // alive by forwarding the input detections untouched — downstream nodes
+  // only lose the track ids, nothing crashes.
+  if (this->tracker_ == nullptr) {
+    RCLCPP_WARN_ONCE(
+        this->get_logger(),
+        "[%s] No active tracker; forwarding detections without track ids",
+        this->get_name());
+    this->tracking_publisher_->publish(*msg_detections);
+    return;
+  }
 
   // Convert the DetectionArray into the tracker's plain input format. The
   // detection index is preserved so the original Detection (class name, mask,

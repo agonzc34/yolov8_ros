@@ -13,7 +13,7 @@
 #include "rclcpp/qos.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "sensor_msgs/msg/image.hpp"
-#include "yolo_cpp_ros/tracking/byte_tracker.hpp"
+#include "yolo_cpp_ros/tracking/tracker.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 
 namespace yolo_rclcpp {
@@ -55,8 +55,7 @@ private:
 
   std::string image_topic_;
 
-  std::unique_ptr<yolo_tracking::ByteTrack> tracker_;
-  yolo_tracking::ByteTrackParams tracker_params_;
+  std::unique_ptr<yolo_tracking::Tracker> tracker_;
 
   void declare_params();
   void load_params();
