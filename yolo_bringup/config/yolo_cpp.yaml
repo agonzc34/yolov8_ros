@@ -38,7 +38,9 @@
 
 /yolo/tracking_node:
   ros__parameters:
-    # ByteTrack tuning, mirroring the ultralytics bytetrack.yaml defaults
+    # Tracker selection + ByteTrack tuning, mirroring the ultralytics
+    # bytetrack.yaml defaults (tracker_type keys: see yolo_cpp_ros tracking/)
+    tracker_type: bytetrack # tracker implementation key (bytetrack today)
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /head_front_camera/rgb/image_raw
     track_high_thresh: 0.25 # first-stage association threshold

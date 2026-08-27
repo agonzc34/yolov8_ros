@@ -1,12 +1,16 @@
-# ROS 2 parameters file for the C++ ByteTrack tracking node
+# ROS 2 parameters file for the C++ tracking node
 # (yolo_cpp_ros::tracking_node). Pass it with
 # `--ros-args --params-file <this file>` or via the `params_file` argument of
 # `yolo_cpp.launch.py`.
 #
-# Values mirror the defaults of the ultralytics ByteTrack configuration:
+# The node selects the tracker algorithm with `tracker_type` (the key of a
+# yolo_tracking::Tracker implementation, see
+# yolo_cpp_ros/src/tracking/tracker.cpp); each algorithm's tuning knobs follow
+# in the same block. Values below mirror the ultralytics ByteTrack defaults:
 #   references/ultralytics/ultralytics/cfg/trackers/bytetrack.yaml
 tracking_node:
   ros__parameters:
+    tracker_type: bytetrack  # tracker implementation key (bytetrack today; add keys as new trackers are implemented)
     track_high_thresh: 0.25  # (float) first-stage association threshold; raise for cleaner tracks, lower to keep more
     track_low_thresh: 0.1    # (float) second-stage threshold for low-score matches; balances recovery vs drift
     new_track_thresh: 0.25   # (float) start a new track if no detection matches above this; higher reduces false tracks
