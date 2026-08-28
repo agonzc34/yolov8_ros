@@ -125,12 +125,16 @@ void DebugNode::recieve_callback(
   cv::Mat image = cv_ptr->image;
 
   // Draw ALL detections onto one image, then publish ONCE (not per-detection).
+  // Masks are drawn onto a single overlay layer and blended once, avoiding a
+  // full image.clone() per detection.
+  cv::Mat overlay = image.clone();
   for (const auto &detection : msg_detections->detections) {
     auto color = color_for_class(detection.class_name);
     image = draw_box(image, detection, color);
-    image = draw_mask(image, detection, color);
+    draw_mask(overlay, image, detection, color);
     image = draw_keypoints(image, detection);
   }
+  cv::addWeighted(overlay, 0.4, image, 0.6, 0, image);
 
   // The debug image is only gated by the image<->2D-detections sync, so it
   // publishes at the full 2D detection rate regardless of the 3D stream.
@@ -185,8 +189,15 @@ void DebugNode::markers_callback(
 cv::Scalar DebugNode::color_for_class(const std::string &class_name) {
   auto color_it = class_to_color.find(class_name);
   if (color_it == class_to_color.end()) {
+    // Deterministic FNV-1a hash of the class name so the same class always
+    // gets the same color across runs (rand() made colors change every run).
+    uint32_t hash = 2166136261u;
+    for (const char c : class_name) {
+      hash ^= static_cast<uint8_t>(c);
+      hash *= 16777619u;
+    }
     class_to_color[class_name] =
-        cv::Scalar(rand() % 256, rand() % 256, rand() % 256);
+        cv::Scalar(hash & 0xFF, (hash >> 8) & 0xFF, (hash >> 16) & 0xFF);
     color_it = class_to_color.find(class_name);
   }
   return color_it->second;
@@ -214,23 +225,22 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
   return image;
 }
 
-cv::Mat DebugNode::draw_mask(const cv::Mat &image,
-                             const yolo_msgs::msg::Detection &detection,
-                             const cv::Scalar &color) {
+void DebugNode::draw_mask(cv::Mat &overlay, cv::Mat &image,
+                          const yolo_msgs::msg::Detection &detection,
+                          const cv::Scalar &color) {
   if (detection.mask.data.size() == 0) {
-    return image;
+    return;
   }
-  auto layer = image.clone();
   // Convert ROS Point2D (float64) mask boundary points to OpenCV points
   std::vector<std::vector<cv::Point>> contours(1);
   contours[0].reserve(detection.mask.data.size());
   for (const auto &p : detection.mask.data) {
     contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
   }
-  cv::fillPoly(layer, contours, color, cv::LINE_AA);
-  cv::addWeighted(layer, 0.4, image, 0.6, 0, image);
+  // Fill the mask onto the shared overlay layer (blended once by the caller)
+  // and draw the crisp outline directly on the final image.
+  cv::fillPoly(overlay, contours, color, cv::LINE_AA);
   cv::polylines(image, contours, true, color, 2, cv::LINE_AA);
-  return image;
 }
 
 cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
