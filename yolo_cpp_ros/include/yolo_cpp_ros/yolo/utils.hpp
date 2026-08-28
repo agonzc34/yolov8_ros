@@ -137,7 +137,8 @@ convert_to_bounding_box(const yolo_utils::Box &box);
 std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
                                        const cv::Size &original_image_size,
                                        const cv::Size &resized_image_size,
-                                       const int num_classes);
+                                       const int num_classes,
+                                       const float conf_threshold);
 
 } // namespace yolo_utils
 

@@ -92,7 +92,8 @@ std::vector<Keypoint> scale_keypoints(const std::vector<Keypoint> &keypoints,
 std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
                                        const cv::Size &original_image_size,
                                        const cv::Size &resized_image_size,
-                                       const int num_classes) {
+                                       const int num_classes,
+                                       const float conf_threshold) {
   std::vector<yolo_utils::Box> boxes;
 
   const float *raw_output =
@@ -103,22 +104,29 @@ std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
 
   const float *ptr = raw_output;
   for (size_t i = 0; i < num_detections; ++i) {
-    yolo_utils::Box box;
-    float center_x = ptr[0 * num_detections + i];
-    float center_y = ptr[1 * num_detections + i];
-    float width = ptr[2 * num_detections + i];
-    float height = ptr[3 * num_detections + i];
-
     int class_id = -1;
     float max_score = -1.0f;
 
     for (int j = 0; j < num_classes; ++j) {
-      float score = ptr[(4 + j) * num_detections + i];
+      const float score = ptr[(4 + j) * num_detections + i];
       if (score > max_score) {
         max_score = score;
         class_id = j;
       }
     }
+
+    // Skip anchors whose best class score is below the confidence threshold.
+    // Most of the 8400 anchors are background, so this avoids building and
+    // scaling a box (and later NMS work) for them.
+    if (max_score < conf_threshold) {
+      continue;
+    }
+
+    yolo_utils::Box box;
+    const float center_x = ptr[0 * num_detections + i];
+    const float center_y = ptr[1 * num_detections + i];
+    const float width = ptr[2 * num_detections + i];
+    const float height = ptr[3 * num_detections + i];
 
     box.x1 = (center_x - width / 2);
     box.y1 = (center_y - height / 2);

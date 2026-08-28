@@ -98,14 +98,9 @@ std::vector<yolo_utils::Box> get_detection_with_nms(
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold) {
 
-  std::vector<yolo_utils::Box> boxes = yolo_utils::get_boxes(
-      preds, original_image_size, resized_image_size, num_classes);
-
-  boxes.erase(std::remove_if(boxes.begin(), boxes.end(),
-                             [conf_threshold](const yolo_utils::Box &box) {
-                               return box.score < conf_threshold;
-                             }),
-              boxes.end());
+  std::vector<yolo_utils::Box> boxes =
+      yolo_utils::get_boxes(preds, original_image_size, resized_image_size,
+                            num_classes, conf_threshold);
 
   // Boxes are sorted in place by nms(); indices index the same vector.
   auto indices = yolo_utils::nms(boxes, iou_threshold, conf_threshold);

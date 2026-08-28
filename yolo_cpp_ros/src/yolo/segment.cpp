@@ -143,9 +143,10 @@ std::vector<yolo_utils::BoxWithMask> get_segmentation_with_nms(
 
   std::vector<yolo_utils::BoxWithMask> seg_boxes;
 
-  // 1. Get the bounding boxes
-  std::vector<yolo_utils::Box> boxes = yolo_utils::get_boxes(
-      preds, original_image_size, resized_image_size, num_classes);
+  // 1. Get the bounding boxes (anchors below conf_threshold are skipped)
+  std::vector<yolo_utils::Box> boxes =
+      yolo_utils::get_boxes(preds, original_image_size, resized_image_size,
+                            num_classes, conf_threshold);
 
   // 2. Add the mask coefficients to the boxes
   std::vector<yolo_utils::BoxWithMask> boxes_with_mask;
