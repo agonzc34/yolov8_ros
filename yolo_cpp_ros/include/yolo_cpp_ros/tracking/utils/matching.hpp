@@ -22,8 +22,9 @@ iou_distance(const std::vector<std::shared_ptr<STrack>> &atracks,
 
 // Fuse the IoU cost with detection scores as in the ByteTrack reference code:
 //   fuse_cost = 1 - (1 - cost) * det_score   (per column).
-std::vector<std::vector<double>>
-fuse_score(const std::vector<std::vector<double>> &cost_matrix,
+// Modifies `cost_matrix` in place (no extra allocation) and returns it.
+std::vector<std::vector<double>> &
+fuse_score(std::vector<std::vector<double>> &cost_matrix,
            const std::vector<std::shared_ptr<STrack>> &detections);
 
 // Hungarian (lapjv, extend_cost + cost_limit) linear assignment on the cost

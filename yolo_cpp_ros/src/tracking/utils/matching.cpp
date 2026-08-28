@@ -48,20 +48,19 @@ iou_distance(const std::vector<std::shared_ptr<STrack>> &atracks,
   return cost;
 }
 
-std::vector<std::vector<double>>
-fuse_score(const std::vector<std::vector<double>> &cost_matrix,
+std::vector<std::vector<double>> &
+fuse_score(std::vector<std::vector<double>> &cost_matrix,
            const std::vector<std::shared_ptr<STrack>> &detections) {
   const std::size_t rows = cost_matrix.size();
   const std::size_t cols = rows ? cost_matrix[0].size() : 0;
-  std::vector<std::vector<double>> fused(rows, std::vector<double>(cols, 1.0));
   for (std::size_t i = 0; i < rows; ++i) {
     for (std::size_t j = 0; j < cols; ++j) {
       const double iou_sim = 1.0 - cost_matrix[i][j];
       const double score = detections[j]->score();
-      fused[i][j] = 1.0 - iou_sim * score;
+      cost_matrix[i][j] = 1.0 - iou_sim * score;
     }
   }
-  return fused;
+  return cost_matrix;
 }
 
 void linear_assignment(std::size_t n_rows, std::size_t n_cols,

@@ -65,7 +65,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
   {
     auto dists = iou_distance(strack_pool, detections);
     if (params_.fuse_score) {
-      dists = fuse_score(dists, detections);
+      fuse_score(dists, detections);
     }
     linear_assignment(strack_pool.size(), detections.size(), dists,
                       params_.match_thresh, matches, u_track, u_detection);
@@ -132,7 +132,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets) {
     std::vector<int> u_unconfirmed;
     auto dists = iou_distance(unconfirmed, detections_left);
     if (params_.fuse_score) {
-      dists = fuse_score(dists, detections_left);
+      fuse_score(dists, detections_left);
     }
     linear_assignment(unconfirmed.size(), detections_left.size(), dists, 0.7,
                       matches, u_unconfirmed, u_detection_left);
