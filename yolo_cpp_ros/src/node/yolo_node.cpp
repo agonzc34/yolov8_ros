@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_cpp_ros/node/yolo_node.hpp"
+#include "huggingface_hub.h"
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
 #include "yolo_cpp_ros/yolo/pose.hpp"
@@ -91,6 +92,12 @@ void yolo_rclcpp::YoloNode::declare_params() {
   // always runs FP32 on the model's fixed input tensor and has no TTA.
   this->declare_parameter<std::string>("model_type", "auto");
   this->declare_parameter<std::string>("model", "yolo11m_segment.onnx");
+  // Hugging Face Hub download: set model_repo + model_filename (and leave
+  // `model` as anything) to fetch/reuse the model from the Hub at configure.
+  this->declare_parameter<std::string>("model_repo", "");
+  this->declare_parameter<std::string>("model_filename", "");
+  this->declare_parameter<std::string>("cache_dir", "~/.cache/huggingface/hub");
+  this->declare_parameter<bool>("force_download", false);
   this->declare_parameter<std::string>("device", "cuda:0");
   this->declare_parameter<float>("threshold", 0.7);
   this->declare_parameter<float>("iou", 0.45);
@@ -112,6 +119,10 @@ yolo_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   yolo_utils::YoloParams params;
   this->get_parameter("model_type", params.model_type);
   this->get_parameter("model", params.model_path);
+  this->get_parameter("model_repo", params.model_repo);
+  this->get_parameter("model_filename", params.model_filename);
+  this->get_parameter("cache_dir", params.cache_dir);
+  this->get_parameter("force_download", params.force_download);
   this->get_parameter("device", params.device);
   this->get_parameter("threshold", params.threshold);
   this->get_parameter("iou", params.iou);
@@ -121,6 +132,28 @@ yolo_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   this->get_parameter("image_topic", params.image_topic);
   this->get_parameter("n_threads", params.n_threads);
   this->get_parameter("max_fps", params.max_fps);
+
+  // Hugging Face Hub: when an HF repo + filename are given, download (or reuse
+  // the cached copy) and use that path instead of the local `model`.
+  if (!params.model_repo.empty() && !params.model_filename.empty()) {
+    auto result = huggingface_hub::hf_hub_download_with_shards(
+        params.model_repo, params.model_filename, params.cache_dir,
+        params.force_download);
+    if (result.success) {
+      params.model_path = result.path;
+      RCLCPP_INFO(get_logger(), "[huggingface] model %s/%s -> %s",
+                  params.model_repo.c_str(), params.model_filename.c_str(),
+                  result.path.c_str());
+    } else {
+      RCLCPP_ERROR(get_logger(),
+                   "[huggingface] failed to download %s/%s; falling back to "
+                   "[local] %s",
+                   params.model_repo.c_str(), params.model_filename.c_str(),
+                   params.model_path.c_str());
+    }
+  } else {
+    RCLCPP_INFO(get_logger(), "[local] model %s", params.model_path.c_str());
+  }
   return params;
 }
 

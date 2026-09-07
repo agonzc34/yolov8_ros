@@ -60,6 +60,13 @@ struct BoxWithKeypoints : public Box {
 struct YoloParams {
   std::string model_type; // "YOLO"|"Detect"|"Segment"|"auto" (by file name)
   std::string model_path;
+  // Hugging Face Hub download: when both model_repo and model_filename are
+  // set, the model is downloaded (or reused from the HF cache) and its path
+  // overrides model_path at configure time.
+  std::string model_repo;      // HF repo id, e.g. "agonzc34/yolo26m"
+  std::string model_filename;  // file inside the repo, e.g. "yolo26m.onnx"
+  std::string cache_dir;       // HF cache dir, default ~/.cache/huggingface/hub
+  bool force_download = false; // re-download even if cached
   std::string device;
   float threshold;
   float iou;

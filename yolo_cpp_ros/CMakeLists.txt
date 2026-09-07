@@ -17,6 +17,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(yolo_onnxruntime_vendor REQUIRED)
+find_package(yolo_hfhub_vendor REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -60,6 +61,7 @@ ament_target_dependencies(yolo_cpp_ros
 target_link_libraries(yolo_cpp_ros
   ${OpenCV_LIBS}
   ${ORT_LIBRARIES}
+  ${yolo_hfhub_vendor_TARGETS}
 )
 
 # Install debug node
