@@ -24,6 +24,8 @@ removed. See [License](#license) and each package's `LICENSE` / notices.
 - An exported ONNX model (e.g. `/path/to/yolo26m.onnx`). Models live outside
   the repo — pass `model:=<path>` on every launch (defaults are machine-specific).
 - GPU build needs cuDNN9: `sudo apt install libcudnn9-cuda-12`.
+- The Hugging Face Hub vendor needs libcurl dev headers:
+  `sudo apt install libcurl4-openssl-dev libssl-dev`.
 
 ## Models (from Ultralytics)
 
@@ -54,6 +56,30 @@ Notes:
 - The input size is fixed by the ONNX tensor, so `imgsz_height`/`imgsz_width`
   are informational and `half`/`augment`/`agnostic_nms`/`retina_masks` are
   inert in the C++ node.
+
+### Download a model from the Hugging Face Hub
+
+Instead of a local path, the C++ node can fetch the model from the Hub at
+startup via the `yolo_hfhub_vendor` package (a `huggingface-hub-cpp` vendor).
+Set `model_repo` + `model_filename` in the matching `config/yolo_cpp*.yaml`
+section (or on the command line); the `model` path is then ignored. The file
+is cached under `~/.cache/huggingface/hub` by default (override with the
+optional `cache_dir` param) and reused unless `force_download: true`:
+
+```yaml
+/yolo/yolo_node:
+  ros__parameters:
+    model_repo: agonzc34/yolo26m   # HF repo id
+    model_filename: yolo26m.onnx   # file inside that repo
+    force_download: false
+```
+
+Or on the command line: `ros2 launch yolo_bringup yolo_cpp.launch.py
+model_repo:=agonzc34/yolo26m model_filename:=yolo26m.onnx`. Requires libcurl
+dev headers (`sudo apt install libcurl4-openssl-dev libssl-dev`); only used
+when `model_repo`/`model_filename` are set. The node logs the model source as
+`[huggingface]` (with repo/filename) or `[local]` (with the path) so the two
+are easy to tell apart.
 
 > **License note**: Ultralytics models and pretrained weights are **not** MIT
 > licensed. They are released under the **AGPL-3.0** license (with commercial
