@@ -110,6 +110,14 @@ default True; ByteTrack by default, switchable via `tracker_type`); with
 `use_3d:=True` the 3D node drives the depth ROI with the mask polygon for
 segmentation and back-projects pose keypoints to 3D (`debug_kp_markers`).
 
+The 3D node estimates and publishes the 3D box orientation (an oriented
+bounding box fit by PCA to a strided depth sample) when the
+`enable_orientation` param is set (default `false`); `min_seg_points_for_orientation`
+(default 20) is the minimum number of valid depth points required per
+detection. When on, `detections_3d` carries a non-identity quaternion in each
+box's `center.orientation` and the box `size` is expressed along the object's
+own axes.
+
 ### Topics
 
 All topics are published under the launch namespace (default `yolo`):
