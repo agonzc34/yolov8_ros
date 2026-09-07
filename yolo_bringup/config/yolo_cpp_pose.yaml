@@ -54,6 +54,10 @@
     depth_image_topic: /camera/depth/image_raw
     depth_info_topic: /camera/depth/camera_info
     detections_topic: tracking         # lift the tracked stream; use "detections" if tracking is off
+    # Estimate and publish the orientation of the 3D bounding boxes (OBB via
+    # PCA on a strided depth sample). Default off.
+    enable_orientation: false
+    min_seg_points_for_orientation: 20
 
 /yolo_pose/debug_node:
   ros__parameters:
