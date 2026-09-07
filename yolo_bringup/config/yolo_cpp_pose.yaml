@@ -14,6 +14,12 @@
   ros__parameters:
     model_type: Pose         # force pose (auto also works if the path contains "pose")
     model: /home/agonzc34/models/yolo11n-pose.onnx
+    # To download the model from the Hugging Face Hub instead of a local path,
+    # set model_repo + model_filename (model is then ignored). The file is
+    # cached under ~/.cache/huggingface/hub and reused unless force_download.
+    model_repo: "" # e.g. "agonzc34/yolo11n-pose"
+    model_filename: "" # e.g. "yolo11n-pose.onnx"
+    force_download: false
     device: cuda:0
     threshold: 0.7
     iou: 0.45
