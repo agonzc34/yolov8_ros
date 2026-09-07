@@ -301,7 +301,10 @@ DebugNode::create_bb_marker(const yolo_msgs::msg::Detection &detection,
   marker.pose.position.x = detection.bbox3d.center.position.x;
   marker.pose.position.y = detection.bbox3d.center.position.y;
   marker.pose.position.z = detection.bbox3d.center.position.z;
-  marker.pose.orientation.w = 1.0;
+  marker.pose.orientation.x = detection.bbox3d.center.orientation.x;
+  marker.pose.orientation.y = detection.bbox3d.center.orientation.y;
+  marker.pose.orientation.z = detection.bbox3d.center.orientation.z;
+  marker.pose.orientation.w = detection.bbox3d.center.orientation.w;
 
   marker.scale.x = detection.bbox3d.size.x;
   marker.scale.y = detection.bbox3d.size.y;

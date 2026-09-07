@@ -7,6 +7,8 @@
 
 #include <array>
 #include <optional>
+#include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -18,6 +20,29 @@
 #include "yolo_msgs/msg/key_point3_d_array.hpp"
 
 namespace yolo_3d {
+
+// A 3D point in the depth (camera) frame.
+using Point3 = std::array<double, 3>;
+
+// ---------------------------------------------------------------------------
+// Orientation-estimation options, ported from the upstream detect_3d_node.py
+// (_sample_points_3d, _plane_frame_from_pts_pca, _consistent_axes,
+// _weighted_percentiles). When enabled, each 3D box becomes an oriented
+// bounding box (OBB): a PCA plane frame is fit to a strided sample of the
+// object's depth points, the box extents are recomputed along those axes and
+// the box orientation is published as a quaternion.
+// ---------------------------------------------------------------------------
+struct OrientationParams {
+  bool enable = false;
+  int min_seg_points_for_orientation = 20;
+};
+
+// Temporal sign-consistency cache for the PCA in-plane axes, keyed by the
+// detection track id (_consistent_axes). PCA has a 180-degree sign ambiguity
+// that would otherwise flip the orientation frame from frame to frame.
+struct OrientationState {
+  std::unordered_map<std::string, Point3> last_axes;
+};
 
 // ---------------------------------------------------------------------------
 // Robust depth-statistics helpers, ported from the Python detect_3d_node.py
@@ -76,10 +101,16 @@ double depth_at_pixel(const cv::Mat &depth_image, int v, int u,
 
 // Lift a 2D detection (bbox, optionally mask-guided depth sampling) into a
 // BoundingBox3D in the depth camera frame, using the camera intrinsics and
-// the robust depth statistics above.
+// the robust depth statistics above. When orient_params.enable is set, the
+// box becomes an oriented bounding box (OBB): a PCA plane frame is fit to a
+// strided depth sample of the object, the extents are recomputed along those
+// axes and the orientation is published as a quaternion. orient_state carries
+// the per-track sign-consistency cache across frames.
 std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
     const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
-    const yolo_msgs::msg::Detection &detection, int depth_units_divisor);
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor,
+    const OrientationParams &orient_params = OrientationParams(),
+    OrientationState *orient_state = nullptr);
 
 // Back-project the 2D pose keypoints of a detection into 3D (depth camera
 // frame), keeping id/score; keypoints with no valid depth are skipped.
@@ -92,8 +123,10 @@ std::array<double, 3> qv_mult(const std::array<double, 4> &q,
                               const std::array<double, 3> &v);
 
 // Apply a rigid transform (translation + rotation) to a 3D box: the position
-// is rotated and translated, the axis-aligned size only rotated (abs of the
-// rotated extents).
+// is rotated and translated, the orientation quaternion is composed with the
+// frame rotation. An axis-aligned box (identity orientation in the source
+// frame) keeps identity and its extents are rotated; an oriented box keeps its
+// local-frame size (the composed orientation carries the rotation).
 yolo_msgs::msg::BoundingBox3D
 transform_3d_box(const yolo_msgs::msg::BoundingBox3D &bbox,
                  const std::array<double, 3> &translation,

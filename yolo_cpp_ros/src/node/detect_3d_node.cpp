@@ -91,6 +91,7 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 Detect3DNode::on_cleanup(const rclcpp_lifecycle::State &) {
   this->tf_listener_.reset();
   this->detections_3d_publisher_.reset();
+  this->orientation_state_.last_axes.clear();
 
   RCLCPP_INFO(get_logger(), "[%s] Cleaned up", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
@@ -113,6 +114,8 @@ void Detect3DNode::declare_params() {
   this->declare_parameter<std::string>("depth_image_topic", "depth_image");
   this->declare_parameter<std::string>("depth_info_topic", "depth_info");
   this->declare_parameter<std::string>("detections_topic", "detections");
+  this->declare_parameter<bool>("enable_orientation", false);
+  this->declare_parameter<int>("min_seg_points_for_orientation", 20);
 }
 
 void Detect3DNode::load_params() {
@@ -127,6 +130,9 @@ void Detect3DNode::load_params() {
   this->get_parameter("depth_image_topic", this->depth_image_topic_);
   this->get_parameter("depth_info_topic", this->depth_info_topic_);
   this->get_parameter("detections_topic", this->detections_topic_);
+  this->get_parameter("enable_orientation", this->enable_orientation_);
+  this->get_parameter("min_seg_points_for_orientation",
+                      this->min_seg_points_for_orientation_);
 }
 
 void Detect3DNode::recieve_callback(
@@ -169,9 +175,11 @@ std::vector<yolo_msgs::msg::Detection> Detect3DNode::process_detections(
   }
 
   for (const auto &detection : detections_msg->detections) {
-    auto bbox3d =
-        yolo_3d::convert_bb_to_3d(depth_image, *depth_info_msg, detection,
-                                  this->depth_image_units_divisor_);
+    auto bbox3d = yolo_3d::convert_bb_to_3d(
+        depth_image, *depth_info_msg, detection,
+        this->depth_image_units_divisor_,
+        {this->enable_orientation_, this->min_seg_points_for_orientation_},
+        &this->orientation_state_);
     if (!bbox3d) {
       continue;
     }

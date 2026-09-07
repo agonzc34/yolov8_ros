@@ -30,6 +30,8 @@
 #include "yolo_msgs/msg/key_point3_d.hpp"
 #include "yolo_msgs/msg/key_point3_d_array.hpp"
 
+#include "yolo_cpp_ros/3d/depth_utils.hpp"
+
 namespace yolo_rclcpp {
 
 using SyncPolicy3D = message_filters::sync_policies::ApproximateTime<
@@ -78,6 +80,11 @@ private:
   std::string depth_image_topic_;
   std::string depth_info_topic_;
   std::string detections_topic_;
+  bool enable_orientation_;
+  int min_seg_points_for_orientation_;
+
+  // Per-track sign-consistency cache for the OBB PCA axes.
+  yolo_3d::OrientationState orientation_state_;
 
   tf2_ros::Buffer tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;

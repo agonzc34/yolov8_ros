@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <random>
 
 #include <opencv2/imgproc.hpp>
 
@@ -19,6 +20,374 @@ namespace {
 size_t weighted_searchsorted(const std::vector<double> &cum_weights, double f) {
   auto it = std::lower_bound(cum_weights.begin(), cum_weights.end(), f);
   return static_cast<size_t>(it - cum_weights.begin());
+}
+
+double dot3(const Point3 &a, const Point3 &b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+Point3 cross3(const Point3 &a, const Point3 &b) {
+  return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+          a[0] * b[1] - a[1] * b[0]};
+}
+
+double norm3(const Point3 &a) { return std::sqrt(dot3(a, a)); }
+
+void normalize3(Point3 &a) {
+  const double n = norm3(a);
+  if (n > 0.0) {
+    a[0] /= n;
+    a[1] /= n;
+    a[2] /= n;
+  }
+}
+
+// ---- Quaternion helpers (q stored as [w, x, y, z], matching tf2).
+
+std::array<double, 4> quat_normalize(std::array<double, 4> q) {
+  const double n =
+      std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+  if (n < 1e-12) {
+    return {1.0, 0.0, 0.0, 0.0};
+  }
+  for (double &c : q) c /= n;
+  return q;
+}
+
+std::array<double, 4> quat_multiply(const std::array<double, 4> &q1,
+                                    const std::array<double, 4> &q2) {
+  const double w1 = q1[0], x1 = q1[1], y1 = q1[2], z1 = q1[3];
+  const double w2 = q2[0], x2 = q2[1], y2 = q2[2], z2 = q2[3];
+  return {w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+          w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+          w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+          w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2};
+}
+
+bool quat_is_identity(const std::array<double, 4> &q_wxyz, double tol = 1e-3) {
+  const auto q = quat_normalize(q_wxyz);
+  return std::abs(q[1]) < tol && std::abs(q[2]) < tol && std::abs(q[3]) < tol &&
+         std::abs(std::abs(q[0]) - 1.0) < tol;
+}
+
+// Convert a 3x3 rotation matrix (row-major R[row][col], columns = box axes)
+// into a quaternion in ROS order [x, y, z, w] (scipy as_quat ordering).
+std::array<double, 4> matrix_to_quat(const double R[9]) {
+  // Indices 0..8 in row-major: m00 m01 m02 m10 m11 m12 m20 m21 m22.
+  const double trace = R[0] + R[4] + R[8];
+  double w, x, y, z;
+  if (trace > 0.0) {
+    const double s = std::sqrt(trace + 1.0) * 2.0;
+    w = 0.25 * s;
+    x = (R[7] - R[5]) / s;
+    y = (R[2] - R[6]) / s;
+    z = (R[3] - R[1]) / s;
+  } else if (R[0] > R[4] && R[0] > R[8]) {
+    const double s = std::sqrt(1.0 + R[0] - R[4] - R[8]) * 2.0;
+    w = (R[7] - R[5]) / s;
+    x = 0.25 * s;
+    y = (R[1] + R[3]) / s;
+    z = (R[2] + R[6]) / s;
+  } else if (R[4] > R[8]) {
+    const double s = std::sqrt(1.0 + R[4] - R[0] - R[8]) * 2.0;
+    w = (R[2] - R[6]) / s;
+    x = (R[1] + R[3]) / s;
+    y = 0.25 * s;
+    z = (R[5] + R[7]) / s;
+  } else {
+    const double s = std::sqrt(1.0 + R[8] - R[0] - R[4]) * 2.0;
+    w = (R[3] - R[1]) / s;
+    x = (R[2] + R[6]) / s;
+    y = (R[5] + R[7]) / s;
+    z = 0.25 * s;
+  }
+  const auto q = quat_normalize({w, x, y, z});
+  return {q[1], q[2], q[3], q[0]}; // [x, y, z, w]
+}
+
+// ---- Orientation-estimation helpers (Python detect_3d_node.py).
+
+// Weighted percentiles (np.interp on the weighted cumulative distribution).
+std::pair<double, double>
+weighted_percentiles(const std::vector<double> &values,
+                     const std::vector<double> &weights, double q_lo,
+                     double q_hi) {
+  if (values.empty()) return {0.0, 0.0};
+  std::vector<size_t> idx(values.size());
+  std::iota(idx.begin(), idx.end(), 0);
+  std::sort(idx.begin(), idx.end(),
+            [&](size_t a, size_t b) { return values[a] < values[b]; });
+  std::vector<double> cum(values.size());
+  double acc = 0.0;
+  for (size_t i = 0; i < values.size(); ++i) {
+    acc += weights[idx[i]];
+    cum[i] = acc;
+  }
+  const double total = cum.back();
+  if (total > 0.0) {
+    for (double &c : cum) c /= total;
+  }
+  auto interp = [&](double q) -> double {
+    if (q <= cum.front()) return values[idx.front()];
+    if (q >= cum.back()) return values[idx.back()];
+    const auto it = std::upper_bound(cum.begin(), cum.end(), q);
+    const size_t hi = static_cast<size_t>(it - cum.begin());
+    const size_t lo = hi - 1;
+    const double x0 = cum[lo], x1 = cum[hi];
+    const double y0 = values[idx[lo]], y1 = values[idx[hi]];
+    const double t = (x1 > x0) ? (q - x0) / (x1 - x0) : 0.0;
+    return y0 + t * (y1 - y0);
+  };
+  return {interp(q_lo), interp(q_hi)};
+}
+
+// Strided, mask-guided sample of the object's depth points in the camera
+// frame (Python _sample_points_3d).
+std::optional<std::vector<Point3>> sample_points_3d(
+    const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor,
+    int stride, int max_points, int min_seg_points) {
+  const auto &k = depth_info.k;
+  const double cx = k[2], cy = k[5], fx = k[0], fy = k[4];
+  if (fx == 0.0 || fy == 0.0) {
+    return std::nullopt;
+  }
+
+  const int center_x = static_cast<int>(detection.bbox.center.position.x);
+  const int center_y = static_cast<int>(detection.bbox.center.position.y);
+  const int size_x = static_cast<int>(detection.bbox.size.x);
+  const int size_y = static_cast<int>(detection.bbox.size.y);
+  const int w_img = depth_image.cols, h_img = depth_image.rows;
+
+  const int u_min = std::max(center_x - size_x / 2, 0);
+  const int u_max = std::min(center_x + size_x / 2, w_img);
+  const int v_min = std::max(center_y - size_y / 2, 0);
+  const int v_max = std::min(center_y + size_y / 2, h_img);
+  if (u_max <= u_min || v_max <= v_min) {
+    return std::nullopt;
+  }
+  const cv::Mat roi =
+      depth_image(cv::Rect(u_min, v_min, u_max - u_min, v_max - v_min));
+  if (roi.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<int> sxs, sys;
+  if (!detection.mask.data.empty()) {
+    std::vector<cv::Point> poly;
+    poly.reserve(detection.mask.data.size());
+    for (const auto &p : detection.mask.data) {
+      const int x = std::clamp(cvRound(p.x) - u_min, 0, roi.cols - 1);
+      const int y = std::clamp(cvRound(p.y) - v_min, 0, roi.rows - 1);
+      poly.emplace_back(x, y);
+    }
+    cv::Mat mask = cv::Mat::zeros(roi.size(), CV_8UC1);
+    std::vector<std::vector<cv::Point>> contours{poly};
+    cv::fillPoly(mask, contours, cv::Scalar(255));
+    for (int v = 0; v < mask.rows; v += stride) {
+      const uchar *row = mask.ptr<uchar>(v);
+      for (int u = 0; u < mask.cols; u += stride) {
+        if (row[u]) {
+          sys.push_back(v);
+          sxs.push_back(u);
+        }
+      }
+    }
+  } else {
+    for (int v = 0; v < roi.rows; v += stride) {
+      for (int u = 0; u < roi.cols; u += stride) {
+        sys.push_back(v);
+        sxs.push_back(u);
+      }
+    }
+  }
+  if (sys.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<double> z(sys.size()), xs_img(sys.size()), ys_img(sys.size());
+  size_t cnt = 0;
+  for (size_t i = 0; i < sys.size(); ++i) {
+    const double d = depth_at_pixel(roi, sys[i], sxs[i], depth_units_divisor);
+    if (std::isfinite(d) && d > 0.0) {
+      z[cnt] = d;
+      xs_img[cnt] = sxs[i] + u_min;
+      ys_img[cnt] = sys[i] + v_min;
+      ++cnt;
+    }
+  }
+  if (cnt == 0) {
+    return std::nullopt;
+  }
+  z.resize(cnt);
+  xs_img.resize(cnt);
+  ys_img.resize(cnt);
+
+  if (static_cast<int>(z.size()) < min_seg_points) {
+    return std::nullopt;
+  }
+
+  // Local orientation-only depth cleanup around the median (replaces the old
+  // maximum_detection_threshold guard; no parameter needed).
+  const double orientation_depth_threshold = 0.30;
+  const double z_med = median(z);
+  std::vector<double> z2, xs2, ys2;
+  for (size_t i = 0; i < z.size(); ++i) {
+    if (std::abs(z[i] - z_med) <= orientation_depth_threshold) {
+      z2.push_back(z[i]);
+      xs2.push_back(xs_img[i]);
+      ys2.push_back(ys_img[i]);
+    }
+  }
+  if (z2.empty()) {
+    return std::nullopt;
+  }
+  if (static_cast<int>(z2.size()) < min_seg_points) {
+    return std::nullopt;
+  }
+
+  std::vector<size_t> keep(z2.size());
+  std::iota(keep.begin(), keep.end(), 0);
+  if (static_cast<int>(keep.size()) > max_points) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::vector<size_t> sampled;
+    std::sample(keep.begin(), keep.end(), std::back_inserter(sampled),
+                max_points, rng);
+    keep = sampled;
+  }
+
+  std::vector<Point3> pts;
+  pts.reserve(keep.size());
+  for (const size_t i : keep) {
+    const double zz = z2[i];
+    const double x = zz * (xs2[i] - cx) / fx;
+    const double y = zz * (ys2[i] - cy) / fy;
+    if (std::isfinite(x) && std::isfinite(y) && std::isfinite(zz)) {
+      pts.push_back({x, y, zz});
+    }
+  }
+  if (static_cast<int>(pts.size()) < min_seg_points) {
+    return std::nullopt;
+  }
+  return pts;
+}
+
+// PCA plane frame (normal, x_axis, y_axis) for a point cloud, with degeneracy
+// checks (Python _plane_frame_from_pts_pca).
+std::optional<std::array<Point3, 3>>
+plane_frame_from_pts_pca(const std::vector<Point3> &pts) {
+  if (pts.empty()) {
+    return std::nullopt;
+  }
+  double mx = 0.0, my = 0.0, mz = 0.0;
+  for (const auto &p : pts) {
+    mx += p[0];
+    my += p[1];
+    mz += p[2];
+  }
+  const double n = static_cast<double>(pts.size());
+  mx /= n;
+  my /= n;
+  mz /= n;
+
+  double cov[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+  for (const auto &p : pts) {
+    const double dx = p[0] - mx, dy = p[1] - my, dz = p[2] - mz;
+    cov[0][0] += dx * dx;
+    cov[0][1] += dx * dy;
+    cov[0][2] += dx * dz;
+    cov[1][1] += dy * dy;
+    cov[1][2] += dy * dz;
+    cov[2][2] += dz * dz;
+  }
+  cov[1][0] = cov[0][1];
+  cov[2][0] = cov[0][2];
+  cov[2][1] = cov[1][2];
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      cov[i][j] /= n;
+    }
+  }
+
+  cv::Mat m(3, 3, CV_64F);
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      m.at<double>(i, j) = cov[i][j];
+    }
+  }
+  cv::Mat eigval, eigvec;
+  cv::eigen(m, eigval, eigvec); // descending eigenvalues, rows = eigenvectors
+  const double lam_max = eigval.at<double>(0, 0);
+  const double lam_mid = eigval.at<double>(1, 0);
+  const double lam_min = eigval.at<double>(2, 0);
+
+  // Degenerate point clouds: reject blobs (no clear plane) and objects with
+  // ambiguous in-plane axes (e.g. square walls).
+  if (lam_max < 1e-12) {
+    return std::nullopt;
+  }
+  if (lam_min / lam_max > 0.3) {
+    return std::nullopt;
+  }
+  if ((lam_max - lam_mid) / lam_max < 0.15) {
+    return std::nullopt;
+  }
+
+  // Normal = smallest-variance eigenvector.
+  Point3 normal{eigvec.at<double>(2, 0), eigvec.at<double>(2, 1),
+                eigvec.at<double>(2, 2)};
+  const Point3 c{mx, my, mz};
+  // Make the normal point away from the camera (camera at the origin).
+  if (dot3(normal, c) > 0.0) {
+    normal[0] = -normal[0];
+    normal[1] = -normal[1];
+    normal[2] = -normal[2];
+  }
+
+  // Major in-plane axis = largest-variance eigenvector.
+  Point3 x{eigvec.at<double>(0, 0), eigvec.at<double>(0, 1),
+           eigvec.at<double>(0, 2)};
+  Point3 y = cross3(normal, x);
+  if (norm3(y) < 1e-12) {
+    return std::nullopt;
+  }
+  normalize3(y);
+  x = cross3(y, normal);
+  normalize3(x);
+
+  // Reduce 180-degree yaw flips relative to a fixed x reference.
+  if (x[0] < 0.0) { // dot(x, [1, 0, 0]) < 0
+    x[0] = -x[0];
+    x[1] = -x[1];
+    x[2] = -x[2];
+    y[0] = -y[0];
+    y[1] = -y[1];
+    y[2] = -y[2];
+  }
+
+  return std::array<Point3, 3>{normal, x, y};
+}
+
+// Enforce temporal sign consistency of the PCA in-plane axes (Python
+// _consistent_axes): PCA has a sign ambiguity, so consecutive frames can flip
+// the orientation by 180 degrees. Keeps the axes aligned with the previous
+// frame for the same tracked object.
+std::array<Point3, 3> consistent_axes(OrientationState &state,
+                                      const std::string &id,
+                                      const std::array<Point3, 3> &frame) {
+  Point3 n = frame[0], x = frame[1], y = frame[2];
+  const std::string key = id.empty() ? "_default" : id;
+  auto it = state.last_axes.find(key);
+  if (it != state.last_axes.end() && dot3(x, it->second) < -0.1) {
+    x[0] = -x[0];
+    x[1] = -x[1];
+    x[2] = -x[2];
+    y[0] = -y[0];
+    y[1] = -y[1];
+    y[2] = -y[2];
+  }
+  state.last_axes[key] = x;
+  return {n, x, y};
 }
 
 } // namespace
@@ -363,7 +732,8 @@ double depth_at_pixel(const cv::Mat &depth_image, int v, int u,
 
 std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
     const cv::Mat &depth_image, const sensor_msgs::msg::CameraInfo &depth_info,
-    const yolo_msgs::msg::Detection &detection, int depth_units_divisor) {
+    const yolo_msgs::msg::Detection &detection, int depth_units_divisor,
+    const OrientationParams &orient_params, OrientationState *orient_state) {
   const int center_x = static_cast<int>(detection.bbox.center.position.x);
   const int center_y = static_cast<int>(detection.bbox.center.position.y);
   const int size_x = static_cast<int>(detection.bbox.size.x);
@@ -452,32 +822,48 @@ std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
     return std::nullopt;
   }
 
-  // Back-project each valid pixel to 3D and derive the per-axis bounds from
-  // the actual 3D points (not just by projecting the 2D bbox).
-  std::vector<double> x3(depths.size()), y3(depths.size());
+  // Restrict the per-axis extents to the object's own depth cluster
+  // (upstream: depth_cluster = (depths >= z_min) & (depths <= z_max)) so that
+  // background/occluding depths at a different range are excluded.
+  std::vector<double> cd, cw;
+  std::vector<int> cx, cy;
   for (size_t i = 0; i < depths.size(); ++i) {
-    x3[i] = depths[i] * (xs[i] - px) / fx;
-    y3[i] = depths[i] * (ys[i] - py) / fy;
+    if (depths[i] >= db.min && depths[i] <= db.max) {
+      cd.push_back(depths[i]);
+      cw.push_back(weights[i]);
+      cx.push_back(xs[i]);
+      cy.push_back(ys[i]);
+    }
+  }
+  if (cd.empty()) {
+    return std::nullopt;
+  }
+
+  // Back-project each cluster pixel to 3D and derive the per-axis bounds from
+  // the actual 3D points (not just by projecting the 2D bbox).
+  std::vector<double> x3(cd.size()), y3(cd.size());
+  for (size_t i = 0; i < cd.size(); ++i) {
+    x3[i] = cd[i] * (cx[i] - px) / fx;
+    y3[i] = cd[i] * (cy[i] - py) / fy;
   }
 
   // Height uses a fixed MAD multiplier; width adapts to the depth variance to
   // distinguish occluded/3D objects from flat ones.
-  const AxisBounds hb = compute_axis_bounds(y3, weights, 4.5, 0.06, 0.50);
-  const double d_mean =
-      std::accumulate(depths.begin(), depths.end(), 0.0) / depths.size();
+  const AxisBounds hb = compute_axis_bounds(y3, cw, 4.5, 0.06, 0.50);
+  const double d_mean = std::accumulate(cd.begin(), cd.end(), 0.0) / cd.size();
   double d_var = 0.0;
-  for (const double d : depths) {
+  for (const double d : cd) {
     d_var += (d - d_mean) * (d - d_mean);
   }
-  const double depth_std = std::sqrt(d_var / depths.size());
+  const double depth_std = std::sqrt(d_var / cd.size());
   const double w_mult = (depth_std > 0.15) ? 4.0 : 4.5;
   const double w_lo = (depth_std > 0.15) ? 0.06 : 0.08;
   const double w_hi = (depth_std > 0.15) ? 0.40 : 0.50;
-  const AxisBounds wb = compute_axis_bounds(x3, weights, w_mult, w_lo, w_hi);
+  const AxisBounds wb = compute_axis_bounds(x3, cw, w_mult, w_lo, w_hi);
 
   if (!std::isfinite(hb.center) || !std::isfinite(hb.min) ||
       !std::isfinite(hb.max) || !std::isfinite(wb.center) ||
-      !std::isfinite(wb.min) || !std::isfinite(wb.max)) {
+      !std::isfinite(wb.min) || !std::isfinite(wb.max) || db.center <= 0.0) {
     return std::nullopt;
   }
 
@@ -488,6 +874,63 @@ std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
   bbox3d.size.x = wb.max - wb.min;
   bbox3d.size.y = hb.max - hb.min;
   bbox3d.size.z = db.max - db.min;
+
+  // --- oriented bounding box (OBB) ---
+  if (orient_params.enable && orient_state != nullptr) {
+    auto pts = sample_points_3d(depth_image, depth_info, detection,
+                                depth_units_divisor,
+                                /*stride=*/4, /*max_points=*/4000,
+                                orient_params.min_seg_points_for_orientation);
+    if (pts && static_cast<int>(pts->size()) >=
+                   orient_params.min_seg_points_for_orientation) {
+      auto frame = plane_frame_from_pts_pca(*pts);
+      if (frame && cd.size() >= 4) {
+        frame = consistent_axes(*orient_state, detection.id, *frame);
+        const Point3 &n = (*frame)[0];
+        const Point3 &xa = (*frame)[1];
+        const Point3 &ya = (*frame)[2];
+
+        // Back-project the cluster points once and recompute the box extents
+        // along the object axes so the size matches the orientation
+        // (camera-aligned extents would overestimate for rotated objects).
+        const Point3 center3{wb.center, hb.center, db.center};
+        const Point3 axes[3] = {xa, ya, n}; // R columns
+        std::array<double, 3> half_extents{};
+        bool ok = true;
+        for (int axis = 0; axis < 3; ++axis) {
+          std::vector<double> proj(cd.size());
+          for (size_t i = 0; i < cd.size(); ++i) {
+            const double dx = x3[i] - center3[0];
+            const double dy = y3[i] - center3[1];
+            const double dz = cd[i] - center3[2];
+            proj[i] =
+                dx * axes[axis][0] + dy * axes[axis][1] + dz * axes[axis][2];
+          }
+          const auto lo_hi = weighted_percentiles(proj, cw, 0.02, 0.98);
+          half_extents[axis] =
+              std::max((lo_hi.second - lo_hi.first) / 2.0, 0.01);
+          if (!std::isfinite(half_extents[axis]) || half_extents[axis] <= 0.0) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) {
+          bbox3d.size.x = 2.0 * half_extents[0];
+          bbox3d.size.y = 2.0 * half_extents[1];
+          bbox3d.size.z = 2.0 * half_extents[2];
+
+          // R (row-major) with columns = [xa, ya, n]; a proper rotation.
+          const double R[9] = {xa[0], ya[0], n[0],  xa[1], ya[1],
+                               n[1],  xa[2], ya[2], n[2]};
+          const auto q = matrix_to_quat(R); // [x, y, z, w]
+          bbox3d.center.orientation.x = q[0];
+          bbox3d.center.orientation.y = q[1];
+          bbox3d.center.orientation.z = q[2];
+          bbox3d.center.orientation.w = q[3];
+        }
+      }
+    }
+  }
 
   return bbox3d;
 }
@@ -507,7 +950,7 @@ yolo_msgs::msg::KeyPoint3DArray convert_keypoints_to_3d(
                              static_cast<int>(depth_info.width) - 1);
 
     const double depth = depth_at_pixel(depth_image, u, v, depth_units_divisor);
-    if (!std::isfinite(depth)) {
+    if (!std::isfinite(depth) || depth <= 0.0) {
       continue;
     }
 
@@ -556,11 +999,28 @@ transform_3d_box(const yolo_msgs::msg::BoundingBox3D &bbox,
   out.center.position.y = position[1] + translation[1];
   out.center.position.z = position[2] + translation[2];
 
-  // Size: only rotate (axis-aligned extents after the rotation).
-  const auto size = qv_mult(rotation, {bbox.size.x, bbox.size.y, bbox.size.z});
-  out.size.x = std::abs(size[0]);
-  out.size.y = std::abs(size[1]);
-  out.size.z = std::abs(size[2]);
+  // Orientation: compose the box orientation with the frame rotation. An
+  // axis-aligned box (identity orientation in the source frame) keeps its
+  // extents rotated as before; an oriented box carries its size in its own
+  // local frame, so the size is left untouched and the composed quaternion
+  // describes the rotation.
+  const std::array<double, 4> q_bbox{
+      out.center.orientation.w, out.center.orientation.x,
+      out.center.orientation.y, out.center.orientation.z};
+  if (quat_is_identity(q_bbox)) {
+    const auto size =
+        qv_mult(rotation, {bbox.size.x, bbox.size.y, bbox.size.z});
+    out.size.x = std::abs(size[0]);
+    out.size.y = std::abs(size[1]);
+    out.size.z = std::abs(size[2]);
+  } else {
+    const auto q_new = quat_normalize(quat_multiply(rotation, q_bbox));
+    out.center.orientation.x = q_new[1];
+    out.center.orientation.y = q_new[2];
+    out.center.orientation.z = q_new[3];
+    out.center.orientation.w = q_new[0];
+    out.size = bbox.size;
+  }
 
   return out;
 }
