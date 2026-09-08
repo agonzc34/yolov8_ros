@@ -38,6 +38,7 @@ add_executable(yolo_cpp_ros
   src/yolo/detect.cpp
   src/yolo/pose.cpp
   src/yolo/classify.cpp
+  src/yolo/obb.cpp
   src/yolo/utils.cpp
 
   src/engine/model.cpp

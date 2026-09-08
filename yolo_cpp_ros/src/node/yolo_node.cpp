@@ -7,6 +7,7 @@
 #include "rclcpp/qos.hpp"
 #include "yolo_cpp_ros/yolo/classify.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
+#include "yolo_cpp_ros/yolo/obb.hpp"
 #include "yolo_cpp_ros/yolo/pose.hpp"
 #include "yolo_cpp_ros/yolo/segment.hpp"
 #include <algorithm>
@@ -167,6 +168,9 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
       !model_type.empty() && model_type != "auto" &&
       (model_type.find("pose") != std::string::npos ||
        model_type.find("keypoint") != std::string::npos || model_type == "kpt");
+  const bool explicit_obb = !model_type.empty() && model_type != "auto" &&
+                            (model_type.find("obb") != std::string::npos ||
+                             model_type.find("rotat") != std::string::npos);
   const bool explicit_segment = !model_type.empty() && model_type != "auto" &&
                                 model_type.find("segment") != std::string::npos;
   const bool explicit_detect = model_type == "yolo" || model_type == "detect" ||
@@ -177,15 +181,22 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
        model_type == "clf");
   const bool by_filename_pose =
       params.model_path.find("pose") != std::string::npos;
+  const bool by_filename_obb =
+      params.model_path.find("obb") != std::string::npos;
   const bool by_filename =
       params.model_path.find("segment") != std::string::npos;
   const bool by_filename_classify =
       params.model_path.find("cls") != std::string::npos ||
       params.model_path.find("classify") != std::string::npos;
 
-  if (explicit_pose ||
-      (by_filename_pose && !explicit_detect && !explicit_segment &&
-       !explicit_classify && !by_filename && !by_filename_classify)) {
+  if (explicit_obb ||
+      (by_filename_obb && !explicit_detect && !explicit_segment &&
+       !explicit_pose && !explicit_classify && !by_filename_pose &&
+       !by_filename && !by_filename_classify)) {
+    this->yolo_model = std::make_unique<yolo_onnx::YoloOBB>(params);
+  } else if (explicit_pose ||
+             (by_filename_pose && !explicit_detect && !explicit_segment &&
+              !explicit_classify && !by_filename && !by_filename_classify)) {
     this->yolo_model = std::make_unique<yolo_onnx::YoloPose>(params);
   } else if (explicit_segment ||
              (by_filename && !explicit_detect && !explicit_classify)) {
