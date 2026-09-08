@@ -75,9 +75,11 @@ struct YoloParams {
   int image_reliability;
   std::string image_topic;
   int n_threads;
-  int max_fps; // cap on the inference/publish rate in Hz; 0 = unlimited
-               // (process every received frame). Frames are dropped by the
-               // node, the subscription stays live.
+  int max_fps;   // cap on the inference/publish rate in Hz; 0 = unlimited
+                 // (process every received frame). Frames are dropped by the
+                 // node, the subscription stays live.
+  int top_k = 5; // classification: number of top classes to publish per
+                 // image (softmax probabilities, sorted descending)
 };
 
 template <typename BoxT> float iou(const BoxT &box1, const BoxT &box2) {

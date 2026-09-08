@@ -5,6 +5,7 @@
 #include "yolo_cpp_ros/node/yolo_node.hpp"
 #include "huggingface_hub.h"
 #include "rclcpp/qos.hpp"
+#include "yolo_cpp_ros/yolo/classify.hpp"
 #include "yolo_cpp_ros/yolo/detect.hpp"
 #include "yolo_cpp_ros/yolo/pose.hpp"
 #include "yolo_cpp_ros/yolo/segment.hpp"
@@ -113,6 +114,7 @@ void yolo_rclcpp::YoloNode::declare_params() {
   this->declare_parameter<std::string>("image_topic", "image");
   this->declare_parameter<int>("n_threads", -1);
   this->declare_parameter<int>("max_fps", 0);
+  this->declare_parameter<int>("top_k", 5);
 }
 
 yolo_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
@@ -132,6 +134,7 @@ yolo_utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   this->get_parameter("image_topic", params.image_topic);
   this->get_parameter("n_threads", params.n_threads);
   this->get_parameter("max_fps", params.max_fps);
+  this->get_parameter("top_k", params.top_k);
 
   // Hugging Face Hub: when an HF repo + filename are given, download (or reuse
   // the cached copy) and use that path instead of the local `model`.
@@ -164,7 +167,7 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
 
   // An explicit model_type wins; "auto" (or empty) falls back to the
   // filename heuristic (path containing "pose" -> pose, "segment" ->
-  // segmentation, otherwise detection).
+  // segmentation, "cls"/"classify" -> classification, otherwise detection).
   const bool explicit_pose =
       !model_type.empty() && model_type != "auto" &&
       (model_type.find("pose") != std::string::npos ||
@@ -173,16 +176,28 @@ void yolo_rclcpp::YoloNode::create_yolo(yolo_utils::YoloParams params) {
                                 model_type.find("segment") != std::string::npos;
   const bool explicit_detect = model_type == "yolo" || model_type == "detect" ||
                                model_type == "det" || model_type == "detection";
+  const bool explicit_classify =
+      !model_type.empty() && model_type != "auto" &&
+      (model_type.find("class") != std::string::npos || model_type == "cls" ||
+       model_type == "clf");
   const bool by_filename_pose =
       params.model_path.find("pose") != std::string::npos;
   const bool by_filename =
       params.model_path.find("segment") != std::string::npos;
+  const bool by_filename_classify =
+      params.model_path.find("cls") != std::string::npos ||
+      params.model_path.find("classify") != std::string::npos;
 
-  if (explicit_pose || (by_filename_pose && !explicit_detect &&
-                        !explicit_segment && !by_filename)) {
+  if (explicit_pose ||
+      (by_filename_pose && !explicit_detect && !explicit_segment &&
+       !explicit_classify && !by_filename && !by_filename_classify)) {
     this->yolo_model = std::make_unique<yolo_onnx::YoloPose>(params);
-  } else if (explicit_segment || (by_filename && !explicit_detect)) {
+  } else if (explicit_segment ||
+             (by_filename && !explicit_detect && !explicit_classify)) {
     this->yolo_model = std::make_unique<yolo_onnx::YoloSegment>(params);
+  } else if (explicit_classify || (by_filename_classify && !explicit_detect &&
+                                   !explicit_segment && !by_filename)) {
+    this->yolo_model = std::make_unique<yolo_onnx::YoloClassify>(params);
   } else {
     this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
   }
