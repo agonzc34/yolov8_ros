@@ -4,6 +4,9 @@
 
 #include "yolo_cpp_ros/node/debug_node.hpp"
 #include "cv_bridge/cv_bridge.h"
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <map>
 #include <opencv2/imgproc.hpp>
 #include <string>
@@ -206,10 +209,48 @@ cv::Scalar DebugNode::color_for_class(const std::string &class_name) {
 cv::Mat DebugNode::draw_box(const cv::Mat &image,
                             const yolo_msgs::msg::Detection &detection,
                             const cv::Scalar &color) {
-  cv::Rect box(detection.bbox.center.position.x - detection.bbox.size.x / 2,
-               detection.bbox.center.position.y - detection.bbox.size.y / 2,
-               detection.bbox.size.x, detection.bbox.size.y);
-  cv::rectangle(image, box, color, 2);
+  const auto &center = detection.bbox.center.position;
+  const double theta = detection.bbox.center.theta;
+
+  // Text anchor, filled in below (top-left of the drawn box).
+  int text_x = 0;
+  int text_y = 0;
+
+  if (std::abs(theta) > 0.0) {
+    // Oriented bounding box (OBB): the rotation angle rides in center.theta
+    // (radians, ultralytics xywhr convention). Draw the rotated quad with the
+    // same corner geometry as the OBB postprocessor.
+    const float c = static_cast<float>(std::cos(theta));
+    const float s = static_cast<float>(std::sin(theta));
+    const cv::Point2f ctr(static_cast<float>(center.x),
+                          static_cast<float>(center.y));
+    const float w = static_cast<float>(detection.bbox.size.x);
+    const float h = static_cast<float>(detection.bbox.size.y);
+    const cv::Point2f vec1(w / 2 * c, w / 2 * s);
+    const cv::Point2f vec2(-h / 2 * s, h / 2 * c);
+    const std::array<cv::Point2f, 4> corners = {
+        ctr + vec1 + vec2, ctr + vec1 - vec2, ctr - vec1 - vec2,
+        ctr - vec1 + vec2};
+
+    float min_x = corners[0].x, min_y = corners[0].y;
+    std::vector<cv::Point> quad;
+    quad.reserve(4);
+    for (const auto &p : corners) {
+      quad.emplace_back(cvRound(p.x), cvRound(p.y));
+      min_x = std::min(min_x, p.x);
+      min_y = std::min(min_y, p.y);
+    }
+    cv::polylines(image, quad, true, color, 2, cv::LINE_AA);
+    text_x = cvRound(min_x);
+    text_y = cvRound(min_y) - 5;
+  } else {
+    cv::Rect box(center.x - detection.bbox.size.x / 2,
+                 center.y - detection.bbox.size.y / 2, detection.bbox.size.x,
+                 detection.bbox.size.y);
+    cv::rectangle(image, box, color, 2);
+    text_x = box.x;
+    text_y = box.y - 5;
+  }
 
   // Text
   std::string text = detection.class_name;
@@ -219,8 +260,8 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
   std::ostringstream ss;
   ss << std::fixed << std::setprecision(3) << detection.score;
   text += " " + ss.str();
-  cv::putText(image, text, cv::Point(box.x, box.y - 5),
-              cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 2);
+  cv::putText(image, text, cv::Point(text_x, text_y), cv::FONT_HERSHEY_SIMPLEX,
+              0.5, color, 2);
 
   return image;
 }
