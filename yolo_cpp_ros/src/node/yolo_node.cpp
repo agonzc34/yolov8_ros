@@ -88,9 +88,10 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void yolo_rclcpp::YoloNode::declare_params() {
-  // Inference knobs mirroring the README / the Python yolo_node.py. A few are
-  // accepted for config parity only (see get_params()): the C++/ONNX pipeline
-  // always runs FP32 on the model's fixed input tensor and has no TTA.
+  // Inference knobs mirroring the README / the Python yolo_node.py (the
+  // Python-only knobs imgsz_* / half / augment / agnostic_nms / retina_masks
+  // were removed: the ONNX tensor fixes the input size, NMS is baked at
+  // export, and the pipeline runs FP32 with no TTA).
   this->declare_parameter<std::string>("model_type", "auto");
   this->declare_parameter<std::string>("model", "yolo11m_segment.onnx");
   // Hugging Face Hub download: set model_repo + model_filename (and leave
@@ -102,13 +103,7 @@ void yolo_rclcpp::YoloNode::declare_params() {
   this->declare_parameter<std::string>("device", "cuda:0");
   this->declare_parameter<float>("threshold", 0.7);
   this->declare_parameter<float>("iou", 0.45);
-  this->declare_parameter<int>("imgsz_height", 480);
-  this->declare_parameter<int>("imgsz_width", 640);
-  this->declare_parameter<bool>("half", false);
   this->declare_parameter<int>("max_det", 300);
-  this->declare_parameter<bool>("augment", false);
-  this->declare_parameter<bool>("agnostic_nms", false);
-  this->declare_parameter<bool>("retina_masks", false);
   this->declare_parameter<bool>("enable", true);
   this->declare_parameter<int>("image_reliability", 2);
   this->declare_parameter<std::string>("image_topic", "image");

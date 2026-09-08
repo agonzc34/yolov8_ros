@@ -1,15 +1,3 @@
-# ROS 2 parameters file for the C++ segmentation pipeline
-# (yolo_bringup/launch/yolo_cpp_segment.launch.py). The launch passes this
-# file verbatim as `parameters=[params_file]` and makes no topic remaps: every
-# node reads its input topic from a parameter here.
-#
-# IMPORTANT: rclcpp loads `--params-file` sections by the node's fully
-# qualified name, so each block key includes the launch namespace (default
-# "yolo_seg"). If you change `namespace:=`, update the block names to match.
-#
-# NOTE: `model_type: Segment` forces the segmentation postprocessor, so any
-# ONNX file works regardless of its name — no need to rename/copy ultralytics
-# `*-seg.onnx` exports to contain "segment" (the old filename heuristic).
 /yolo_seg/yolo_node:
   ros__parameters:
     model_type: Segment       # force segmentation (auto also works if the path contains "segment")
@@ -23,13 +11,7 @@
     device: cuda:0
     threshold: 0.7
     iou: 0.45
-    imgsz_height: 640         # informational: fixed by the ONNX input tensor
-    imgsz_width: 640          # informational: fixed by the ONNX input tensor
-    half: false               # parity only (pipeline runs FP32)
     max_det: 300
-    augment: false            # parity only (no TTA)
-    agnostic_nms: false       # parity only (not wired yet)
-    retina_masks: false       # parity only
     enable: true
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image
@@ -53,7 +35,6 @@
 /yolo_seg/detect_3d_node:
   ros__parameters:
     target_frame: base_link
-    maximum_detection_threshold: 0.3   # max z-distance from the reference depth
     depth_image_units_divisor: 1000    # raw depth units -> meters
     depth_image_reliability: 2         # 0=SystemDefault, 1=Reliable, 2=BestEffort
     depth_info_reliability: 2

@@ -73,7 +73,6 @@ private:
   std::shared_ptr<message_filters::Synchronizer<SyncPolicy3D>> synchronizer_;
 
   std::string target_frame_;
-  double maximum_detection_threshold_;
   int depth_image_units_divisor_;
   int depth_image_reliability_;
   int depth_info_reliability_;

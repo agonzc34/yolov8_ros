@@ -110,8 +110,9 @@ Model::Model(yolo_utils::YoloParams params)
   this->memory_info =
       Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
-  std::cout << "Model " << model_path << " has been successfully loaded."
-            << std::endl;
+  std::cout << "Model " << model_path << " has been successfully loaded"
+            << " (input " << this->input_image_shape.width << "x"
+            << this->input_image_shape.height << ", FP32)." << std::endl;
 }
 
 Model::~Model() {}

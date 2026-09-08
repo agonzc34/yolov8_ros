@@ -107,7 +107,6 @@ Detect3DNode::on_shutdown(const rclcpp_lifecycle::State &) {
 
 void Detect3DNode::declare_params() {
   this->declare_parameter<std::string>("target_frame", "base_link");
-  this->declare_parameter<double>("maximum_detection_threshold", 0.3);
   this->declare_parameter<int>("depth_image_units_divisor", 1000);
   this->declare_parameter<int>("depth_image_reliability", 2);
   this->declare_parameter<int>("depth_info_reliability", 2);
@@ -120,8 +119,6 @@ void Detect3DNode::declare_params() {
 
 void Detect3DNode::load_params() {
   this->get_parameter("target_frame", this->target_frame_);
-  this->get_parameter("maximum_detection_threshold",
-                      this->maximum_detection_threshold_);
   this->get_parameter("depth_image_units_divisor",
                       this->depth_image_units_divisor_);
   this->get_parameter("depth_image_reliability",

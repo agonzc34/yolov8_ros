@@ -9,13 +9,10 @@
 #
 # Honor status of the README inference knobs in the C++/ONNX implementation:
 #   model / device / threshold / iou / image_reliability / image_topic /
-#   n_threads / model_type / enable / max_det / max_fps -> active (drive the pipeline)
-#   imgsz_height / imgsz_width                  -> informational only: the
-#       input size is fixed by the ONNX tensor shape, not configurable at
-#       runtime in the C++ node
-#   half / augment / agnostic_nms / retina_masks -> accepted for config parity
-#       with the Python node; the C++/ONNX pipeline runs FP32 with no TTA, so
-#       they have no effect yet
+#   n_threads / model_type / enable / max_det / max_fps -> drive the pipeline
+#   (the Python-only knobs imgsz_* / half / augment / agnostic_nms /
+#   retina_masks were removed: the ONNX tensor fixes the input size, NMS is
+#   baked at export, and the pipeline runs FP32 with no TTA)
 /yolo/yolo_node:
   ros__parameters:
     model_type: auto # YOLO (=detect) | Segment | auto (decide by file name)
@@ -29,13 +26,7 @@
     device: cuda:0
     threshold: 0.7
     iou: 0.45
-    imgsz_height: 640 # informational: fixed by the ONNX input tensor
-    imgsz_width: 640 # informational: fixed by the ONNX input tensor
-    half: false # parity only (pipeline runs FP32)
     max_det: 300
-    augment: false # parity only (no TTA)
-    agnostic_nms: false # parity only (not wired yet)
-    retina_masks: false # parity only
     enable: true
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /head_front_camera/rgb/image_raw
@@ -59,11 +50,6 @@
 /yolo/detect_3d_node:
   ros__parameters:
     target_frame: base_link
-    # maximum_detection_threshold:  # informational: the old fixed z-cluster
-    #   guard was superseded by the robust, spatially weighted depth
-    #   statistics ported from the Python detect_3d_node (mode/MAD/percentile
-    #   based). Kept for config parity; does not gate inference anymore.
-    maximum_detection_threshold: 0.3
     depth_image_units_divisor: 1000 # raw depth units -> meters
     depth_image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     depth_info_reliability: 2

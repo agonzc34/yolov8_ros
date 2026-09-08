@@ -53,9 +53,11 @@ Notes:
 - `model_type` selects the pipeline: `Segment` for `*-seg.onnx` exports
   (Ultralytics names them `-seg`, not `-segment`), `Pose` for pose models;
   `auto` falls back to a filename heuristic.
-- The input size is fixed by the ONNX tensor, so `imgsz_height`/`imgsz_width`
-  are informational and `half`/`augment`/`agnostic_nms`/`retina_masks` are
-  inert in the C++ node.
+- The input size is fixed by the ONNX tensor (logged at startup), so the
+  Python-only knobs `imgsz_height`/`imgsz_width` and
+  `half`/`augment`/`agnostic_nms`/`retina_masks` were removed from the C++
+  node and its configs — NMS is baked at export and the pipeline runs FP32
+  with no TTA.
 
 ### Download a model from the Hugging Face Hub
 
