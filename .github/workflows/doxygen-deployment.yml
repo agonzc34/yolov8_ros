@@ -1,21 +1,55 @@
-name: Doxygen Deployment
+name: Doxygen
 
 on:
+  push:
+    branches: [yolo_onnx_cpp]
+    paths:
+      - ".github/Doxyfile"
+      - ".github/workflows/doxygen-deployment.yml"
+      - "yolo_cpp_ros/**"
+      - "README.md"
+  pull_request:
+    paths:
+      - ".github/Doxyfile"
+      - ".github/workflows/doxygen-deployment.yml"
+      - "yolo_cpp_ros/**"
+      - "README.md"
   release:
     types: [published]
 
 jobs:
-  doxygen_generation:
+  docs-check:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Install Doxygen and Graphviz
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Build docs and fail on warnings
+        run: |
+          set -o pipefail
+          doxygen .github/Doxyfile 2>&1 | tee /tmp/doxygen.log
+          if grep -q "warning:" /tmp/doxygen.log; then
+            echo "::error::Doxygen reported warnings"
+            exit 1
+          fi
+
+  doxygen_generation:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
 
       - name: Generate Doxygen
         uses: mattnotmitt/doxygen-action@edge

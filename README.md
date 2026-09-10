@@ -171,6 +171,21 @@ dispatch is selected with the `model_type` param (`YOLO`/`Detect`/`Segment`/
 selected with the `tracker_type` param on the `tracking_node` (default
 `bytetrack`, case-insensitive).
 
+## Documentation
+
+The C++ API reference is generated with Doxygen and published to GitHub Pages
+on every release:
+
+- Latest: <https://agonzc34.github.io/yolov8_ros/>
+
+Build it locally (Doxygen + Graphviz):
+
+```shell
+sudo apt install doxygen graphviz
+doxygen .github/Doxyfile
+# output: docs/index.html
+```
+
 ## License
 
 The whole repository is licensed under the **MIT License**. See the root
