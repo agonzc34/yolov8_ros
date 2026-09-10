@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
 
 /// @brief One raw detection fed to a tracker.
 ///
@@ -88,7 +88,7 @@ public:
 /// instead of crashing.
 std::unique_ptr<Tracker> create_tracker(const TrackerParams &params);
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__TRACKER_HPP_

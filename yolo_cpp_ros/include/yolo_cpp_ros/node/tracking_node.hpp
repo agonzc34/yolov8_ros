@@ -87,7 +87,7 @@ private:
   std::string image_topic_;
 
   /// @brief The configured tracker (e.g. ByteTrack).
-  std::unique_ptr<yolo_tracking::Tracker> tracker_;
+  std::unique_ptr<yolo_ros::tracking::Tracker> tracker_;
 
   /// @brief Declare the base parameters plus the selected tracker's own knobs.
   void declare_params();

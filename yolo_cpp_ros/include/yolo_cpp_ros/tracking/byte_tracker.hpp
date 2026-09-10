@@ -18,7 +18,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
 
 /// @brief ByteTrack configuration.
 ///
@@ -112,7 +112,7 @@ private:
   /// @brief Configuration copied at construction.
   ByteTrackParams params_;
   /// @brief Kalman filter used to predict/refine track boxes.
-  KalmanFilterXYAH kalman_filter_;
+  utils::KalmanFilterXYAH kalman_filter_;
   /// @brief Currently tracked (activated) tracks.
   std::vector<std::shared_ptr<STrack>> tracked_stracks_;
   /// @brief Tracks temporarily lost but kept alive for re-association.
@@ -125,7 +125,7 @@ private:
   static constexpr std::size_t kRemovedBuffer = 1000; // cap on removed_stracks_
 };
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__BYTE_TRACKER_HPP_

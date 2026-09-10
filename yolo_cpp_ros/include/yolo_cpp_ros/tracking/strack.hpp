@@ -15,7 +15,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
 
 /// @brief Lifecycle state of a track.
 enum class TrackState {
@@ -46,7 +46,7 @@ public:
   /// sets bookkeeping fields.
   /// @param[in] kalman_filter Filter used to initiate the state.
   /// @param[in] frame_id Current frame index.
-  void activate(const KalmanFilterXYAH *kalman_filter, int frame_id);
+  void activate(const utils::KalmanFilterXYAH *kalman_filter, int frame_id);
 
   /// @brief Reactivate a previously lost track with a new detection.
   /// @param[in] new_track Detection to re-associate.
@@ -118,11 +118,11 @@ private:
   /// @brief Original detection box (top-left x, top-left y, width, height).
   std::array<float, 4> _tlwh_{}; // original detection box (tlwh)
   /// @brief Kalman filter used for predict/update (non-owning).
-  const KalmanFilterXYAH *kf_ = nullptr;
+  const utils::KalmanFilterXYAH *kf_ = nullptr;
   /// @brief Kalman state mean (x, y, a, h, vx, vy, va, vh).
-  KalmanMean mean_{};
+  utils::KalmanMean mean_{};
   /// @brief Kalman state covariance (8x8).
-  KalmanCovariance covariance_{};
+  utils::KalmanCovariance covariance_{};
   /// @brief Whether mean_/covariance_ are valid (activated at least once).
   bool has_state_ = false; // mean/covariance valid (activated at least once)
 
@@ -146,7 +146,7 @@ private:
   int idx_ = -1;
 };
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__STRACK_HPP_

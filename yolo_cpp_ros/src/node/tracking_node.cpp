@@ -124,7 +124,7 @@ void TrackingNode::declare_params() {
       lowercase(this->get_parameter("tracker_type").as_string());
 
   if (tracker_type == "bytetrack") {
-    yolo_tracking::declare_byte_track_params(*this);
+    yolo_ros::tracking::declare_byte_track_params(*this);
   }
   // --- add new trackers here: declare their parameters when selected ---
 }
@@ -137,9 +137,9 @@ void TrackingNode::load_params() {
 
   if (tracker_type == "bytetrack") {
     try {
-      const yolo_tracking::ByteTrackParams params =
-          yolo_tracking::load_byte_track_params(*this);
-      this->tracker_ = yolo_tracking::create_tracker(params);
+      const yolo_ros::tracking::ByteTrackParams params =
+          yolo_ros::tracking::load_byte_track_params(*this);
+      this->tracker_ = yolo_ros::tracking::create_tracker(params);
     } catch (const rclcpp::exceptions::ParameterNotDeclaredException &e) {
       // Only reachable when the tracker's parameters were never declared on
       // this node (e.g. `tracker_type` switched to bytetrack on a node that
@@ -183,14 +183,14 @@ void TrackingNode::recieve_callback(
   // Convert the DetectionArray into the tracker's plain input format. The
   // detection index is preserved so the original Detection (class name, mask,
   // keypoints, ...) can be fetched back after tracking.
-  std::vector<yolo_tracking::TrackDetection> dets;
+  std::vector<yolo_ros::tracking::TrackDetection> dets;
   dets.reserve(msg_detections->detections.size());
   for (std::size_t i = 0; i < msg_detections->detections.size(); ++i) {
     const auto &det = msg_detections->detections[i];
     if (det.bbox.size.x <= 0 || det.bbox.size.y <= 0) {
       continue;
     }
-    yolo_tracking::TrackDetection td;
+    yolo_ros::tracking::TrackDetection td;
     td.cx = det.bbox.center.position.x;
     td.cy = det.bbox.center.position.y;
     td.w = det.bbox.size.x;

@@ -11,7 +11,9 @@
 
 #include "yolo_cpp_ros/tracking/utils/matching.hpp"
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
+
+using namespace utils;
 
 ByteTrack::ByteTrack(const ByteTrackParams &params) : params_(params) {}
 
@@ -228,4 +230,4 @@ void ByteTrack::reset() {
   STrack::reset_id();
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking

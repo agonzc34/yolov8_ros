@@ -12,7 +12,7 @@
 
 #include "yolo_cpp_ros/tracking/utils/lapjv.hpp"
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 namespace {
 
@@ -188,4 +188,4 @@ remove_duplicate_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
   return {resa, resb};
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils

@@ -9,7 +9,7 @@
 
 #include "yolo_cpp_ros/tracking/byte_tracker.hpp"
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
 
 namespace {
 
@@ -45,4 +45,4 @@ std::unique_ptr<Tracker> create_tracker(const TrackerParams &params) {
   return nullptr;
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking

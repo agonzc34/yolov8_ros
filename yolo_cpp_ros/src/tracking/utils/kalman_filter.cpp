@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstddef>
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 namespace {
 
@@ -277,4 +277,4 @@ KalmanFilterXYAH::update(const KalmanMean &mean,
   return {new_mean, new_covariance};
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils

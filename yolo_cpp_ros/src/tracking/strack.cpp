@@ -4,7 +4,9 @@
 
 #include "yolo_cpp_ros/tracking/strack.hpp"
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking {
+
+using namespace utils;
 
 int STrack::count_ = 0;
 
@@ -130,4 +132,4 @@ std::array<double, 4> STrack::tlwh_to_xyah(const std::array<float, 4> &tlwh) {
   return out;
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking

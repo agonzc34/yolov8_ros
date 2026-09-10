@@ -13,7 +13,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 /// @brief Kalman state mean: x, y, a, h, vx, vy, va, vh.
 using KalmanMean = std::array<double, 8>; // x, y, a, h, vx, vy, va, vh
@@ -73,7 +73,7 @@ private:
   static constexpr double kStdWeightVelocity = 1.0 / 160;
 };
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__UTILS__KALMAN_FILTER_HPP_

@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 /// @brief Dense Jonker-Volgenant solver for the linear assignment problem.
 ///
@@ -30,7 +30,7 @@ namespace yolo_tracking {
 int lapjv_internal(std::size_t n, const std::vector<std::vector<double>> &cost,
                    std::vector<int> &rowsol, std::vector<int> &colsol);
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__UTILS__LAPJV_HPP_

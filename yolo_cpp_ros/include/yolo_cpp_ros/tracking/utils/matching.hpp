@@ -18,7 +18,7 @@
 
 /// @addtogroup yolo_tracking
 /// @{
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 /// @brief Compute 1 - IoU between every (a, b) pair of tracks.
 /// @param[in] atracks First track list.
@@ -90,7 +90,7 @@ remove_duplicate_stracks(const std::vector<std::shared_ptr<STrack>> &atracks,
                          const std::vector<std::shared_ptr<STrack>> &btracks,
                          double dup_thresh = 0.15);
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils
 /// @}
 
 #endif // YOLO_CPP_ROS__TRACKING__UTILS__MATCHING_HPP_

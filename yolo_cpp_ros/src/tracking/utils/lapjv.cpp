@@ -16,7 +16,7 @@
 #include <cmath>
 #include <cstddef>
 
-namespace yolo_tracking {
+namespace yolo_ros::tracking::utils {
 
 namespace {
 
@@ -295,4 +295,4 @@ int lapjv_internal(std::size_t n, const std::vector<std::vector<double>> &cost,
   return ret;
 }
 
-} // namespace yolo_tracking
+} // namespace yolo_ros::tracking::utils
