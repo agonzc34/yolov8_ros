@@ -11,7 +11,7 @@
 
 #include <opencv2/imgproc.hpp>
 
-namespace yolo_3d {
+namespace yolo_ros::depth {
 
 namespace {
 
@@ -1042,4 +1042,4 @@ transform_3d_keypoints(const yolo_msgs::msg::KeyPoint3DArray &keypoints,
   return out;
 }
 
-} // namespace yolo_3d
+} // namespace yolo_ros::depth

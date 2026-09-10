@@ -123,7 +123,7 @@ private:
   int min_seg_points_for_orientation_;
 
   /// @brief Per-track sign-consistency cache for the OBB PCA axes.
-  yolo_3d::OrientationState orientation_state_;
+  yolo_ros::depth::OrientationState orientation_state_;
 
   /// @brief tf2 buffer used to look up the target-frame transform.
   tf2_ros::Buffer tf_buffer_;

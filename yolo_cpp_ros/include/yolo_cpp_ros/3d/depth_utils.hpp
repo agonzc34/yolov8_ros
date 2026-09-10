@@ -25,7 +25,7 @@
 
 /// @addtogroup yolo_3d
 /// @{
-namespace yolo_3d {
+namespace yolo_ros::depth {
 
 /// @brief A 3D point in the depth (camera) frame.
 using Point3 = std::array<double, 3>;
@@ -218,7 +218,7 @@ transform_3d_keypoints(const yolo_msgs::msg::KeyPoint3DArray &keypoints,
                        const std::array<double, 3> &translation,
                        const std::array<double, 4> &rotation);
 
-} // namespace yolo_3d
+} // namespace yolo_ros::depth
 /// @}
 
 #endif // YOLO_CPP_ROS__3D__DEPTH_UTILS_HPP_
