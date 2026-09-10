@@ -76,10 +76,10 @@ protected:
   void declare_params();
   /// @brief Read the declared parameters into a YoloParams struct.
   /// @return The populated parameters.
-  yolo_utils::YoloParams get_params();
+  yolo_ros::yolo::utils::YoloParams get_params();
 
   /// @brief Cached parameters used to build the model.
-  yolo_utils::YoloParams yolo_params;
+  yolo_ros::yolo::utils::YoloParams yolo_params;
   /// @brief Whether the parameters have already been declared.
   bool params_declared = false;
 
@@ -96,7 +96,7 @@ protected:
 
   /// @brief Build the model selected by @p params.
   /// @param params Model and task configuration.
-  void create_yolo(yolo_utils::YoloParams params);
+  void create_yolo(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the current model, if any.
   void destroy_yolo();
 

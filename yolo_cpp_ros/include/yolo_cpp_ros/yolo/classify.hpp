@@ -29,7 +29,7 @@ class YoloClassify : public Model {
 public:
   /// @brief Create the classifier from @p params.
   /// @param params Model and task configuration.
-  YoloClassify(yolo_utils::YoloParams params);
+  YoloClassify(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the classifier.
   ~YoloClassify();
 

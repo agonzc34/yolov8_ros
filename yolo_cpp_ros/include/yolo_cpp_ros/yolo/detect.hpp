@@ -22,7 +22,7 @@ namespace yolo_onnx {
 /// @param[in] original_image_size Size of the original camera image.
 /// @param[in] resized_image_size Size of the letterboxed network input.
 /// @return Candidate boxes in original-image coordinates (no NMS applied).
-std::vector<yolo_utils::Box> get_detection_without_nms(
+std::vector<yolo_ros::yolo::utils::Box> get_detection_without_nms(
     const std::vector<Ort::Value> &preds, std::vector<int64_t> output_shape,
     const cv::Size &original_image_size, const cv::Size &resized_image_size);
 
@@ -34,7 +34,7 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
 /// @param[in] iou_threshold IoU threshold for NMS.
 /// @param[in] conf_threshold Minimum score to keep a box.
 /// @return NMS-filtered boxes in original-image coordinates.
-std::vector<yolo_utils::Box> get_detection_with_nms(
+std::vector<yolo_ros::yolo::utils::Box> get_detection_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold);
@@ -47,7 +47,7 @@ class YoloDetect : public Model {
 public:
   /// @brief Create the detector from @p params.
   /// @param params Model and task configuration.
-  YoloDetect(yolo_utils::YoloParams params);
+  YoloDetect(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the detector.
   ~YoloDetect();
 

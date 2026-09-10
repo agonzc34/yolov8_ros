@@ -25,7 +25,7 @@ class YoloPose : public Model {
 public:
   /// @brief Create the pose model from @p params.
   /// @param params Model and task configuration.
-  YoloPose(yolo_utils::YoloParams params);
+  YoloPose(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the pose model.
   ~YoloPose();
 

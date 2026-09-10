@@ -47,9 +47,9 @@ float rotated_iou(const ObbBox &a, const ObbBox &b) {
   return union_area > 0.0f ? inter_area / union_area : 0.0f;
 }
 
-// Per-class rotated NMS, mirroring yolo_utils::nms() but using the oriented
-// IoU above. Sorts `boxes` in place by descending confidence and returns the
-// kept indices into the same (now-sorted) vector.
+// Per-class rotated NMS, mirroring yolo_ros::yolo::utils::nms() but using the
+// oriented IoU above. Sorts `boxes` in place by descending confidence and
+// returns the kept indices into the same (now-sorted) vector.
 std::vector<int> rotated_nms(std::vector<ObbBox> &boxes, float iou_threshold,
                              float conf_threshold) {
   std::vector<int> indices;
@@ -75,8 +75,8 @@ std::vector<int> rotated_nms(std::vector<ObbBox> &boxes, float iou_threshold,
 }
 
 // Inverse-letterbox a box decoded into the model-input frame back into the
-// original image (same geometry as yolo_utils::scale_box, but for the
-// center + width/height + angle parameterization).
+// original image (same geometry as yolo_ros::yolo::utils::scale_box, but for
+// the center + width/height + angle parameterization).
 ObbBox scale_obb(const ObbBox &box, const cv::Size &original_image_size,
                  const cv::Size &resized_image_size) {
   const float gain = std::min(static_cast<float>(resized_image_size.width) /
@@ -103,7 +103,7 @@ ObbBox scale_obb(const ObbBox &box, const cv::Size &original_image_size,
 
 } // namespace
 
-YoloOBB::YoloOBB(yolo_utils::YoloParams params) : Model(params) {}
+YoloOBB::YoloOBB(yolo_ros::yolo::utils::YoloParams params) : Model(params) {}
 
 YoloOBB::~YoloOBB() {}
 

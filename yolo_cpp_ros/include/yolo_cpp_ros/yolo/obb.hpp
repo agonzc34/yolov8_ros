@@ -49,7 +49,7 @@ class YoloOBB : public Model {
 public:
   /// @brief Create the OBB model from @p params.
   /// @param params Model and task configuration.
-  YoloOBB(yolo_utils::YoloParams params);
+  YoloOBB(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the OBB model.
   ~YoloOBB();
 

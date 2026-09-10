@@ -16,7 +16,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_utils {
+namespace yolo_ros::yolo::utils {
 /// @brief Axis-aligned detection box in original-image pixel coordinates
 /// (top-left x1/y1, bottom-right x2/y2), with its confidence, position in the
 /// frame's detection list and class id.
@@ -246,7 +246,7 @@ std::vector<Keypoint> scale_keypoints(const std::vector<Keypoint> &keypoints,
 /// @param[in] box Box to convert.
 /// @return The equivalent BoundingBox2D.
 yolo_msgs::msg::BoundingBox2D
-convert_to_bounding_box(const yolo_utils::Box &box);
+convert_to_bounding_box(const yolo_ros::yolo::utils::Box &box);
 
 /// @brief Decode raw YOLO detection tensors into boxes without NMS.
 /// @param[in] preds Raw output tensors from the model.
@@ -255,13 +255,13 @@ convert_to_bounding_box(const yolo_utils::Box &box);
 /// @param[in] num_classes Number of model classes.
 /// @param[in] conf_threshold Minimum score to keep a box.
 /// @return Candidate boxes in original-image coordinates.
-std::vector<yolo_utils::Box> get_boxes(const std::vector<Ort::Value> &preds,
-                                       const cv::Size &original_image_size,
-                                       const cv::Size &resized_image_size,
-                                       const int num_classes,
-                                       const float conf_threshold);
+std::vector<yolo_ros::yolo::utils::Box>
+get_boxes(const std::vector<Ort::Value> &preds,
+          const cv::Size &original_image_size,
+          const cv::Size &resized_image_size, const int num_classes,
+          const float conf_threshold);
 
-} // namespace yolo_utils
+} // namespace yolo_ros::yolo::utils
 /// @}
 
 #endif // YOLO_CPP_ROS__YOLO__UTILS_HPP_

@@ -25,7 +25,7 @@ namespace yolo_onnx {
 /// @param[in] iou_threshold IoU threshold for NMS.
 /// @param[in] conf_threshold Minimum score to keep a box.
 /// @return NMS-filtered masked boxes in original-image coordinates.
-std::vector<yolo_utils::BoxWithMask> get_segmentation_with_nms(
+std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold);
@@ -38,7 +38,7 @@ class YoloSegment : public Model {
 public:
   /// @brief Create the segmentation model from @p params.
   /// @param params Model and task configuration.
-  YoloSegment(yolo_utils::YoloParams params);
+  YoloSegment(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the segmentation model.
   ~YoloSegment();
 

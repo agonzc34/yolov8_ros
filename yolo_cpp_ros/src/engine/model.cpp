@@ -14,7 +14,7 @@
 #include <thread>
 
 namespace yolo_onnx {
-Model::Model(yolo_utils::YoloParams params)
+Model::Model(yolo_ros::yolo::utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
       input_image_shape(), num_input_nodes(0), num_output_nodes(0),
       memory_info(nullptr) {
@@ -195,7 +195,7 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
 
 void yolo_onnx::Model::preprocess(const cv::Mat &image,
                                   std::vector<int64_t> &input_tensor_shape) {
-  cv::Mat resized_image = yolo_utils::letterbox(
+  cv::Mat resized_image = yolo_ros::yolo::utils::letterbox(
       image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]),
       cv::Scalar(114, 114, 114));
 

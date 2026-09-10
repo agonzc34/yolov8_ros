@@ -30,7 +30,7 @@ public:
   /// @brief Load @p params.model_path (or download it from the Hugging Face
   /// Hub) and create the ONNX Runtime session, then read the class vocabulary.
   /// @param params Model, task and preprocessing configuration.
-  Model(yolo_utils::YoloParams params);
+  Model(yolo_ros::yolo::utils::YoloParams params);
   /// @brief Destroy the model and release the ONNX Runtime session.
   ~Model();
 

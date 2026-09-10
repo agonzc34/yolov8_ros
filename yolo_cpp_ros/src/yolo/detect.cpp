@@ -6,7 +6,8 @@
 
 namespace yolo_onnx {
 
-YoloDetect::YoloDetect(yolo_utils::YoloParams params) : Model(params) {}
+YoloDetect::YoloDetect(yolo_ros::yolo::utils::YoloParams params)
+    : Model(params) {}
 
 YoloDetect::~YoloDetect() {}
 
@@ -15,7 +16,7 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
                         const cv::Size &resized_image_size,
                         const std::vector<Ort::Value> &preds) {
   std::vector<yolo_msgs::msg::Detection> detection_array;
-  std::vector<yolo_utils::Box> detections;
+  std::vector<yolo_ros::yolo::utils::Box> detections;
 
   std::vector<int64_t> shape = preds[0].GetTensorTypeAndShapeInfo().GetShape();
 
@@ -27,11 +28,12 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
     // mirroring the pose node's baked-head path).
     detections = get_detection_without_nms(preds, shape, original_image_size,
                                            resized_image_size);
-    detections.erase(std::remove_if(detections.begin(), detections.end(),
-                                    [this](const yolo_utils::Box &b) {
-                                      return b.score < this->conf_threshold;
-                                    }),
-                     detections.end());
+    detections.erase(
+        std::remove_if(detections.begin(), detections.end(),
+                       [this](const yolo_ros::yolo::utils::Box &b) {
+                         return b.score < this->conf_threshold;
+                       }),
+        detections.end());
   } else {
     // Process predictions applying NMS
     const size_t num_features = shape[1];
@@ -44,7 +46,8 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
 
   for (size_t i = 0; i < detections.size(); ++i) {
     yolo_msgs::msg::Detection detection;
-    detection.bbox = yolo_utils::convert_to_bounding_box(detections[i]);
+    detection.bbox =
+        yolo_ros::yolo::utils::convert_to_bounding_box(detections[i]);
     detection.score = detections[i].score;
     detection.class_id = detections[i].class_id;
     detection.id = "0";
@@ -59,10 +62,10 @@ YoloDetect::postprocess(const cv::Size &original_image_size,
   return detection_array;
 }
 
-std::vector<yolo_utils::Box> get_detection_without_nms(
+std::vector<yolo_ros::yolo::utils::Box> get_detection_without_nms(
     const std::vector<Ort::Value> &preds, std::vector<int64_t> output_shape,
     const cv::Size &original_image_size, const cv::Size &resized_image_size) {
-  std::vector<yolo_utils::Box> boxes;
+  std::vector<yolo_ros::yolo::utils::Box> boxes;
   for (size_t i = 0; i < preds.size(); ++i) {
     auto pred = preds[i].GetTensorData<float>();
 
@@ -75,7 +78,7 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
             : static_cast<size_t>(output_shape[0]);
 
     for (size_t j = 0; j < num_detections; ++j) {
-      yolo_utils::Box box;
+      yolo_ros::yolo::utils::Box box;
       box.x1 = pred[j * 6 + 0];
       box.y1 = pred[j * 6 + 1];
       box.x2 = pred[j * 6 + 2];
@@ -84,8 +87,8 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
       box.class_id = static_cast<int>(pred[j * 6 + 5]);
       box.index = j;
 
-      yolo_utils::Box scaled_box =
-          yolo_utils::scale_box(box, original_image_size, resized_image_size);
+      yolo_ros::yolo::utils::Box scaled_box = yolo_ros::yolo::utils::scale_box(
+          box, original_image_size, resized_image_size);
       boxes.push_back(scaled_box);
     }
   }
@@ -93,18 +96,20 @@ std::vector<yolo_utils::Box> get_detection_without_nms(
   return boxes;
 }
 
-std::vector<yolo_utils::Box> get_detection_with_nms(
+std::vector<yolo_ros::yolo::utils::Box> get_detection_with_nms(
     const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold) {
 
-  std::vector<yolo_utils::Box> boxes =
-      yolo_utils::get_boxes(preds, original_image_size, resized_image_size,
-                            num_classes, conf_threshold);
+  std::vector<yolo_ros::yolo::utils::Box> boxes =
+      yolo_ros::yolo::utils::get_boxes(preds, original_image_size,
+                                       resized_image_size, num_classes,
+                                       conf_threshold);
 
   // Boxes are sorted in place by nms(); indices index the same vector.
-  auto indices = yolo_utils::nms(boxes, iou_threshold, conf_threshold);
-  std::vector<yolo_utils::Box> filtered_boxes;
+  auto indices =
+      yolo_ros::yolo::utils::nms(boxes, iou_threshold, conf_threshold);
+  std::vector<yolo_ros::yolo::utils::Box> filtered_boxes;
   for (size_t i = 0; i < indices.size(); ++i) {
     filtered_boxes.push_back(boxes[indices[i]]);
   }

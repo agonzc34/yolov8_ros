@@ -8,7 +8,8 @@
 
 namespace yolo_onnx {
 
-YoloClassify::YoloClassify(yolo_utils::YoloParams params) : Model(params) {
+YoloClassify::YoloClassify(yolo_ros::yolo::utils::YoloParams params)
+    : Model(params) {
   this->top_k_ = params.top_k;
 }
 
