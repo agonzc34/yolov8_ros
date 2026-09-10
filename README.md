@@ -238,7 +238,7 @@ ros2 launch yolo_bringup yolo_classify.launch.py
 ```
 
 <p align="center">
-  <img src="./docs/media/rqt_graph.png" alt="ROS 2 node graph" width="100%" />
+  <img src="./docs/media/rqt_graph_yolov8.png" alt="ROS 2 node graph" width="100%" />
 </p>
 
 ### 3D Detection
@@ -358,13 +358,15 @@ and both are torn down again on deactivation, keeping the idle CPU/VRAM
 footprint low.
 
 <p align="center">
-  <img src="./docs/media/rqt_graph_3d.png" alt="ROS 2 node graph with 3D detection" width="100%" />
+  <img src="./docs/media/rqt_graph_yolov8_3d.png" alt="ROS 2 node graph with 3D detection" width="100%" />
 </p>
 
 ## Demos
 
-> The media below is not yet recorded. Drop the recordings at the listed paths
-> to have them show up here.
+> The detection, segmentation, pose and 3D demos below are reused from the
+> [upstream project](https://github.com/mgonzs13/yolo_ros). The OBB and
+> classification demos are not yet recorded — drop the recordings at the listed
+> paths to have them show up here.
 
 ### Object Detection
 
@@ -374,9 +376,7 @@ Standard behavior including ByteTrack object tracking.
 ros2 launch yolo_bringup yolo.launch.py
 ```
 
-<p align="center">
-  <img src="./docs/media/demo_detection.gif" alt="Object detection demo" width="100%" />
-</p>
+[![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1gTQt6soSIq1g2QmK7locHDiZ-8MqVl2w)](https://drive.google.com/file/d/1gTQt6soSIq1g2QmK7locHDiZ-8MqVl2w/view?usp=sharing)
 
 ### Instance Segmentation
 
@@ -387,9 +387,7 @@ inside the masks.
 ros2 launch yolo_bringup yolo_segment.launch.py
 ```
 
-<p align="center">
-  <img src="./docs/media/demo_segment.gif" alt="Instance segmentation demo" width="100%" />
-</p>
+[![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1dwArjDLSNkuOGIB0nSzZR6ABIOCJhAFq)](https://drive.google.com/file/d/1dwArjDLSNkuOGIB0nSzZR6ABIOCJhAFq/view?usp=sharing)
 
 ### Human Pose
 
@@ -399,9 +397,7 @@ Visible persons are detected along with their skeleton keypoints.
 ros2 launch yolo_bringup yolo_pose.launch.py
 ```
 
-<p align="center">
-  <img src="./docs/media/demo_pose.gif" alt="Human pose demo" width="100%" />
-</p>
+[![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1pRy9lLSXiFEVFpcbesMCzmTMEoUXGWgr)](https://drive.google.com/file/d/1pRy9lLSXiFEVFpcbesMCzmTMEoUXGWgr/view?usp=sharing)
 
 ### Oriented Bounding Box
 
@@ -436,9 +432,7 @@ RGB-D camera using the 2D bounding box.
 ros2 launch yolo_bringup yolo.launch.py use_3d:=True
 ```
 
-<p align="center">
-  <img src="./docs/media/demo_detection_3d.gif" alt="3D object detection demo" width="100%" />
-</p>
+[![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1ZcN_u9RB9_JKq37mdtpzXx3b44tlU-pr)](https://drive.google.com/file/d/1ZcN_u9RB9_JKq37mdtpzXx3b44tlU-pr/view?usp=sharing)
 
 ## Documentation
 
