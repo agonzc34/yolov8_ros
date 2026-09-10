@@ -4,7 +4,7 @@
 # `yolo_cpp.launch.py`.
 #
 # The node selects the tracker algorithm with `tracker_type` (the key of a
-# yolo_tracking::Tracker implementation, see
+# yolo_ros::tracking::Tracker implementation, see
 # yolo_cpp_ros/src/tracking/tracker.cpp); each algorithm's tuning knobs follow
 # in the same block. Values below mirror the ultralytics ByteTrack defaults:
 #   references/ultralytics/ultralytics/cfg/trackers/bytetrack.yaml

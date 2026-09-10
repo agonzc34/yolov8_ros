@@ -6,15 +6,15 @@
 /// base postprocessing dispatch used by every task.
 ///
 /// The engine owns preprocessing and inference; each task overrides the
-/// postprocess() hook. See yolo_onnx::Model.
+/// postprocess() hook. See yolo_ros::engine::Model.
 
 /// @defgroup yolo_tasks YOLO task pipelines
 /// @brief Concrete postprocessors for the detection, segmentation, pose,
 /// oriented-bounding-box and classification exports, plus their shared
-/// box/keypoint helpers (yolo_utils).
+/// box/keypoint helpers (yolo_ros::yolo::utils).
 
 /// @defgroup yolo_tracking Multi-object tracking
-/// @brief Tracker-agnostic interface (yolo_tracking::Tracker) and its
+/// @brief Tracker-agnostic interface (yolo_ros::tracking::Tracker) and its
 /// ByteTrack implementation, Kalman filter, assignment and IoU utilities.
 
 /// @defgroup yolo_nodes ROS 2 lifecycle nodes
