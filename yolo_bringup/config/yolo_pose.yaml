@@ -21,7 +21,7 @@
 /yolo_pose/tracking_node:
   ros__parameters:
     # Tracker selection + ByteTrack tuning, mirroring the ultralytics
-    # bytetrack.yaml defaults (tracker_type keys: see yolo_cpp_ros tracking/)
+    # bytetrack.yaml defaults (tracker_type keys: see yolo_ros tracking/)
     tracker_type: bytetrack # tracker implementation key (bytetrack today)
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image

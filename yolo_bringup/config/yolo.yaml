@@ -1,5 +1,5 @@
 # ROS 2 parameters file for the C++ detection pipeline
-# (yolo_bringup/launch/yolo_cpp.launch.py). The launch passes this file
+# (yolo_bringup/launch/yolo.launch.py). The launch passes this file
 # verbatim as `parameters=[params_file]` and makes no topic remaps: every node
 # reads its input topic from a parameter here.
 #
@@ -36,7 +36,7 @@
 /yolo/tracking_node:
   ros__parameters:
     # Tracker selection + ByteTrack tuning, mirroring the ultralytics
-    # bytetrack.yaml defaults (tracker_type keys: see yolo_cpp_ros tracking/)
+    # bytetrack.yaml defaults (tracker_type keys: see yolo_ros tracking/)
     tracker_type: bytetrack # tracker implementation key (bytetrack today)
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /head_front_camera/rgb/image_raw

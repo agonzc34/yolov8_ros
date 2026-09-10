@@ -1,11 +1,11 @@
 # ROS 2 parameters file for the C++ tracking node
-# (yolo_cpp_ros::tracking_node). Pass it with
+# (yolo_ros::tracking_node). Pass it with
 # `--ros-args --params-file <this file>` or via the `params_file` argument of
-# `yolo_cpp.launch.py`.
+# `yolo.launch.py`.
 #
 # The node selects the tracker algorithm with `tracker_type` (the key of a
 # yolo_ros::tracking::Tracker implementation, see
-# yolo_cpp_ros/src/tracking/tracker.cpp); each algorithm's tuning knobs follow
+# yolo_ros/src/tracking/tracker.cpp); each algorithm's tuning knobs follow
 # in the same block. Values below mirror the ultralytics ByteTrack defaults:
 #   references/ultralytics/ultralytics/cfg/trackers/bytetrack.yaml
 tracking_node:

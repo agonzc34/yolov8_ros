@@ -35,10 +35,10 @@ def generate_launch_description():
         default_value=os.path.join(
             get_package_share_directory("yolo_bringup"),
             "config",
-            "yolo_cpp_obb.yaml",
+            "yolo_segment.yaml",
         ),
-        description="Path to the ROS 2 parameters file (YAML) with the config "
-        "for the yolo_node, tracking_node, detect_3d_node and debug_node "
+        description="Path to the ROS 2 parameters file (YAML) with the config for "
+        "the yolo_node, tracking_node, detect_3d_node and debug_node "
         "blocks. All tuning (model, topics, thresholds, QoS) lives "
         "here; the launch makes no topic remaps.",
     )
@@ -46,28 +46,26 @@ def generate_launch_description():
     namespace = LaunchConfiguration("namespace")
     namespace_cmd = DeclareLaunchArgument(
         "namespace",
-        default_value="yolo_obb",
+        default_value="yolo_seg",
         description="Namespace for the nodes",
     )
 
-    # C++ inference node (ONNX Runtime, GPU) running the oriented-bounding-box
-    # (OBB) model. `model_type: OBB` in the params file forces the OBB
-    # postprocessor (rotated boxes: cx, cy, w, h plus angle in center.theta)
-    # regardless of the model file name.
-    yolo_cpp_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_ros",
+    # C++ inference node (ONNX Runtime, GPU) running the segmentation model.
+    # `model_type: Segment` in the params file forces the segmentation
+    # postprocessor regardless of the model file name.
+    yolo_node_cmd = Node(
+        package="yolo_ros",
+        executable="yolo_node",
         name="yolo_node",
         namespace=namespace,
         parameters=[params_file],
     )
 
-    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`). The
-    # tracker consumes the axis-aligned bbox stored in each Detection (for OBB
-    # that is the rotated w/h treated as an axis-aligned extent).
+    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`);
+    # segmentation masks pass through untouched.
     tracking_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_tracking",
+        package="yolo_ros",
+        executable="tracking_node",
         name="tracking_node",
         namespace=namespace,
         parameters=[params_file],
@@ -75,23 +73,23 @@ def generate_launch_description():
     )
 
     # C++ 3D detection node (lifts the 2D detections to 3D using the depth
-    # image; publishes on `detections_3d`). Topics and thresholds come from
-    # the params file.
+    # image; the mask polygon drives the depth ROI when present; publishes on
+    # `detections_3d`). Topics and thresholds come from the params file.
     detect_3d_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_3d",
+        package="yolo_ros",
+        executable="detect_3d_node",
         name="detect_3d_node",
         namespace=namespace,
         parameters=[params_file],
         condition=IfCondition(use_3d),
     )
 
-    # C++ debug node (visualizes detections/tracks + RViz 3D markers). Draws
-    # the rotated quad for OBB detections (BoundingBox2D.center.theta != 0).
-    # Reads the detections topic from the params file (`tracking` by default).
+    # C++ debug node (visualizes detections/masks/tracks + RViz 3D markers).
+    # Reads the detections topic from the params file (`tracking` by default
+    # so the tracked ids are shown when the tracking node is enabled).
     debug_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_debug",
+        package="yolo_ros",
+        executable="debug_node",
         name="debug_node",
         namespace=namespace,
         parameters=[params_file],
@@ -103,7 +101,7 @@ def generate_launch_description():
             use_3d_cmd,
             params_file_cmd,
             namespace_cmd,
-            yolo_cpp_node_cmd,
+            yolo_node_cmd,
             tracking_node_cmd,
             detect_3d_node_cmd,
             debug_node_cmd,

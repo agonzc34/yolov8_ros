@@ -35,7 +35,7 @@ def generate_launch_description():
         default_value=os.path.join(
             get_package_share_directory("yolo_bringup"),
             "config",
-            "yolo_cpp_pose.yaml",
+            "yolo_pose.yaml",
         ),
         description="Path to the ROS 2 parameters file (YAML) with the config for "
         "the yolo_node, tracking_node, detect_3d_node and debug_node "
@@ -53,9 +53,9 @@ def generate_launch_description():
     # C++ inference node (ONNX Runtime, GPU) running the pose model.
     # `model_type: Pose` in the params file forces the pose postprocessor
     # (bounding boxes + COCO keypoints) regardless of the model file name.
-    yolo_cpp_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_ros",
+    yolo_node_cmd = Node(
+        package="yolo_ros",
+        executable="yolo_node",
         name="yolo_node",
         namespace=namespace,
         parameters=[params_file],
@@ -64,8 +64,8 @@ def generate_launch_description():
     # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`);
     # COCO keypoints pass through untouched.
     tracking_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_tracking",
+        package="yolo_ros",
+        executable="tracking_node",
         name="tracking_node",
         namespace=namespace,
         parameters=[params_file],
@@ -76,8 +76,8 @@ def generate_launch_description():
     # image; 2D keypoints are back-projected to 3D when present; publishes on
     # `detections_3d`). Topics and thresholds come from the params file.
     detect_3d_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_3d",
+        package="yolo_ros",
+        executable="detect_3d_node",
         name="detect_3d_node",
         namespace=namespace,
         parameters=[params_file],
@@ -88,8 +88,8 @@ def generate_launch_description():
     # markers). Reads the detections topic from the params file (`tracking` by
     # default so the tracked ids are shown when the tracking node is enabled).
     debug_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_debug",
+        package="yolo_ros",
+        executable="debug_node",
         name="debug_node",
         namespace=namespace,
         parameters=[params_file],
@@ -101,7 +101,7 @@ def generate_launch_description():
             use_3d_cmd,
             params_file_cmd,
             namespace_cmd,
-            yolo_cpp_node_cmd,
+            yolo_node_cmd,
             tracking_node_cmd,
             detect_3d_node_cmd,
             debug_node_cmd,

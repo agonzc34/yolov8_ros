@@ -19,7 +19,7 @@ def generate_launch_description():
         default_value=os.path.join(
             get_package_share_directory("yolo_bringup"),
             "config",
-            "yolo_cpp_classify.yaml",
+            "yolo_classify.yaml",
         ),
         description="Path to the ROS 2 parameters file (YAML) with the "
         "config for the yolo_node block. All tuning (model, HF repo, "
@@ -40,9 +40,9 @@ def generate_launch_description():
     # model downloads from the Hugging Face Hub when model_repo +
     # model_filename are set. Classification has no boxes, so this launch
     # starts no tracking/3D/debug nodes.
-    yolo_cpp_node_cmd = Node(
-        package="yolo_cpp_ros",
-        executable="yolo_cpp_ros",
+    yolo_node_cmd = Node(
+        package="yolo_ros",
+        executable="yolo_node",
         name="yolo_node",
         namespace=namespace,
         parameters=[params_file],
@@ -52,6 +52,6 @@ def generate_launch_description():
         [
             params_file_cmd,
             namespace_cmd,
-            yolo_cpp_node_cmd,
+            yolo_node_cmd,
         ]
     )
