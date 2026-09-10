@@ -64,7 +64,7 @@ public:
 
 protected:
   /// @brief The loaded YOLO model (null until configured).
-  std::unique_ptr<yolo_onnx::Model> yolo_model;
+  std::unique_ptr<yolo_ros::engine::Model> yolo_model;
 
   /// @brief Publisher of the detection results.
   rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr

@@ -43,7 +43,7 @@ std::vector<yolo_ros::yolo::utils::Box> get_detection_with_nms(
 ///
 /// Handles both raw exports (its own NMS) and end-to-end/baked-NMS exports
 /// whose graph already emits filtered boxes.
-class YoloDetect : public Model {
+class YoloDetect : public yolo_ros::engine::Model {
 public:
   /// @brief Create the detector from @p params.
   /// @param params Model and task configuration.

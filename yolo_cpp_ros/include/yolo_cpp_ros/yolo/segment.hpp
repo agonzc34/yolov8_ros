@@ -34,7 +34,7 @@ std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
 ///
 /// The exported graph emits a detection tensor plus prototype masks; the mask
 /// coefficients are carried on each box and combined with the prototypes here.
-class YoloSegment : public Model {
+class YoloSegment : public yolo_ros::engine::Model {
 public:
   /// @brief Create the segmentation model from @p params.
   /// @param params Model and task configuration.

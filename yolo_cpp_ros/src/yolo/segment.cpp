@@ -11,7 +11,7 @@
 namespace yolo_onnx {
 
 YoloSegment::YoloSegment(yolo_ros::yolo::utils::YoloParams params)
-    : Model(params) {}
+    : yolo_ros::engine::Model(params) {}
 
 YoloSegment::~YoloSegment() {}
 

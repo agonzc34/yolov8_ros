@@ -21,7 +21,7 @@ namespace yolo_onnx {
 /// Handles both the raw pose export and the end-to-end export whose output row
 /// is [1, K, 6 + nk] (box, score, class, then keypoints). The decoded
 /// keypoints are filtered against the confidence threshold.
-class YoloPose : public Model {
+class YoloPose : public yolo_ros::engine::Model {
 public:
   /// @brief Create the pose model from @p params.
   /// @param params Model and task configuration.

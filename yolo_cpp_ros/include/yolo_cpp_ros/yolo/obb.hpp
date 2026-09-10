@@ -45,7 +45,7 @@ struct ObbBox {
 /// rotated NMS cannot be baked into the graph, so NMS is performed here (the
 /// repository's pose/detect nodes additionally handle baked-head exports, which
 /// OBB does not produce).
-class YoloOBB : public Model {
+class YoloOBB : public yolo_ros::engine::Model {
 public:
   /// @brief Create the OBB model from @p params.
   /// @param params Model and task configuration.

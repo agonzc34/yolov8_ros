@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <thread>
 
-namespace yolo_onnx {
+namespace yolo_ros::engine {
 Model::Model(yolo_ros::yolo::utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
       input_image_shape(), num_input_nodes(0), num_output_nodes(0),
@@ -117,7 +117,7 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
 
 Model::~Model() {}
 
-void yolo_onnx::Model::load_class_names() {
+void yolo_ros::engine::Model::load_class_names() {
   // 1) Read the vocabulary embedded in the ONNX graph by ultralytics'
   //    exporter: key "names", value a Python-dict literal such as
   //    {0: 'person', 1: 'bicycle', ...} (some exporters write JSON-style
@@ -184,7 +184,7 @@ void yolo_onnx::Model::load_class_names() {
 }
 
 std::vector<yolo_msgs::msg::Detection>
-yolo_onnx::Model::detect(const cv::Mat &image) {
+yolo_ros::engine::Model::detect(const cv::Mat &image) {
   std::vector<int64_t> input_tensor_shape = {
       1, 3, this->input_image_shape.height, this->input_image_shape.width};
   preprocess(image, input_tensor_shape);
@@ -193,8 +193,8 @@ yolo_onnx::Model::detect(const cv::Mat &image) {
                      preds);
 }
 
-void yolo_onnx::Model::preprocess(const cv::Mat &image,
-                                  std::vector<int64_t> &input_tensor_shape) {
+void yolo_ros::engine::Model::preprocess(
+    const cv::Mat &image, std::vector<int64_t> &input_tensor_shape) {
   cv::Mat resized_image = yolo_ros::yolo::utils::letterbox(
       image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]),
       cv::Scalar(114, 114, 114));
@@ -213,7 +213,7 @@ void yolo_onnx::Model::preprocess(const cv::Mat &image,
 }
 
 std::vector<Ort::Value>
-yolo_onnx::Model::inference(std::vector<int64_t> &input_tensor_shape) {
+yolo_ros::engine::Model::inference(std::vector<int64_t> &input_tensor_shape) {
   size_t input_tensor_size =
       std::accumulate(input_tensor_shape.begin(), input_tensor_shape.end(), 1,
                       std::multiplies<int64_t>());
@@ -237,4 +237,4 @@ Model::postprocess(const cv::Size &original_image_size,
   return std::vector<yolo_msgs::msg::Detection>();
 }
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::engine

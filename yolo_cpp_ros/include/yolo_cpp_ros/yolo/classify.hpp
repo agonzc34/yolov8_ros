@@ -25,7 +25,7 @@ namespace yolo_onnx {
 /// class is published as a Detection with an EMPTY bbox (there is no spatial
 /// extent for an image-level label), carrying class_id / class_name / score —
 /// matching how the rest of the package reuses Detection.
-class YoloClassify : public Model {
+class YoloClassify : public yolo_ros::engine::Model {
 public:
   /// @brief Create the classifier from @p params.
   /// @param params Model and task configuration.

@@ -20,7 +20,8 @@ constexpr int kKeypointValues = kNumKeypoints * kKeypointDims; // 51
 
 } // namespace
 
-YoloPose::YoloPose(yolo_ros::yolo::utils::YoloParams params) : Model(params) {}
+YoloPose::YoloPose(yolo_ros::yolo::utils::YoloParams params)
+    : yolo_ros::engine::Model(params) {}
 
 YoloPose::~YoloPose() {}
 

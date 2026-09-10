@@ -103,7 +103,8 @@ ObbBox scale_obb(const ObbBox &box, const cv::Size &original_image_size,
 
 } // namespace
 
-YoloOBB::YoloOBB(yolo_ros::yolo::utils::YoloParams params) : Model(params) {}
+YoloOBB::YoloOBB(yolo_ros::yolo::utils::YoloParams params)
+    : yolo_ros::engine::Model(params) {}
 
 YoloOBB::~YoloOBB() {}
 

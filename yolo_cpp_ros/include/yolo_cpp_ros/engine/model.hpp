@@ -17,7 +17,7 @@
 
 /// @addtogroup yolo_engine
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::engine {
 /// @brief Base class for a single ONNX Runtime YOLO model.
 ///
 /// Owns the ONNX Runtime environment, session and the reusable input buffer.
@@ -108,7 +108,7 @@ private:
   /// @brief Memory information for ONNX Runtime tensor creation.
   Ort::MemoryInfo memory_info; // Memory information for ONNX Runtime
 };
-} // namespace yolo_onnx
+} // namespace yolo_ros::engine
 /// @}
 
 #endif // YOLO_CPP_ROS__ENGINE__MODEL_HPP_
