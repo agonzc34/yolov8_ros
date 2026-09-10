@@ -7,7 +7,7 @@
 
 #include "yolo_cpp_ros/node/yolo_node.hpp"
 
-using namespace yolo_rclcpp;
+using namespace yolo_ros::node;
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);

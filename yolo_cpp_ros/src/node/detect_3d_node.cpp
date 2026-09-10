@@ -6,7 +6,7 @@
 
 #include "yolo_cpp_ros/3d/depth_utils.hpp"
 
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 Detect3DNode::Detect3DNode()
     : rclcpp_lifecycle::LifecycleNode("detect_3d_node"),
@@ -222,4 +222,4 @@ Detect3DNode::get_transform(const std::string &frame_id) {
   }
 }
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node

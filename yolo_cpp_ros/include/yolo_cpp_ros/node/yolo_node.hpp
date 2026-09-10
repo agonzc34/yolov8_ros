@@ -22,7 +22,7 @@
 
 /// @addtogroup yolo_nodes
 /// @{
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 /// @brief Lifecycle node that creates the requested YOLO model on configure,
 /// runs inference on the image topic while active and publishes a
 /// DetectionArray.
@@ -113,7 +113,7 @@ private:
   /// @brief Service toggling the inference gate.
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
 };
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node
 /// @}
 
 #endif // YOLO_CPP_ROS__NODE__YOLO_NODE_HPP_

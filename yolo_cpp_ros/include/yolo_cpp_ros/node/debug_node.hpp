@@ -26,7 +26,7 @@
 
 /// @addtogroup yolo_nodes
 /// @{
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 /// @brief Approximate-time sync policy for (image, DetectionArray) pairs.
 using ApproximateSyncPolicy = message_filters::sync_policies::ApproximateTime<
     sensor_msgs::msg::Image, yolo_msgs::msg::DetectionArray>;
@@ -167,7 +167,7 @@ private:
   visualization_msgs::msg::Marker
   create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint);
 };
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node
 /// @}
 
 #endif // YOLO_CPP_ROS__NODE__DEBUG_NODE_HPP_

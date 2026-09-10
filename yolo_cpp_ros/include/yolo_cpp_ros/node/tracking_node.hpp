@@ -22,7 +22,7 @@
 
 /// @addtogroup yolo_nodes
 /// @{
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 /// @brief Approximate-time sync policy for (image, DetectionArray) pairs.
 using TrackingSyncPolicy = message_filters::sync_policies::ApproximateTime<
@@ -102,7 +102,7 @@ private:
       const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections);
 };
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node
 /// @}
 
 #endif // YOLO_CPP_ROS__NODE__TRACKING_NODE_HPP_

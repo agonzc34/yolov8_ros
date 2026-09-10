@@ -11,7 +11,7 @@
 #include <opencv2/imgproc.hpp>
 #include <string>
 
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 DebugNode::DebugNode()
     : rclcpp_lifecycle::LifecycleNode("yolo_node"), image_qos_profile(1),
@@ -395,4 +395,4 @@ DebugNode::create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint) {
   return marker;
 }
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node

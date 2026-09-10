@@ -12,7 +12,7 @@
 #include "rclcpp/exceptions.hpp"
 #include "yolo_cpp_ros/tracking/byte_tracker.hpp"
 
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 namespace {
 
@@ -223,4 +223,4 @@ void TrackingNode::recieve_callback(
   this->tracking_publisher_->publish(tracked_msg);
 }
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node

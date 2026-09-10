@@ -37,7 +37,7 @@
 
 /// @addtogroup yolo_nodes
 /// @{
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 /// @brief Approximate-time sync policy for (depth image, CameraInfo,
 /// DetectionArray) triplets.
@@ -162,7 +162,7 @@ private:
   get_transform(const std::string &frame_id);
 };
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node
 /// @}
 
 #endif // YOLO_CPP_ROS__NODE__DETECT_3D_NODE_HPP_

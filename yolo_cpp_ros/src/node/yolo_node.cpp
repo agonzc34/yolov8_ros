@@ -14,7 +14,7 @@
 #include <cctype>
 #include <string>
 
-namespace yolo_rclcpp {
+namespace yolo_ros::node {
 
 YoloNode::YoloNode() : rclcpp_lifecycle::LifecycleNode("yolo_node") {}
 
@@ -88,7 +88,7 @@ YoloNode::on_shutdown(const rclcpp_lifecycle::State &) {
       CallbackReturn::SUCCESS;
 }
 
-void yolo_rclcpp::YoloNode::declare_params() {
+void yolo_ros::node::YoloNode::declare_params() {
   // Inference knobs mirroring the README / the Python yolo_node.py (the
   // Python-only knobs imgsz_* / half / augment / agnostic_nms / retina_masks
   // were removed: the ONNX tensor fixes the input size, NMS is baked at
@@ -113,7 +113,7 @@ void yolo_rclcpp::YoloNode::declare_params() {
   this->declare_parameter<int>("top_k", 5);
 }
 
-yolo_ros::yolo::utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
+yolo_ros::yolo::utils::YoloParams yolo_ros::node::YoloNode::get_params() {
   yolo_ros::yolo::utils::YoloParams params;
   this->get_parameter("model_type", params.model_type);
   this->get_parameter("model", params.model_path);
@@ -156,7 +156,7 @@ yolo_ros::yolo::utils::YoloParams yolo_rclcpp::YoloNode::get_params() {
   return params;
 }
 
-void yolo_rclcpp::YoloNode::create_yolo(
+void yolo_ros::node::YoloNode::create_yolo(
     yolo_ros::yolo::utils::YoloParams params) {
   std::string model_type = params.model_type;
   std::transform(model_type.begin(), model_type.end(), model_type.begin(),
@@ -286,4 +286,4 @@ void YoloNode::recieve_image_callback(
   }
 }
 
-} // namespace yolo_rclcpp
+} // namespace yolo_ros::node
