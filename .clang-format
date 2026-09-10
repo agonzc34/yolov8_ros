@@ -1,4 +1,4 @@
-# yolo_cpp_ros C++ style — LLVM base, 2-space indent, pointer/ref on the name.
+# yolo_ros C++ style — LLVM base, 2-space indent, pointer/ref on the name.
 BasedOnStyle: LLVM
 ColumnLimit: 80
 IndentWidth: 2

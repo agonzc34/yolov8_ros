@@ -12,7 +12,7 @@ removed. See [License](#license) and each package's `LICENSE` / notices.
 
 | Package | Description |
 | --- | --- |
-| `yolo_cpp_ros` | C++ nodes + ONNX Runtime inference core (YoloDetect / YoloSegment / YoloPose), ByteTrack tracker, debug visualizer and 3D detection node. |
+| `yolo_ros` | C++ nodes + ONNX Runtime inference core (YoloDetect / YoloSegment / YoloPose), ByteTrack tracker, debug visualizer and 3D detection node. |
 | `yolo_onnxruntime_vendor` | Downloads prebuilt ONNX Runtime 1.20.0 (CPU or `-gpu`) at configure time. |
 | `yolo_msgs` | Detection/DetectionArray, BoundingBox2D/3D, KeyPoint2D/3D, Mask, Pose2D, `SetClasses.srv`. |
 | `yolo_bringup` | Launch files + ROS-format parameter configs. |
@@ -63,7 +63,7 @@ Notes:
 
 Instead of a local path, the C++ node can fetch the model from the Hub at
 startup via the `yolo_hfhub_vendor` package (a `huggingface-hub-cpp` vendor).
-Set `model_repo` + `model_filename` in the matching `config/yolo_cpp*.yaml`
+Set `model_repo` + `model_filename` in the matching `config/yolo*.yaml`
 section (or on the command line); the `model` path is then ignored. The file
 is cached under `~/.cache/huggingface/hub` by default (override with the
 optional `cache_dir` param) and reused unless `force_download: true`:
@@ -76,7 +76,7 @@ optional `cache_dir` param) and reused unless `force_download: true`:
     force_download: false
 ```
 
-Or on the command line: `ros2 launch yolo_bringup yolo_cpp.launch.py
+Or on the command line: `ros2 launch yolo_bringup yolo.launch.py
 model_repo:=agonzc34/yolo26m model_filename:=yolo26m.onnx`. Requires libcurl
 dev headers (`sudo apt install libcurl4-openssl-dev libssl-dev`); only used
 when `model_repo`/`model_filename` are set. The node logs the model source as
@@ -102,7 +102,7 @@ C++-only fast loop (rebuild `yolo_msgs` first if messages changed):
 
 ```shell
 colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_msgs
-colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_cpp_ros
+colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_ros
 ```
 
 Omit `-DONNX_GPU=ON` for a CPU build. Launch from the workspace root so
@@ -112,23 +112,23 @@ relative source paths resolve.
 
 Run from the workspace root (so the workspace is sourced as an overlay).
 
-Detection (namespace `yolo`, defaults in `config/yolo_cpp.yaml` — model,
+Detection (namespace `yolo`, defaults in `config/yolo.yaml` — model,
 image topic, thresholds, QoS, tracking):
 
 ```shell
-ros2 launch yolo_bringup yolo_cpp.launch.py
+ros2 launch yolo_bringup yolo.launch.py
 ```
 
 Segmentation (namespace `yolo_seg`, `model_type: Segment` forced in config):
 
 ```shell
-ros2 launch yolo_bringup yolo_cpp_segment.launch.py
+ros2 launch yolo_bringup yolo_segment.launch.py
 ```
 
 Pose (namespace `yolo_pose`, `model_type: Pose` forced in config):
 
 ```shell
-ros2 launch yolo_bringup yolo_cpp_pose.launch.py
+ros2 launch yolo_bringup yolo_pose.launch.py
 ```
 
 Add `use_3d:=True` to any of the above to also start the C++ 3D detection
@@ -194,10 +194,10 @@ does not provide a more specific license file.
 
 Specifically, the repository contains independently licensed ROS 2 packages:
 
-- `yolo_cpp_ros`, `yolo_msgs`, `yolo_bringup`, and `yolo_onnxruntime_vendor`
+- `yolo_ros`, `yolo_msgs`, `yolo_bringup`, and `yolo_onnxruntime_vendor`
   are licensed under **MIT**. See each package's `LICENSE` file; third-party
   notices are installed with the applicable packages
-  (`yolo_cpp_ros/THIRD_PARTY_NOTICES.md`).
+  (`yolo_ros/THIRD_PARTY_NOTICES.md`).
 
 The C++ pipeline adapts behavior from the original `yolo_ros` Python nodes;
 those contributions were authorized by their copyright holder for release in

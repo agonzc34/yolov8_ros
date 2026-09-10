@@ -6,13 +6,13 @@ on:
     paths:
       - ".github/Doxyfile"
       - ".github/workflows/doxygen-deployment.yml"
-      - "yolo_cpp_ros/**"
+      - "yolo_ros/**"
       - "README.md"
   pull_request:
     paths:
       - ".github/Doxyfile"
       - ".github/workflows/doxygen-deployment.yml"
-      - "yolo_cpp_ros/**"
+      - "yolo_ros/**"
       - "README.md"
   release:
     types: [published]
