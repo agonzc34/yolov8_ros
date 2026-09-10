@@ -16,7 +16,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 /// @brief An oriented bounding box in the ultralytics xywhr parameterization
 /// (center x, center y, width, height, rotation angle in radians).
@@ -66,6 +66,6 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo
 /// @}
 #endif // YOLO_CPP_ROS__YOLO__OBB_HPP_

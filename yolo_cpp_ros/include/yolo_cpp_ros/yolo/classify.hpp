@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 /// @brief Image-level classifier (YOLO cls models).
 ///
@@ -50,7 +50,7 @@ private:
   int top_k_{5}; // classes published per image (softmax probs, desc order)
 };
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo
 /// @}
 
 #endif // YOLO_CPP_ROS__YOLO__CLASSIFY_HPP_

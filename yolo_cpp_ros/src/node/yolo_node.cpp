@@ -194,19 +194,19 @@ void yolo_rclcpp::YoloNode::create_yolo(
       (by_filename_obb && !explicit_detect && !explicit_segment &&
        !explicit_pose && !explicit_classify && !by_filename_pose &&
        !by_filename && !by_filename_classify)) {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloOBB>(params);
+    this->yolo_model = std::make_unique<yolo_ros::yolo::YoloOBB>(params);
   } else if (explicit_pose ||
              (by_filename_pose && !explicit_detect && !explicit_segment &&
               !explicit_classify && !by_filename && !by_filename_classify)) {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloPose>(params);
+    this->yolo_model = std::make_unique<yolo_ros::yolo::YoloPose>(params);
   } else if (explicit_segment ||
              (by_filename && !explicit_detect && !explicit_classify)) {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloSegment>(params);
+    this->yolo_model = std::make_unique<yolo_ros::yolo::YoloSegment>(params);
   } else if (explicit_classify || (by_filename_classify && !explicit_detect &&
                                    !explicit_segment && !by_filename)) {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloClassify>(params);
+    this->yolo_model = std::make_unique<yolo_ros::yolo::YoloClassify>(params);
   } else {
-    this->yolo_model = std::make_unique<yolo_onnx::YoloDetect>(params);
+    this->yolo_model = std::make_unique<yolo_ros::yolo::YoloDetect>(params);
   }
   RCLCPP_INFO(get_logger(), "[%s] Yolo model loaded", this->get_name());
 }

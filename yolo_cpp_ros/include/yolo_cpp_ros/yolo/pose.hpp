@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 /// @brief YOLO human pose model.
 ///
@@ -41,6 +41,6 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo
 /// @}
 #endif // YOLO_CPP_ROS__YOLO__POSE_HPP_

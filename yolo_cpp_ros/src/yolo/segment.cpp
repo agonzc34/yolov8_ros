@@ -8,7 +8,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 YoloSegment::YoloSegment(yolo_ros::yolo::utils::YoloParams params)
     : yolo_ros::engine::Model(params) {}
@@ -178,4 +178,4 @@ std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
   return filtered_boxes;
 }
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo

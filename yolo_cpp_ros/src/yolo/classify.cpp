@@ -6,7 +6,7 @@
 #include <cmath>
 #include <numeric>
 
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 YoloClassify::YoloClassify(yolo_ros::yolo::utils::YoloParams params)
     : yolo_ros::engine::Model(params) {
@@ -96,4 +96,4 @@ YoloClassify::postprocess(const cv::Size &, const cv::Size &,
   return detections;
 }
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo

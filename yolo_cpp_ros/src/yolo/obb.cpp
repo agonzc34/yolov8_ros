@@ -9,7 +9,7 @@
 #include <iostream>
 #include <vector>
 
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 namespace {
 
@@ -200,4 +200,4 @@ YoloOBB::postprocess(const cv::Size &original_image_size,
   return detection_array;
 }
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo

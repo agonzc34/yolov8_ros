@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 /// @brief Decode a raw segmentation tensor into boxes with mask coefficients
 /// and apply the C++ per-class NMS.
@@ -54,6 +54,6 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo
 /// @}
 #endif // YOLO_CPP_ROS__YOLO__SEGMENT_HPP_

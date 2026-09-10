@@ -4,7 +4,7 @@
 #include "yolo_cpp_ros/yolo/detect.hpp"
 #include "yolo_cpp_ros/yolo/utils.hpp"
 
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 YoloDetect::YoloDetect(yolo_ros::yolo::utils::YoloParams params)
     : yolo_ros::engine::Model(params) {}
@@ -116,4 +116,4 @@ std::vector<yolo_ros::yolo::utils::Box> get_detection_with_nms(
   return filtered_boxes;
 }
 
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo

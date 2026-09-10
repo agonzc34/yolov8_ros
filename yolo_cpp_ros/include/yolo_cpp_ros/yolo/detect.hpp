@@ -14,7 +14,7 @@
 
 /// @addtogroup yolo_tasks
 /// @{
-namespace yolo_onnx {
+namespace yolo_ros::yolo {
 
 /// @brief Decode a raw (no baked NMS) detection tensor into boxes.
 /// @param[in] preds Raw output tensors from the model.
@@ -63,6 +63,6 @@ protected:
               const cv::Size &resized_image_size,
               const std::vector<Ort::Value> &outputTensors) override;
 };
-} // namespace yolo_onnx
+} // namespace yolo_ros::yolo
 /// @}
 #endif // YOLO_CPP_ROS__YOLO__DETECT_HPP_
