@@ -1,4 +1,4 @@
-/yolo_cls/yolo_node:
+/yolo/yolo_node:
   ros__parameters:
     model_type: Classify # force classification (auto works for paths containing "cls")
     model_repo: zwh20081/yolo26-onnx

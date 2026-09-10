@@ -204,7 +204,7 @@ ros2 launch yolo_bringup yolo.launch.py
 
 ### Instance Segmentation
 
-Namespace `yolo_seg`; `model_type: Segment` is forced in `config/yolo_segment.yaml`:
+Namespace `yolo`; `model_type: Segment` is forced in `config/yolo_segment.yaml`:
 
 ```shell
 ros2 launch yolo_bringup yolo_segment.launch.py
@@ -212,7 +212,7 @@ ros2 launch yolo_bringup yolo_segment.launch.py
 
 ### Human Pose
 
-Namespace `yolo_pose`; `model_type: Pose` is forced in `config/yolo_pose.yaml`:
+Namespace `yolo`; `model_type: Pose` is forced in `config/yolo_pose.yaml`:
 
 ```shell
 ros2 launch yolo_bringup yolo_pose.launch.py
@@ -220,7 +220,7 @@ ros2 launch yolo_bringup yolo_pose.launch.py
 
 ### Oriented Bounding Box (OBB)
 
-Namespace `yolo_obb`; `model_type: OBB` is forced in `config/yolo_obb.yaml`. This
+Namespace `yolo`; `model_type: OBB` is forced in `config/yolo_obb.yaml`. This
 launch also starts the tracking and debug nodes:
 
 ```shell
@@ -229,7 +229,7 @@ ros2 launch yolo_bringup yolo_obb.launch.py
 
 ### Image Classification
 
-Namespace `yolo_cls`; `model_type: Classify` is forced in
+Namespace `yolo`; `model_type: Classify` is forced in
 `config/yolo_classify.yaml`. The default model is downloaded from the Hugging
 Face Hub at configure time. No tracking/3D/debug nodes are started:
 

@@ -5,7 +5,7 @@
 #
 # IMPORTANT: rclcpp loads `--params-file` sections by the node's fully
 # qualified name, so each block key includes the launch namespace (default
-# "yolo_obb"). If you change `namespace:=`, update the block names to match.
+# "yolo"). If you change `namespace:=`, update the block names to match.
 #
 # OBB specifics: ultralytics OBB models (yolo11n-obb, yolo26-obb, ...) predict
 # one extra channel per anchor vs. Detect — [cx, cy, w, h, class_scores...,
@@ -14,7 +14,7 @@
 # upstream Python node's parse_boxes()): center/position = cx,cy,
 # center/theta = angle (radians), size = w,h. Rotated NMS runs in the C++
 # postprocessor (it cannot be baked into the ONNX graph).
-/yolo_obb/yolo_node:
+/yolo/yolo_node:
   ros__parameters:
     model_type: OBB           # force OBB (auto also works if the path contains "obb")
     model: /home/agonzc34/models/yolo11n-obb.onnx
@@ -34,7 +34,7 @@
     n_threads: -1             # -1 = auto (only used by the CPU EP)
     max_fps: 0                # 0 = unlimited (process every frame); >0 caps inference/publish rate in Hz
 
-/yolo_obb/tracking_node:
+/yolo/tracking_node:
   ros__parameters:
     # Tracker selection + ByteTrack tuning, mirroring the ultralytics
     # bytetrack.yaml defaults (tracker_type keys: see yolo_ros tracking/)
@@ -48,7 +48,7 @@
     match_thresh: 0.8         # association similarity threshold (IoU/cost)
     fuse_score: true          # fuse detection score with IoU cost for matching
 
-/yolo_obb/detect_3d_node:
+/yolo/detect_3d_node:
   ros__parameters:
     target_frame: base_link
     depth_image_units_divisor: 1000    # raw depth units -> meters
@@ -63,7 +63,7 @@
     enable_orientation: false
     min_seg_points_for_orientation: 20
 
-/yolo_obb/debug_node:
+/yolo/debug_node:
   ros__parameters:
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image

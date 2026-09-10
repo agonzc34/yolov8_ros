@@ -1,4 +1,4 @@
-/yolo_seg/yolo_node:
+/yolo/yolo_node:
   ros__parameters:
     model_type: Segment       # force segmentation (auto also works if the path contains "segment")
     model: /home/agonzc34/models/yolo11n-segment.onnx
@@ -18,7 +18,7 @@
     n_threads: -1             # -1 = auto (only used by the CPU EP)
     max_fps: 0                # 0 = unlimited (process every frame); >0 caps inference/publish rate in Hz
 
-/yolo_seg/tracking_node:
+/yolo/tracking_node:
   ros__parameters:
     # Tracker selection + ByteTrack tuning, mirroring the ultralytics
     # bytetrack.yaml defaults (tracker_type keys: see yolo_ros tracking/)
@@ -32,7 +32,7 @@
     match_thresh: 0.8         # association similarity threshold (IoU/cost)
     fuse_score: true          # fuse detection score with IoU cost for matching
 
-/yolo_seg/detect_3d_node:
+/yolo/detect_3d_node:
   ros__parameters:
     target_frame: base_link
     depth_image_units_divisor: 1000    # raw depth units -> meters
@@ -46,7 +46,7 @@
     enable_orientation: false
     min_seg_points_for_orientation: 20
 
-/yolo_seg/debug_node:
+/yolo/debug_node:
   ros__parameters:
     image_reliability: 1      # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image
