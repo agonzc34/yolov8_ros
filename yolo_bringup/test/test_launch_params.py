@@ -79,23 +79,15 @@ def test_aliases_map_to_param_names():
     assert build_overrides(context, "tracking_node")["tracker_type"] == "bytetrack"
     assert build_overrides(context, "tracking_node")["image_topic"] == "/cam"
     assert build_overrides(context, "detect_3d_node")["depth_image_topic"] == "/depth"
-    assert (
-        build_overrides(context, "detect_3d_node")["depth_info_topic"]
-        == "/depth_info"
-    )
+    assert build_overrides(context, "detect_3d_node")["depth_info_topic"] == "/depth_info"
 
 
 def test_shared_arg_applied_to_each_target_node():
-    context = FakeContext(
-        {"image_reliability": "1", "detections_topic": "detections"}
-    )
+    context = FakeContext({"image_reliability": "1", "detections_topic": "detections"})
     assert build_overrides(context, "yolo_node")["image_reliability"] == 1
     assert build_overrides(context, "tracking_node")["image_reliability"] == 1
     assert build_overrides(context, "debug_node")["image_reliability"] == 1
-    assert (
-        build_overrides(context, "detect_3d_node")["detections_topic"]
-        == "detections"
-    )
+    assert build_overrides(context, "detect_3d_node")["detections_topic"] == "detections"
     assert build_overrides(context, "debug_node")["detections_topic"] == "detections"
 
 
