@@ -9,7 +9,6 @@ from launch.substitutions import LaunchConfiguration
 
 import yolo_bringup.launch_params as launch_params
 from yolo_bringup.launch_params import (
-    NODE_PARAMS,
     build_overrides,
     declare_param_arguments,
     node_parameters,
