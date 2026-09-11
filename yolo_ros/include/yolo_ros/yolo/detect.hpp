@@ -7,7 +7,6 @@
 #ifndef YOLO_ROS__YOLO__DETECT_HPP_
 #define YOLO_ROS__YOLO__DETECT_HPP_
 
-#include "yolo_msgs/msg/detection.hpp"
 #include "yolo_ros/engine/model.hpp"
 #include "yolo_ros/yolo/utils.hpp"
 #include <vector>

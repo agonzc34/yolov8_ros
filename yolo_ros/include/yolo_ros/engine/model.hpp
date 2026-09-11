@@ -13,6 +13,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/opencv.hpp>
+#include <string>
 #include <vector>
 
 /// @addtogroup yolo_engine
@@ -39,6 +40,10 @@ public:
   /// @param image BGR image in original (un-letterboxed) coordinates.
   /// @return One detection per kept object, in original-image coordinates.
   std::vector<yolo_msgs::msg::Detection> detect(const cv::Mat &image);
+
+  /// @brief Name of the execution provider that initialized the session.
+  /// @return "cpu", "cuda" or "tensorrt".
+  const std::string &active_provider() const { return active_provider_; }
 
   /// @brief Confidence threshold for detections, in [0, 1]. @see detect()
   float conf_threshold{0.5}; // Confidence threshold for detections
@@ -83,6 +88,9 @@ private:
       nullptr}; // Session options for ONNX Runtime
   /// @brief ONNX Runtime inference session.
   Ort::Session session{nullptr}; // ONNX Runtime session for running inference
+  /// @brief Primary execution provider that initialized the session. ORT may
+  /// still fall back node-by-node to CUDA within a TensorRT session.
+  std::string active_provider_;
   /// @brief Expected input image shape for the model.
   cv::Size input_image_shape; // Expected input image shape for the model
 

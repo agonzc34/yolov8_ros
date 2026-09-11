@@ -4,7 +4,11 @@
     model_repo: zwh20081/yolo26-onnx
     model_filename: yolo26s-cls.onnx
     force_download: false
-    device: cuda:0
+    device: cuda:0 # device ordinal for the CUDA/TensorRT EPs
+    provider: auto                # auto = TensorRT -> CUDA -> CPU; or tensorrt/trt/cuda/cpu
+    trt_fp16_enable: true         # TensorRT FP16 (provider: tensorrt/auto)
+    trt_engine_cache_enable: true # persist built TensorRT engines
+    trt_engine_cache_path: ""     # empty -> ~/.cache/yolo_ros/trt_engines/<model>
     enable: true
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /webcam_image

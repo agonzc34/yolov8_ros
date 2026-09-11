@@ -42,6 +42,7 @@ add_executable(yolo_node
   src/yolo/utils.cpp
 
   src/engine/model.cpp
+  src/engine/provider.cpp
 )
 
 target_include_directories(yolo_node PUBLIC
@@ -182,6 +183,21 @@ if(BUILD_TESTING)
     ${ORT_LIBRARIES}
   )
 
+  ament_add_gtest(test_provider
+    test/test_provider.cpp
+    src/engine/provider.cpp
+  )
+  target_include_directories(test_provider PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+  )
+  ament_target_dependencies(test_provider
+    yolo_onnxruntime_vendor
+  )
+  target_link_libraries(test_provider
+    ${ORT_LIBRARIES}
+  )
+
   ament_add_gtest(test_tracking
     test/test_tracking.cpp
     src/tracking/tracker.cpp
@@ -224,6 +240,7 @@ if(BUILD_TESTING)
     src/yolo/classify.cpp
     src/yolo/utils.cpp
     src/engine/model.cpp
+    src/engine/provider.cpp
   )
   set_tests_properties(test_yolo26n PROPERTIES TIMEOUT 300)
   target_include_directories(test_yolo26n PUBLIC

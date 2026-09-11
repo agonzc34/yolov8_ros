@@ -8,7 +8,11 @@
     model_repo: "" # e.g. "agonzc34/yolo11n-segment"
     model_filename: "" # e.g. "yolo11n-segment.onnx"
     force_download: false
-    device: cuda:0
+    device: cuda:0 # device ordinal for the CUDA/TensorRT EPs
+    provider: auto                # auto = TensorRT -> CUDA -> CPU; or tensorrt/trt/cuda/cpu
+    trt_fp16_enable: true         # TensorRT FP16 (provider: tensorrt/auto)
+    trt_engine_cache_enable: true # persist built TensorRT engines
+    trt_engine_cache_path: ""     # empty -> ~/.cache/yolo_ros/trt_engines/<model>
     threshold: 0.7
     iou: 0.45
     max_det: 300

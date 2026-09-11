@@ -304,7 +304,15 @@ complete, annotated set.
 - **model**: Path to the ONNX model (default: machine-specific).
 - **model_repo** / **model_filename** / **force_download** / **cache_dir**:
   Optional Hugging Face Hub download (used instead of `model` when set).
-- **device**: Execution device, e.g. `cuda:0` or `cpu` (default: `cuda:0`).
+- **provider**: Execution provider: `auto` (TensorRT → CUDA → CPU fallback
+  chain), or force `tensorrt`/`trt`, `cuda`, `cpu` (default: `auto`).
+- **device**: CUDA/TensorRT device ordinal, e.g. `cuda:0`, `trt:1`, `1`
+  (default: `cuda:0`). The `cuda:`/`trt:` prefix is accepted but `provider`
+  selects the execution provider.
+- **trt_fp16_enable**: TensorRT FP16 precision (default: `true`).
+- **trt_engine_cache_enable**: Persist built TensorRT engines (default: `true`).
+- **trt_engine_cache_path**: TensorRT engine cache base directory; empty →
+  `~/.cache/yolo_ros/trt_engines/<model>` (default: empty).
 - **threshold**: Detection confidence threshold (default: `0.7`).
 - **iou**: IoU threshold for NMS. Re-tunes the C++ NMS for raw-output exports
   (segment/pose/OBB) and has no effect on baked-NMS models (default: `0.45`).

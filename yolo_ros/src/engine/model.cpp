@@ -3,9 +3,12 @@
 
 #include "yolo_ros/engine/model.hpp"
 #include "onnxruntime_cxx_api.h"
+#include "yolo_ros/engine/provider.hpp"
 #include "yolo_ros/yolo/utils.hpp"
+#include <algorithm>
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <cctype>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -29,41 +32,92 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
     n_threads = std::thread::hardware_concurrency();
   }
 
-  this->session_options.SetGraphOptimizationLevel(
-      GraphOptimizationLevel::ORT_ENABLE_ALL);
+  // Resolve the availability-filtered provider fallback chain. "auto" prefers
+  // TensorRT, then CUDA, then CPU; an explicit provider forces its own chain.
+  std::string requested = params.provider;
+  std::transform(requested.begin(), requested.end(), requested.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  if (requested.empty()) {
+    requested = "auto";
+  }
+  if (requested != "auto" && requested != "cpu" && requested != "cuda" &&
+      requested != "tensorrt" && requested != "trt") {
+    std::cerr << "Unknown provider \"" << params.provider << "\"; using auto."
+              << std::endl;
+    requested = "auto";
+  }
+  const std::vector<Provider> chain =
+      provider_chain(requested, available_providers());
+  std::cout << "Execution provider chain:";
+  for (const Provider provider : chain) {
+    std::cout << " " << provider_name(provider);
+  }
+  std::cout << std::endl;
 
-  auto providers = Ort::GetAvailableProviders();
-  bool use_cuda = std::find(providers.begin(), providers.end(),
-                            "CUDAExecutionProvider") != providers.end();
-
-  if (use_cuda) {
-    // The GPU graph does the compute: a single intra-op thread avoids the
-    // overhead of spinning up a full CPU thread-pool that mostly idles on the
-    // CUDA stream.
-    this->session_options.SetIntraOpNumThreads(1);
-
-    // Tuned CUDA EP: heuristic conv-algo search (skips the expensive per-shape
-    // exhaustive benchmark at session load) and same-as-requested arena growth
-    // (less GPU memory over-allocation).
-    OrtCUDAProviderOptionsV2 *cuda_options = nullptr;
-    Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&cuda_options));
-    std::vector<const char *> keys = {"device_id", "arena_extend_strategy",
-                                      "cudnn_conv_algo_search"};
-    std::vector<const char *> values = {"0", "kSameAsRequested", "HEURISTIC"};
-    Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(
-        cuda_options, keys.data(), values.data(), keys.size()));
-    this->session_options.AppendExecutionProvider_CUDA_V2(*cuda_options);
-    Ort::GetApi().ReleaseCUDAProviderOptions(cuda_options);
-    std::cout << "CUDA Execution Provider has been added (tuned)." << std::endl;
-  } else {
-    this->session_options.SetIntraOpNumThreads(n_threads);
-    std::cout << "CUDA Execution Provider is not available." << std::endl;
+  // Warn when an explicitly requested provider was dropped by the
+  // availability filter (e.g. TensorRT requested on a CPU build).
+  const std::string requested_norm =
+      requested == "trt" ? "tensorrt" : requested;
+  if (requested != "auto" && !chain.empty() &&
+      requested_norm != provider_name(chain.front())) {
+    std::cerr << "Requested provider \"" << requested
+              << "\" is unavailable; using " << provider_name(chain.front())
+              << "." << std::endl;
   }
 
-  Ort::AllocatorWithDefaultOptions allocator;
+  // An explicit provider wins over the device prefix; warn when they disagree
+  // (only when the requested provider is actually the one being used).
+  const std::string device_provider = device_provider_name(params.device);
+  if (requested != "auto" && !chain.empty() &&
+      requested_norm == provider_name(chain.front()) &&
+      !device_provider.empty() && device_provider != requested_norm) {
+    std::cerr << "provider \"" << requested << "\" contradicts device \""
+              << params.device << "\"; using " << requested_norm << "."
+              << std::endl;
+  }
 
-  this->session =
-      Ort::Session(this->env, model_path.c_str(), this->session_options);
+  // Try each provider in order. A provider can be available yet still fail to
+  // build the session (unsupported op, TensorRT engine build error), so the
+  // provider options and the Session construction both live in the retry loop.
+  const int device_id = parse_device_id(params.device);
+  std::string last_error;
+  for (const Provider provider : chain) {
+    ProviderConfig config;
+    config.n_threads = n_threads;
+    config.device_id = device_id;
+    config.trt_fp16_enable = params.trt_fp16_enable;
+    config.trt_engine_cache_enable = params.trt_engine_cache_enable;
+    if (provider == Provider::TensorRt && config.trt_engine_cache_enable) {
+      config.trt_engine_cache_path =
+          engine_cache_dir(params.trt_engine_cache_path, model_path);
+      if (config.trt_engine_cache_path.empty()) {
+        config.trt_engine_cache_enable = false;
+      }
+    }
+    try {
+      this->session_options = build_session_options(provider, config);
+      this->session =
+          Ort::Session(this->env, model_path.c_str(), this->session_options);
+      this->active_provider_ = provider_name(provider);
+      break;
+    } catch (const Ort::Exception &e) {
+      last_error = e.what();
+      std::cerr << "Execution provider " << provider_name(provider)
+                << " failed to initialize: " << e.what() << std::endl;
+    }
+  }
+
+  if (this->active_provider_.empty()) {
+    throw std::runtime_error(
+        "No execution provider could initialize the ONNX Runtime session" +
+        (last_error.empty() ? std::string(".") : ": " + last_error));
+  }
+  // Names the primary EP that accepted the session; within a TensorRT session
+  // ORT may still fall back node-by-node to CUDA.
+  std::cout << "Using execution provider: " << this->active_provider_
+            << std::endl;
+
+  Ort::AllocatorWithDefaultOptions allocator;
 
   // Get input and output node information
   this->num_input_nodes = this->session.GetInputCount();
