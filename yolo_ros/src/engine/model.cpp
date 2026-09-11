@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_ros/engine/model.hpp"
+#include "onnxruntime_cxx_api.h"
 #include "yolo_ros/yolo/utils.hpp"
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -45,12 +46,12 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
     // exhaustive benchmark at session load) and same-as-requested arena growth
     // (less GPU memory over-allocation).
     OrtCUDAProviderOptionsV2 *cuda_options = nullptr;
-    Ort::GetApi().CreateCUDAProviderOptions(&cuda_options);
+    Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&cuda_options));
     std::vector<const char *> keys = {"device_id", "arena_extend_strategy",
                                       "cudnn_conv_algo_search"};
     std::vector<const char *> values = {"0", "kSameAsRequested", "HEURISTIC"};
-    Ort::GetApi().UpdateCUDAProviderOptions(cuda_options, keys.data(),
-                                            values.data(), keys.size());
+    Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(
+        cuda_options, keys.data(), values.data(), keys.size()));
     this->session_options.AppendExecutionProvider_CUDA_V2(*cuda_options);
     Ort::GetApi().ReleaseCUDAProviderOptions(cuda_options);
     std::cout << "CUDA Execution Provider has been added (tuned)." << std::endl;
@@ -234,6 +235,9 @@ std::vector<yolo_msgs::msg::Detection>
 Model::postprocess(const cv::Size &original_image_size,
                    const cv::Size &resized_image_size,
                    const std::vector<Ort::Value> &preds) {
+  (void)original_image_size;
+  (void)resized_image_size;
+  (void)preds;
   return std::vector<yolo_msgs::msg::Detection>();
 }
 
