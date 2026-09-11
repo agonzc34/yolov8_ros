@@ -134,6 +134,7 @@ get_boxes(const std::vector<Ort::Value> &preds,
     box.y2 = (center_y + height / 2);
     box.score = max_score;
     box.class_id = class_id;
+    box.index = static_cast<int>(i);
 
     yolo_ros::yolo::utils::Box scaled_box = yolo_ros::yolo::utils::scale_box(
         box, original_image_size, resized_image_size);

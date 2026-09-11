@@ -723,11 +723,21 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
 
 double depth_at_pixel(const cv::Mat &depth_image, int v, int u,
                       int depth_units_divisor) {
+  if (depth_image.empty() || v < 0 || u < 0 || v >= depth_image.rows ||
+      u >= depth_image.cols) {
+    return 0.0;
+  }
   if (depth_image.type() == CV_16UC1) {
+    if (depth_units_divisor <= 0) {
+      return 0.0;
+    }
     return static_cast<double>(depth_image.at<uint16_t>(v, u)) /
            depth_units_divisor;
   }
-  return static_cast<double>(depth_image.at<float>(v, u));
+  if (depth_image.type() == CV_32FC1) {
+    return static_cast<double>(depth_image.at<float>(v, u));
+  }
+  return 0.0;
 }
 
 std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(

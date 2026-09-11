@@ -161,4 +161,91 @@ install(DIRECTORY conf
   DESTINATION share/${PROJECT_NAME}
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_utils
+    test/test_utils.cpp
+    src/yolo/utils.cpp
+  )
+  target_include_directories(test_utils PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+    ${OpenCV_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(test_utils
+    yolo_msgs
+    yolo_onnxruntime_vendor
+  )
+  target_link_libraries(test_utils
+    ${OpenCV_LIBS}
+    ${ORT_LIBRARIES}
+  )
+
+  ament_add_gtest(test_tracking
+    test/test_tracking.cpp
+    src/tracking/tracker.cpp
+    src/tracking/byte_tracker.cpp
+    src/tracking/strack.cpp
+    src/tracking/utils/kalman_filter.cpp
+    src/tracking/utils/lapjv.cpp
+    src/tracking/utils/matching.cpp
+  )
+  target_include_directories(test_tracking PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+  )
+
+  ament_add_gtest(test_depth_utils
+    test/test_depth_utils.cpp
+    src/3d/depth_utils.cpp
+  )
+  target_include_directories(test_depth_utils PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+    ${OpenCV_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(test_depth_utils
+    yolo_msgs
+    sensor_msgs
+  )
+  target_link_libraries(test_depth_utils
+    ${OpenCV_LIBS}
+  )
+
+  find_package(CURL REQUIRED)
+  find_package(JPEG REQUIRED)
+
+  ament_add_gtest(test_yolo26n
+    test/test_yolo26n.cpp
+    src/yolo/detect.cpp
+    src/yolo/segment.cpp
+    src/yolo/pose.cpp
+    src/yolo/classify.cpp
+    src/yolo/utils.cpp
+    src/engine/model.cpp
+  )
+  set_tests_properties(test_yolo26n PROPERTIES TIMEOUT 300)
+  target_include_directories(test_yolo26n PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+    ${OpenCV_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(test_yolo26n
+    rclcpp
+    sensor_msgs
+    yolo_msgs
+    cv_bridge
+    ament_index_cpp
+    yolo_onnxruntime_vendor
+  )
+  target_link_libraries(test_yolo26n
+    ${OpenCV_LIBS}
+    ${ORT_LIBRARIES}
+    ${yolo_hfhub_vendor_TARGETS}
+    CURL::libcurl
+    JPEG::JPEG
+  )
+endif()
+
 ament_package()

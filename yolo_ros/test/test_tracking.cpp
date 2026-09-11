@@ -1,0 +1,318 @@
+// Copyright (c) 2026 Alejandro González Cantón
+// SPDX-License-Identifier: MIT
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <array>
+#include <memory>
+#include <set>
+#include <utility>
+#include <vector>
+
+#include "yolo_ros/tracking/byte_tracker.hpp"
+#include "yolo_ros/tracking/strack.hpp"
+#include "yolo_ros/tracking/tracker.hpp"
+#include "yolo_ros/tracking/utils/lapjv.hpp"
+#include "yolo_ros/tracking/utils/matching.hpp"
+
+namespace yolo_ros::tracking {
+namespace {
+
+TEST(KalmanFilter, InitiateSetsPositionAndZeroVelocity) {
+  utils::KalmanFilterXYAH kf;
+  const auto [mean, cov] = kf.initiate({10.0, 20.0, 2.0, 40.0});
+  EXPECT_DOUBLE_EQ(mean[0], 10.0);
+  EXPECT_DOUBLE_EQ(mean[1], 20.0);
+  EXPECT_DOUBLE_EQ(mean[2], 2.0);
+  EXPECT_DOUBLE_EQ(mean[3], 40.0);
+  for (int i = 4; i < 8; ++i) {
+    EXPECT_DOUBLE_EQ(mean[i], 0.0);
+  }
+  EXPECT_GT(cov[0][0], 0.0);
+  EXPECT_GT(cov[3][3], 0.0);
+}
+
+TEST(KalmanFilter, PredictAdvancesByVelocity) {
+  utils::KalmanFilterXYAH kf;
+  auto [mean, cov] = kf.initiate({10.0, 20.0, 2.0, 40.0});
+  mean[4] = 5.0;
+  mean[5] = -3.0;
+  const auto [pm, pc] = kf.predict(mean, cov);
+  EXPECT_DOUBLE_EQ(pm[0], 15.0);
+  EXPECT_DOUBLE_EQ(pm[1], 17.0);
+  EXPECT_DOUBLE_EQ(pm[2], 2.0);
+  EXPECT_DOUBLE_EQ(pm[3], 40.0);
+  EXPECT_GT(pc[0][0], cov[0][0]);
+}
+
+TEST(KalmanFilter, UpdatePullsTowardMeasurement) {
+  utils::KalmanFilterXYAH kf;
+  const auto [mean, cov] = kf.initiate({0.0, 0.0, 1.0, 20.0});
+  const auto [um, uc] = kf.update(mean, cov, {10.0, 0.0, 1.0, 20.0});
+  EXPECT_GT(um[0], 0.0);
+  EXPECT_LT(um[0], 10.0);
+  EXPECT_LT(uc[0][0], cov[0][0]);
+}
+
+TEST(Matching, IouDistance) {
+  auto a = std::make_shared<STrack>(std::array<float, 4>{50, 50, 20, 20}, 0.9f,
+                                    0, 0);
+  auto b = std::make_shared<STrack>(std::array<float, 4>{50, 50, 20, 20}, 0.9f,
+                                    0, 1);
+  auto c = std::make_shared<STrack>(std::array<float, 4>{500, 500, 20, 20},
+                                    0.9f, 0, 2);
+  const auto d = utils::iou_distance({a, b}, {b, c});
+  ASSERT_EQ(d.size(), 2u);
+  EXPECT_NEAR(d[0][0], 0.0, 1e-9);
+  EXPECT_NEAR(d[0][1], 1.0, 1e-9);
+  EXPECT_NEAR(d[1][1], 1.0, 1e-9);
+}
+
+TEST(Matching, FuseScore) {
+  auto det = std::make_shared<STrack>(std::array<float, 4>{50, 50, 20, 20},
+                                      0.5f, 0, 0);
+  std::vector<std::vector<double>> cost = {{0.4}};
+  utils::fuse_score(cost, {det});
+  EXPECT_NEAR(cost[0][0], 1.0 - (1.0 - 0.4) * 0.5, 1e-9);
+}
+
+TEST(Matching, LinearAssignmentOptimal) {
+  const std::vector<std::vector<double>> cost = {{0.1, 0.9}, {0.8, 0.2}};
+  std::vector<std::pair<int, int>> matches;
+  std::vector<int> ua, ub;
+  utils::linear_assignment(2, 2, cost, 0.5, matches, ua, ub);
+  ASSERT_EQ(matches.size(), 2u);
+  EXPECT_TRUE(ua.empty());
+  EXPECT_TRUE(ub.empty());
+  const std::set<std::pair<int, int>> got(matches.begin(), matches.end());
+  EXPECT_TRUE(got.count({0, 0}));
+  EXPECT_TRUE(got.count({1, 1}));
+}
+
+TEST(Matching, LinearAssignmentThresholdLeavesUnmatched) {
+  const std::vector<std::vector<double>> cost = {{0.9}};
+  std::vector<std::pair<int, int>> matches;
+  std::vector<int> ua, ub;
+  utils::linear_assignment(1, 1, cost, 0.5, matches, ua, ub);
+  EXPECT_TRUE(matches.empty());
+  EXPECT_EQ(ua.size(), 1u);
+  EXPECT_EQ(ub.size(), 1u);
+}
+
+TEST(Matching, LinearAssignmentEmpty) {
+  const std::vector<std::vector<double>> cost;
+  std::vector<std::pair<int, int>> matches;
+  std::vector<int> ua, ub;
+  utils::linear_assignment(0, 0, cost, 0.5, matches, ua, ub);
+  EXPECT_TRUE(matches.empty());
+  EXPECT_TRUE(ua.empty());
+  EXPECT_TRUE(ub.empty());
+}
+
+TEST(Lapjv, IdentityCost) {
+  const std::vector<std::vector<double>> cost = {
+      {0.0, 1.0, 2.0}, {2.0, 0.0, 1.0}, {1.0, 2.0, 0.0}};
+  std::vector<int> rowsol, colsol;
+  ASSERT_EQ(utils::lapjv_internal(3, cost, rowsol, colsol), 0);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(rowsol[i], i);
+  }
+}
+
+TEST(STrack, TlwhToXyah) {
+  const auto xyah = STrack::tlwh_to_xyah({10, 20, 40, 20});
+  EXPECT_DOUBLE_EQ(xyah[0], 30.0);
+  EXPECT_DOUBLE_EQ(xyah[1], 30.0);
+  EXPECT_DOUBLE_EQ(xyah[2], 2.0);
+  EXPECT_DOUBLE_EQ(xyah[3], 20.0);
+}
+
+TEST(STrack, ActivateAssignsIdStateAndBox) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  STrack s({50, 50, 20, 10}, 0.8f, 2, 7);
+  EXPECT_FALSE(s.is_activated());
+  s.activate(&kf, 1);
+  EXPECT_TRUE(s.is_activated());
+  EXPECT_EQ(s.track_id(), 1);
+  EXPECT_EQ(s.state(), TrackState::Tracked);
+  const auto xyxy = s.xyxy();
+  EXPECT_NEAR(xyxy[0], 40.0, 1e-4);
+  EXPECT_NEAR(xyxy[1], 45.0, 1e-4);
+  EXPECT_NEAR(xyxy[2], 60.0, 1e-4);
+  EXPECT_NEAR(xyxy[3], 55.0, 1e-4);
+}
+
+TEST(Tracks, JointDedupesById) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  auto a =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 0);
+  auto b = std::make_shared<STrack>(std::array<float, 4>{20, 20, 10, 10}, 0.9f,
+                                    0, 1);
+  a->activate(&kf, 1);
+  b->activate(&kf, 1);
+  STrack::count_ = 0; // force the next activation to reuse id 1
+  auto a_dup =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 2);
+  a_dup->activate(&kf, 1);
+  ASSERT_EQ(a_dup->track_id(), a->track_id());
+  ASSERT_NE(a_dup.get(), a.get());
+
+  const auto j = utils::joint_stracks({a}, {b, a_dup});
+  ASSERT_EQ(j.size(), 2u);
+  EXPECT_EQ(j[0].get(), a.get());
+  EXPECT_EQ(j[1].get(), b.get());
+}
+
+TEST(Tracks, SubRemovesById) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  auto a =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 0);
+  auto b = std::make_shared<STrack>(std::array<float, 4>{20, 20, 10, 10}, 0.9f,
+                                    0, 1);
+  auto c = std::make_shared<STrack>(std::array<float, 4>{40, 40, 10, 10}, 0.9f,
+                                    0, 2);
+  a->activate(&kf, 1);
+  b->activate(&kf, 1);
+  c->activate(&kf, 1);
+  STrack::count_ = 1; // force the next activation to reuse id 2
+  auto b_dup = std::make_shared<STrack>(std::array<float, 4>{20, 20, 10, 10},
+                                        0.9f, 0, 3);
+  b_dup->activate(&kf, 1);
+  ASSERT_EQ(b_dup->track_id(), b->track_id());
+  ASSERT_NE(b_dup.get(), b.get());
+
+  const auto s = utils::sub_stracks({a, b, c}, {b_dup});
+  ASSERT_EQ(s.size(), 2u);
+  EXPECT_EQ(s[0]->track_id(), a->track_id());
+  EXPECT_EQ(s[1]->track_id(), c->track_id());
+}
+
+TEST(Tracks, RemoveDuplicateDropsTieFromFirstList) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  auto a = std::make_shared<STrack>(std::array<float, 4>{50, 50, 20, 20}, 0.9f,
+                                    0, 0);
+  auto b = std::make_shared<STrack>(std::array<float, 4>{50, 50, 20, 20}, 0.9f,
+                                    0, 1);
+  a->activate(&kf, 1);
+  b->activate(&kf, 1);
+  const auto [ra, rb] = utils::remove_duplicate_stracks({a}, {b});
+  EXPECT_TRUE(ra.empty());
+  EXPECT_EQ(rb.size(), 1u);
+}
+
+TEST(ByteTrack, KeepsIdAcrossFrames) {
+  ByteTrack tracker(ByteTrackParams{});
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out1 = tracker.update(dets);
+  ASSERT_EQ(out1.size(), 1u);
+  const int id = out1[0].id;
+  dets[0].cx = 52.0f;
+  const auto out2 = tracker.update(dets);
+  ASSERT_EQ(out2.size(), 1u);
+  EXPECT_EQ(out2[0].id, id);
+}
+
+TEST(ByteTrack, LowScoreSecondStageAssociates) {
+  ByteTrack tracker(ByteTrackParams{});
+  std::vector<TrackDetection> high(1);
+  high[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out_high = tracker.update(high);
+  ASSERT_EQ(out_high.size(), 1u);
+  const int id = out_high[0].id;
+  std::vector<TrackDetection> low(1);
+  low[0] = {51, 50, 20, 20, 0.15f, 0, 0};
+  const auto out = tracker.update(low);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0].id, id);
+}
+
+TEST(ByteTrack, ReacquiresLostTrackWithinBuffer) {
+  ByteTrack tracker(ByteTrackParams{});
+  std::vector<TrackDetection> high(1);
+  high[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out1 = tracker.update(high);
+  ASSERT_EQ(out1.size(), 1u);
+  const int id = out1[0].id;
+  EXPECT_TRUE(tracker.update({}).empty());
+  const auto out3 = tracker.update(high);
+  ASSERT_EQ(out3.size(), 1u);
+  EXPECT_EQ(out3[0].id, id);
+}
+
+TEST(ByteTrack, DropsTrackAfterBufferExpiry) {
+  ByteTrackParams params;
+  params.track_buffer = 1;
+  ByteTrack tracker(params);
+  std::vector<TrackDetection> high(1);
+  high[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out1 = tracker.update(high);
+  ASSERT_EQ(out1.size(), 1u);
+  const int id = out1[0].id;
+  // The expired track is dropped from the lost pool after a short grace
+  // (upstream ByteTrack's removal ordering); once gone, a new detection must
+  // get a fresh id rather than reviving the old one. A brand-new track is only
+  // emitted once confirmed on a subsequent frame, so feed the detection twice.
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_TRUE(tracker.update({}).empty());
+  }
+  const auto first = tracker.update(high);
+  for (const auto &t : first) {
+    EXPECT_NE(t.id, id);
+  }
+  const auto out = tracker.update(high);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_NE(out[0].id, id);
+}
+
+TEST(ByteTrack, BelowNewTrackThresholdStartsNoTrack) {
+  ByteTrackParams params;
+  params.new_track_thresh = 0.5;
+  ByteTrack tracker(params);
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.3f, 0, 0};
+  EXPECT_TRUE(tracker.update(dets).empty());
+}
+
+TEST(ByteTrack, ResetClearsStateAndRestartsIds) {
+  ByteTrack tracker(ByteTrackParams{});
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  ASSERT_EQ(tracker.update(dets).size(), 1u);
+  tracker.reset();
+  EXPECT_EQ(tracker.frame_id(), 0);
+  const auto out = tracker.update(dets);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0].id, 1);
+}
+
+TEST(TrackerFactory, CreatesByteTrack) {
+  ByteTrackParams params;
+  EXPECT_NE(create_tracker(params), nullptr);
+}
+
+TEST(TrackerFactory, CaseInsensitive) {
+  ByteTrackParams params;
+  params.type = "ByteTrack";
+  EXPECT_NE(create_tracker(params), nullptr);
+}
+
+TEST(TrackerFactory, UnknownTypeIsNull) {
+  TrackerParams params;
+  params.type = "nope";
+  EXPECT_EQ(create_tracker(params), nullptr);
+}
+
+TEST(TrackerFactory, MismatchedParamsIsNull) {
+  TrackerParams params;
+  params.type = "bytetrack";
+  EXPECT_EQ(create_tracker(params), nullptr);
+}
+
+} // namespace
+} // namespace yolo_ros::tracking
