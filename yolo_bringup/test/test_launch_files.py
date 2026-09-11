@@ -63,6 +63,21 @@ def _declared(name):
     }
 
 
+def _wrapper_defaults(name):
+    return {
+        entity.name: entity.default_value
+        for entity in _description(name).entities
+        if isinstance(entity, DeclareLaunchArgument)
+    }
+
+
+def _include(name):
+    for entity in _description(name).entities:
+        if isinstance(entity, IncludeLaunchDescription):
+            return entity
+    raise AssertionError(f"{name} has no IncludeLaunchDescription")
+
+
 @pytest.mark.parametrize("name", sorted(LAUNCH_FILES))
 def test_launch_description_builds(name):
     assert isinstance(_description(name), LaunchDescription)
@@ -98,6 +113,29 @@ def test_wrappers_include_the_base(name):
         isinstance(entity, IncludeLaunchDescription)
         for entity in _description(name).entities
     )
+
+
+@pytest.mark.parametrize("name", WRAPPERS)
+def test_wrapper_params_file_default_matches_pipeline(name):
+    expected = f"yolo_{name}.yaml"
+    default = _unsub(_wrapper_defaults(name)["params_file"])
+    assert expected in str(default)
+
+
+@pytest.mark.parametrize("name", WRAPPERS)
+def test_wrapper_forwards_launch_arguments(name):
+    forwarded = {key: value for key, value in _include(name).launch_arguments}
+    assert set(forwarded) >= {
+        "params_file",
+        "namespace",
+        "use_tracking",
+        "use_3d",
+        "use_debug",
+    }
+    # params_file/namespace must be the wrapper's LaunchConfiguration so that
+    # command-line overrides on the wrapper reach the base.
+    assert type(forwarded["params_file"]).__name__ == "LaunchConfiguration"
+    assert type(forwarded["namespace"]).__name__ == "LaunchConfiguration"
 
 
 def test_base_flag_defaults():
