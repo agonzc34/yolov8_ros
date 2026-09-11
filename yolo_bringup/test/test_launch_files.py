@@ -138,6 +138,13 @@ def test_wrapper_forwards_launch_arguments(name):
     assert type(forwarded["namespace"]).__name__ == "LaunchConfiguration"
 
 
+def test_classify_disables_spatial_nodes():
+    forwarded = dict(_include("classify").launch_arguments)
+    assert forwarded["use_tracking"] == "False"
+    assert forwarded["use_3d"] == "False"
+    assert forwarded["use_debug"] == "False"
+
+
 def test_base_flag_defaults():
     defaults = {
         entity.name: _unsub(entity.default_value)
