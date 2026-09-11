@@ -282,10 +282,27 @@ All topics are published under the launch namespace (default `yolo`):
 
 ## Parameters
 
-Configuration is entirely file-driven: the C++ launches pass
-`parameters=[params_file]` and make no topic remaps and no inline parameter
-dictionaries. Sections are keyed by the node's fully qualified name, so the key
-must include the launch namespace (default `yolo`):
+Configuration is file-driven: `yolo.launch.py` is the base launch and passes
+its YAML params file as `parameters=[params_file]` (with no topic remaps). The
+other four launch files are thin wrappers that include the base with their own
+params file (`yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`,
+`yolo_classify.yaml`). In addition, **every parameter can be overridden from
+the command line**; an argument left unset keeps the YAML value:
+
+```bash
+ros2 launch yolo_bringup yolo.launch.py model:=/path/model.onnx threshold:=0.5 input_image_topic:=/camera/rgb/image_raw
+ros2 launch yolo_bringup yolo_segment.launch.py threshold:=0.6
+```
+
+Override arguments use the upstream Python launch names where one existed:
+`input_image_topic` → `image_topic`, `input_depth_topic` → `depth_image_topic`,
+`input_depth_info_topic` → `depth_info_topic`, `tracker` → `tracker_type`. Every
+other argument matches its parameter name. Because an empty value means "not
+provided", a non-empty YAML string cannot be overridden to empty from the CLI.
+Run `ros2 launch yolo_bringup <launch>.launch.py --show-args` for the full list.
+
+Sections are keyed by the node's fully qualified name, so the key must include
+the launch namespace (default `yolo`):
 
 ```yaml
 /yolo/yolo_node:
@@ -293,9 +310,9 @@ must include the launch namespace (default `yolo`):
     model_type: auto
 ```
 
-If you change `namespace:=`, update the matching config block names. The key
-parameters are listed below; see `yolo_bringup/config/yolo*.yaml` for the
-complete, annotated set.
+If you change `namespace:=`, update the matching config block names for any
+value you do not override on the command line. The key parameters are listed
+below; see `yolo_bringup/config/yolo*.yaml` for the complete set.
 
 ### Inference node (`yolo_node`)
 
