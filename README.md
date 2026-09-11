@@ -192,7 +192,8 @@ The node logs the model source as `[huggingface]` (with repo/filename) or
 
 Run from the workspace root (so the workspace is sourced as an overlay). Each
 pipeline has its own launch file and namespace; the launch passes its
-`config/yolo*.yaml` file verbatim to the nodes and makes no topic remaps.
+`config/yolo*.yaml` file to the nodes (plus any command-line overrides) and
+makes no topic remaps.
 
 ### Object Detection
 
@@ -283,7 +284,8 @@ All topics are published under the launch namespace (default `yolo`):
 ## Parameters
 
 Configuration is file-driven: `yolo.launch.py` is the base launch and passes
-its YAML params file as `parameters=[params_file]` (with no topic remaps). The
+its YAML params file plus any command-line overrides as
+`parameters=[params_file, overrides]` (with no topic remaps). The
 other four launch files are thin wrappers that include the base with their own
 params file (`yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`,
 `yolo_classify.yaml`). In addition, **every parameter can be overridden from
