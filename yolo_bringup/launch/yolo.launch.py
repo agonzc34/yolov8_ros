@@ -6,10 +6,59 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+from yolo_bringup.launch_params import declare_param_arguments, node_parameters
+
+
+NODES = ("yolo_node", "tracking_node", "detect_3d_node", "debug_node")
+
+
+def _launch_setup(context, params_file, namespace, use_tracking, use_3d, use_debug):
+    # C++ inference node (ONNX Runtime). Every parameter comes from the YAML
+    # params file, optionally overridden by the matching launch argument.
+    yolo_node_cmd = Node(
+        package="yolo_ros",
+        executable="yolo_node",
+        name="yolo_node",
+        namespace=namespace,
+        parameters=node_parameters(params_file, context, "yolo_node"),
+    )
+
+    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`).
+    tracking_node_cmd = Node(
+        package="yolo_ros",
+        executable="tracking_node",
+        name="tracking_node",
+        namespace=namespace,
+        parameters=node_parameters(params_file, context, "tracking_node"),
+        condition=IfCondition(use_tracking),
+    )
+
+    # C++ 3D detection node (lifts the 2D detections using the depth image).
+    detect_3d_node_cmd = Node(
+        package="yolo_ros",
+        executable="detect_3d_node",
+        name="detect_3d_node",
+        namespace=namespace,
+        parameters=node_parameters(params_file, context, "detect_3d_node"),
+        condition=IfCondition(use_3d),
+    )
+
+    # C++ debug node (visualizes detections/tracks + RViz 3D markers).
+    debug_node_cmd = Node(
+        package="yolo_ros",
+        executable="debug_node",
+        name="debug_node",
+        namespace=namespace,
+        parameters=node_parameters(params_file, context, "debug_node"),
+        condition=IfCondition(use_debug),
+    )
+
+    return [yolo_node_cmd, tracking_node_cmd, detect_3d_node_cmd, debug_node_cmd]
 
 
 def generate_launch_description():
@@ -29,6 +78,13 @@ def generate_launch_description():
         "depth image + CameraInfo, see the config file)",
     )
 
+    use_debug = LaunchConfiguration("use_debug")
+    use_debug_cmd = DeclareLaunchArgument(
+        "use_debug",
+        default_value="True",
+        description="Whether to enable the debug/visualization node (True/False)",
+    )
+
     params_file = LaunchConfiguration("params_file")
     params_file_cmd = DeclareLaunchArgument(
         "params_file",
@@ -38,9 +94,9 @@ def generate_launch_description():
             "yolo.yaml",
         ),
         description="Path to the ROS 2 parameters file (YAML) with the config "
-        "for the yolo_node, tracking_node and debug_node blocks. "
-        "All tuning (model, topics, thresholds, QoS, tracker) lives "
-        "here; the launch makes no topic remaps.",
+        "for the yolo_node, tracking_node, detect_3d_node and debug_node "
+        "blocks. All tuning lives here; any parameter can be overridden by "
+        "the matching launch argument (run with --show-args for the list).",
     )
 
     namespace = LaunchConfiguration("namespace")
@@ -50,58 +106,17 @@ def generate_launch_description():
         description="Namespace for the nodes",
     )
 
-    # C++ inference node (ONNX Runtime, GPU). Everything — model, device,
-    # image topic, thresholds, QoS, enable/max_det — comes from the params file.
-    yolo_node_cmd = Node(
-        package="yolo_ros",
-        executable="yolo_node",
-        name="yolo_node",
-        namespace=namespace,
-        parameters=[params_file],
-    )
-
-    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`)
-    tracking_node_cmd = Node(
-        package="yolo_ros",
-        executable="tracking_node",
-        name="tracking_node",
-        namespace=namespace,
-        parameters=[params_file],
-        condition=IfCondition(use_tracking),
-    )
-
-    # C++ 3D detection node (lifts the 2D detections to 3D using the depth
-    # image; publishes on `detections_3d`). Topics and thresholds come from
-    # the params file.
-    detect_3d_node_cmd = Node(
-        package="yolo_ros",
-        executable="detect_3d_node",
-        name="detect_3d_node",
-        namespace=namespace,
-        parameters=[params_file],
-        condition=IfCondition(use_3d),
-    )
-
-    # C++ debug node (visualizes detections/tracks + RViz 3D markers). Reads
-    # its input detection stream from the params file (`config/yolo.yaml`,
-    # `/yolo/debug_node.detections_topic`).
-    debug_node_cmd = Node(
-        package="yolo_ros",
-        executable="debug_node",
-        name="debug_node",
-        namespace=namespace,
-        parameters=[params_file],
-    )
-
     return LaunchDescription(
         [
             use_tracking_cmd,
             use_3d_cmd,
+            use_debug_cmd,
             params_file_cmd,
             namespace_cmd,
-            yolo_node_cmd,
-            tracking_node_cmd,
-            detect_3d_node_cmd,
-            debug_node_cmd,
+            *declare_param_arguments(NODES),
+            OpaqueFunction(
+                function=_launch_setup,
+                args=[params_file, namespace, use_tracking, use_3d, use_debug],
+            ),
         ]
     )
