@@ -1,10 +1,15 @@
 # Copyright (c) 2026 Alejandro González Cantón
 # SPDX-License-Identifier: MIT
 
+import os
+import re
+
 import pytest
 from launch.substitutions import LaunchConfiguration
 
+import yolo_bringup.launch_params as launch_params
 from yolo_bringup.launch_params import (
+    NODE_PARAMS,
     build_overrides,
     declare_param_arguments,
     node_parameters,
@@ -115,3 +120,31 @@ def test_node_parameters_layers_over_file():
 def test_unknown_node_raises():
     with pytest.raises(KeyError, match="nope"):
         build_overrides(FakeContext({}), "nope")
+
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+_CPP_SOURCES = {
+    "yolo_node": ["yolo_ros/src/node/yolo_node.cpp"],
+    "tracking_node": [
+        "yolo_ros/src/node/tracking_node.cpp",
+        "yolo_ros/include/yolo_ros/tracking/byte_tracker.hpp",
+    ],
+    "detect_3d_node": ["yolo_ros/src/node/detect_3d_node.cpp"],
+    "debug_node": ["yolo_ros/src/node/debug_node.cpp"],
+}
+
+_DECLARE_PARAMETER = re.compile(r'declare_parameter(?:<[^>]*>)?\(\s*"([^"]+)"')
+
+
+@pytest.mark.parametrize("node", sorted(_CPP_SOURCES))
+def test_catalogue_matches_declared_cpp_params(node):
+    declared = set()
+    for relative_path in _CPP_SOURCES[node]:
+        with open(os.path.join(_REPO_ROOT, relative_path)) as source:
+            declared.update(_DECLARE_PARAMETER.findall(source.read()))
+    catalogue = {spec.name for spec in launch_params.NODE_PARAMS[node]}
+    assert declared == catalogue, (
+        f"{node}: C++-only={sorted(declared - catalogue)}, "
+        f"catalogue-only={sorted(catalogue - declared)}"
+    )

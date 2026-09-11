@@ -1,7 +1,8 @@
 # ROS 2 parameters file for the C++ detection pipeline
 # (yolo_bringup/launch/yolo.launch.py). The launch passes this file
-# verbatim as `parameters=[params_file]` and makes no topic remaps: every node
-# reads its input topic from a parameter here.
+# as `parameters=[params_file]` plus any command-line overrides from the
+# matching launch arguments, and makes no topic remaps: every node reads its
+# input topic from a parameter here.
 #
 # IMPORTANT: rclcpp loads `--params-file` sections by the node's fully
 # qualified name, so each block key includes the launch namespace (default
