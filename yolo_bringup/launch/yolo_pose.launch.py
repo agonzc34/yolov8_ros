@@ -6,13 +6,36 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
+
+    base = os.path.join(
+        get_package_share_directory("yolo_bringup"), "launch", "yolo.launch.py"
+    )
+
+    params_file = LaunchConfiguration("params_file")
+    params_file_cmd = DeclareLaunchArgument(
+        "params_file",
+        default_value=os.path.join(
+            get_package_share_directory("yolo_bringup"),
+            "config",
+            "yolo_pose.yaml",
+        ),
+        description="Path to the ROS 2 parameters file (YAML) for the pose "
+        "pipeline. Every parameter can also be overridden by the matching "
+        "launch argument (run with --show-args for the list).",
+    )
+
+    namespace = LaunchConfiguration("namespace")
+    namespace_cmd = DeclareLaunchArgument(
+        "namespace",
+        default_value="yolo",
+        description="Namespace for the nodes",
+    )
 
     use_tracking = LaunchConfiguration("use_tracking")
     use_tracking_cmd = DeclareLaunchArgument(
@@ -25,85 +48,35 @@ def generate_launch_description():
     use_3d_cmd = DeclareLaunchArgument(
         "use_3d",
         default_value="False",
-        description="Whether to enable the 3D detection node (needs a "
-        "depth image + CameraInfo, see the config file)",
+        description="Whether to enable the 3D detection node (needs a depth "
+        "image + CameraInfo, see the config file)",
     )
 
-    params_file = LaunchConfiguration("params_file")
-    params_file_cmd = DeclareLaunchArgument(
-        "params_file",
-        default_value=os.path.join(
-            get_package_share_directory("yolo_bringup"),
-            "config",
-            "yolo_pose.yaml",
-        ),
-        description="Path to the ROS 2 parameters file (YAML) with the config for "
-        "the yolo_node, tracking_node, detect_3d_node and debug_node "
-        "blocks. All tuning (model, topics, thresholds, QoS) lives "
-        "here; the launch makes no topic remaps.",
+    use_debug = LaunchConfiguration("use_debug")
+    use_debug_cmd = DeclareLaunchArgument(
+        "use_debug",
+        default_value="True",
+        description="Whether to enable the debug/visualization node (True/False)",
     )
 
-    namespace = LaunchConfiguration("namespace")
-    namespace_cmd = DeclareLaunchArgument(
-        "namespace",
-        default_value="yolo",
-        description="Namespace for the nodes",
-    )
-
-    # C++ inference node (ONNX Runtime, GPU) running the pose model.
-    # `model_type: Pose` in the params file forces the pose postprocessor
-    # (bounding boxes + COCO keypoints) regardless of the model file name.
-    yolo_node_cmd = Node(
-        package="yolo_ros",
-        executable="yolo_node",
-        name="yolo_node",
-        namespace=namespace,
-        parameters=[params_file],
-    )
-
-    # C++ tracking node (ByteTrack, Kalman-filtered ids on `tracking`);
-    # COCO keypoints pass through untouched.
-    tracking_node_cmd = Node(
-        package="yolo_ros",
-        executable="tracking_node",
-        name="tracking_node",
-        namespace=namespace,
-        parameters=[params_file],
-        condition=IfCondition(use_tracking),
-    )
-
-    # C++ 3D detection node (lifts the 2D detections to 3D using the depth
-    # image; 2D keypoints are back-projected to 3D when present; publishes on
-    # `detections_3d`). Topics and thresholds come from the params file.
-    detect_3d_node_cmd = Node(
-        package="yolo_ros",
-        executable="detect_3d_node",
-        name="detect_3d_node",
-        namespace=namespace,
-        parameters=[params_file],
-        condition=IfCondition(use_3d),
-    )
-
-    # C++ debug node (visualizes detections/keypoint skeleton/tracks + RViz 3D
-    # markers). Reads the detections topic from the params file (`tracking` by
-    # default so the tracked ids are shown when the tracking node is enabled).
-    debug_node_cmd = Node(
-        package="yolo_ros",
-        executable="debug_node",
-        name="debug_node",
-        namespace=namespace,
-        parameters=[params_file],
+    include = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(base),
+        launch_arguments={
+            "params_file": params_file,
+            "namespace": namespace,
+            "use_tracking": use_tracking,
+            "use_3d": use_3d,
+            "use_debug": use_debug,
+        }.items(),
     )
 
     return LaunchDescription(
         [
-            use_tracking_cmd,
-            use_3d_cmd,
             params_file_cmd,
             namespace_cmd,
-            yolo_node_cmd,
-            tracking_node_cmd,
-            detect_3d_node_cmd,
-            debug_node_cmd,
+            use_tracking_cmd,
+            use_3d_cmd,
+            use_debug_cmd,
+            include,
         ]
     )
