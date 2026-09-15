@@ -71,6 +71,8 @@ NODE_PARAMS = {
         ParamSpec("track_buffer", int),
         ParamSpec("match_thresh", float),
         ParamSpec("fuse_score", bool),
+        ParamSpec("gmc_method", str),
+        ParamSpec("gmc_downscale", int),
     ),
     "detect_3d_node": (
         ParamSpec("target_frame", str),

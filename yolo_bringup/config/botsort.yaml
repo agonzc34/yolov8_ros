@@ -1,0 +1,68 @@
+# ROS 2 parameters file for the C++ detection pipeline using the BoT-SORT
+# tracker (yolo_bringup/launch/yolo.launch.py). Use it with:
+#   ros2 launch yolo_bringup yolo.launch.py params_file:=<this file>
+#
+# Same structure as yolo.yaml; only the /yolo/tracking_node block differs
+# (tracker_type: botsort + camera-motion compensation). A bare
+# `tracker:=botsort` on yolo.yaml gives the motion-only variant
+# (gmc_method defaults to "none").
+#
+# IMPORTANT: rclcpp loads `--params-file` sections by the node's fully
+# qualified name, so each block key includes the launch namespace (default
+# "yolo"). If you change `namespace:=`, update the block names to match.
+/yolo/yolo_node:
+  ros__parameters:
+    model_type: auto # YOLO (=detect) | Segment | Pose | OBB | Classify | auto
+    model: /home/agonzc34/models/yolo26m.onnx
+    model_repo: ""
+    model_filename: ""
+    force_download: false
+    device: cuda:0 # device ordinal for the CUDA/TensorRT EPs
+    provider: auto                # auto = TensorRT -> CUDA -> CPU; or tensorrt/trt/cuda/cpu
+    trt_fp16_enable: true         # TensorRT FP16 (provider: tensorrt/auto)
+    trt_engine_cache_enable: true # persist built TensorRT engines
+    trt_engine_cache_path: ""     # empty -> ~/.cache/yolo_ros/trt_engines/<model>
+    threshold: 0.7
+    iou: 0.45
+    max_det: 300
+    enable: true
+    image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /head_front_camera/rgb/image_raw
+    n_threads: -1 # -1 = auto (only used by the CPU EP)
+    max_fps: 0 # 0 = unlimited (process every frame); >0 caps inference/publish rate in Hz
+
+/yolo/tracking_node:
+  ros__parameters:
+    # BoT-SORT (XYWH Kalman filter + camera-motion compensation, no ReID).
+    # Association defaults mirror ultralytics botsort.yaml; gmc_method here
+    # enables camera-motion compensation (the C++ default is "none").
+    tracker_type: botsort # tracker implementation key (bytetrack | botsort)
+    image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /head_front_camera/rgb/image_raw
+    track_high_thresh: 0.25 # first-stage association threshold
+    track_low_thresh: 0.1 # second-stage threshold for low-score matches
+    new_track_thresh: 0.25 # start a new track above this score
+    track_buffer: 30 # frames to keep lost tracks alive
+    match_thresh: 0.8 # association similarity threshold (IoU/cost)
+    fuse_score: true # fuse detection score with IoU cost for matching
+    gmc_method: sparseOptFlow # none | sparseOptFlow | orb | ecc
+    gmc_downscale: 2 # camera-motion downscale factor (>= 1)
+
+/yolo/detect_3d_node:
+  ros__parameters:
+    target_frame: base_link
+    depth_image_units_divisor: 1000 # raw depth units -> meters
+    depth_image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    depth_info_reliability: 2
+    depth_image_topic: /head_front_camera/depth/image_raw
+    depth_info_topic: /head_front_camera/depth/camera_info
+    detections_topic: tracking # lift the tracked stream; use "detections" if tracking is off
+    enable_orientation: false
+    min_seg_points_for_orientation: 20
+
+/yolo/debug_node:
+  ros__parameters:
+    image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
+    image_topic: /head_front_camera/rgb/image_raw
+    detections_topic: tracking
+    markers_topic: detections_3d

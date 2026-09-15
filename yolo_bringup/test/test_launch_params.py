@@ -128,6 +128,7 @@ _CPP_SOURCES = {
     "tracking_node": [
         "yolo_ros/src/node/tracking_node.cpp",
         "yolo_ros/include/yolo_ros/tracking/byte_tracker.hpp",
+        "yolo_ros/include/yolo_ros/tracking/bot_sort.hpp",
     ],
     "detect_3d_node": ["yolo_ros/src/node/detect_3d_node.cpp"],
     "debug_node": ["yolo_ros/src/node/debug_node.cpp"],
