@@ -43,6 +43,44 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## BoT-SORT
+
+The BoT-SORT tracker (`src/tracking/bot_sort.cpp`,
+`src/tracking/utils/camera_motion.cpp` and their headers) is based on the
+BoT-SORT paper and reference implementation:
+
+- Project: <https://github.com/NirAharon/BoT-SORT>
+- Paper: <https://arxiv.org/abs/2206.14651>
+- License: MIT
+
+The XYWH Kalman filter, the camera-motion compensator and the association
+pipeline are ported from the reference `tracker/kalman_filter.py`,
+`tracker/gmc.py` and `tracker/bot_sort.py`. The ReID/appearance branch
+(FastReID) is not included. The reference is itself based on the MIT-licensed
+ByteTrack reference (see above).
+
+MIT License
+
+Copyright (c) 2022 Nir Aharon
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 ## YOLOs-CPP
 
 Portions of the ONNX Runtime inference and YOLO detection/segmentation code were

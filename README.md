@@ -267,8 +267,8 @@ All topics are published under the launch namespace (default `yolo`):
 - **detections**: Objects detected by YOLO using the RGB images. Each object
   contains a bounding box and a class name, plus a mask or a list of keypoints
   for segmentation/pose models.
-- **tracking**: Objects detected and tracked by ByteTrack. Each object is
-  assigned a stable tracking ID.
+- **tracking**: Objects detected and tracked by ByteTrack (or BoT-SORT with
+  `tracker_type: botsort`). Each object is assigned a stable tracking ID.
 - **detections_3d**: 3D objects detected (with `use_3d:=True`). YOLO results
   are used to crop the depth image and create 3D bounding boxes and keypoints.
 - **debug_image**: Debug image showing the detected and tracked objects. It can
@@ -346,7 +346,9 @@ below; see `yolo_bringup/config/yolo*.yaml` for the complete set.
 
 ### Tracking node (`tracking_node`)
 
-- **tracker_type**: Tracker implementation key (default: `bytetrack`).
+- **tracker_type**: Tracker implementation key: `bytetrack` (default) or
+  `botsort`. BoT-SORT uses an XYWH Kalman filter and camera-motion
+  compensation (no ReID).
 - **image_topic** / **image_reliability**: Tracker image input and QoS.
 - **track_high_thresh**: First-stage association threshold (default: `0.25`).
 - **track_low_thresh**: Second-stage threshold for low-score matches (default: `0.1`).
@@ -354,6 +356,10 @@ below; see `yolo_bringup/config/yolo*.yaml` for the complete set.
 - **track_buffer**: Frames a lost track is kept alive (default: `30`).
 - **match_thresh**: Association similarity threshold (IoU/cost) (default: `0.8`).
 - **fuse_score**: Fuse detection score with IoU cost for matching (default: `true`).
+- **gmc_method** (BoT-SORT only): Camera-motion method: `none` (default),
+  `sparseOptFlow`, `orb` or `ecc`.
+- **gmc_downscale** (BoT-SORT only): Camera-motion downscale factor
+  (default: `2`).
 
 ### 3D detection node (`detect_3d_node`)
 
@@ -397,7 +403,7 @@ footprint low.
 
 ### Object Detection
 
-Standard behavior including ByteTrack object tracking.
+Standard behavior including ByteTrack (or BoT-SORT) object tracking.
 
 ```shell
 ros2 launch yolo_bringup yolo.launch.py
