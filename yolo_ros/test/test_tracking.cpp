@@ -5,14 +5,20 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <memory>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include <opencv2/opencv.hpp>
+
+#include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
 #include "yolo_ros/tracking/strack.hpp"
 #include "yolo_ros/tracking/tracker.hpp"
+#include "yolo_ros/tracking/utils/camera_motion.hpp"
 #include "yolo_ros/tracking/utils/lapjv.hpp"
 #include "yolo_ros/tracking/utils/matching.hpp"
 
@@ -120,12 +126,84 @@ TEST(Lapjv, IdentityCost) {
   }
 }
 
-TEST(STrack, TlwhToXyah) {
-  const auto xyah = STrack::tlwh_to_xyah({10, 20, 40, 20});
+TEST(KalmanFilterXYAH, BoxToMeasurement) {
+  utils::KalmanFilterXYAH kf;
+  const auto xyah = kf.box_to_measurement({10, 20, 40, 20});
   EXPECT_DOUBLE_EQ(xyah[0], 30.0);
   EXPECT_DOUBLE_EQ(xyah[1], 30.0);
   EXPECT_DOUBLE_EQ(xyah[2], 2.0);
   EXPECT_DOUBLE_EQ(xyah[3], 20.0);
+}
+
+TEST(KalmanFilterXYWH, InitiateSetsObservationAndZeroVelocity) {
+  utils::KalmanFilterXYWH kf;
+  const auto [mean, cov] = kf.initiate({10.0, 20.0, 30.0, 40.0});
+  EXPECT_DOUBLE_EQ(mean[0], 10.0);
+  EXPECT_DOUBLE_EQ(mean[1], 20.0);
+  EXPECT_DOUBLE_EQ(mean[2], 30.0);
+  EXPECT_DOUBLE_EQ(mean[3], 40.0);
+  for (int i = 4; i < 8; ++i) {
+    EXPECT_DOUBLE_EQ(mean[i], 0.0);
+  }
+  EXPECT_GT(cov[0][0], 0.0);
+  EXPECT_GT(cov[2][2], 0.0);
+  EXPECT_GT(cov[3][3], 0.0);
+}
+
+TEST(KalmanFilterXYWH, PredictAdvancesPositionAndKeepsSize) {
+  utils::KalmanFilterXYWH kf;
+  auto [mean, cov] = kf.initiate({10.0, 20.0, 30.0, 40.0});
+  mean[4] = 2.0;
+  mean[5] = -1.0;
+  const auto [pm, pc] = kf.predict(mean, cov);
+  EXPECT_DOUBLE_EQ(pm[0], 12.0);
+  EXPECT_DOUBLE_EQ(pm[1], 19.0);
+  EXPECT_DOUBLE_EQ(pm[2], 30.0);
+  EXPECT_DOUBLE_EQ(pm[3], 40.0);
+  EXPECT_GT(pc[0][0], cov[0][0]);
+}
+
+TEST(KalmanFilterXYWH, UpdatePullsTowardMeasurement) {
+  utils::KalmanFilterXYWH kf;
+  const auto [mean, cov] = kf.initiate({0.0, 0.0, 20.0, 20.0});
+  const auto [um, uc] = kf.update(mean, cov, {10.0, 0.0, 20.0, 20.0});
+  EXPECT_GT(um[0], 0.0);
+  EXPECT_LT(um[0], 10.0);
+  EXPECT_LT(uc[0][0], cov[0][0]);
+}
+
+TEST(KalmanFilterXYWH, BoxMeasurementRoundTrip) {
+  utils::KalmanFilterXYWH kf;
+  const std::array<float, 4> tlwh{10, 20, 40, 20};
+  const auto m = kf.box_to_measurement(tlwh);
+  EXPECT_DOUBLE_EQ(m[0], 30.0);
+  EXPECT_DOUBLE_EQ(m[1], 30.0);
+  EXPECT_DOUBLE_EQ(m[2], 40.0);
+  EXPECT_DOUBLE_EQ(m[3], 20.0);
+  utils::KalmanMean mean{};
+  mean[0] = m[0];
+  mean[1] = m[1];
+  mean[2] = m[2];
+  mean[3] = m[3];
+  const auto back = kf.measurement_to_tlwh(mean);
+  EXPECT_NEAR(back[0], 10.0, 1e-4);
+  EXPECT_NEAR(back[1], 20.0, 1e-4);
+  EXPECT_NEAR(back[2], 40.0, 1e-4);
+  EXPECT_NEAR(back[3], 20.0, 1e-4);
+}
+
+TEST(STrack, ApplyAffineWarpsPositionAndCovariance) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  STrack s({50, 50, 20, 20}, 0.9f, 0, 0);
+  s.activate(&kf, 1);
+  utils::KalmanAffine warp;
+  warp.t[0] = 3.0;
+  warp.t[1] = -2.0;
+  s.apply_affine(warp);
+  const auto xyxy = s.xyxy();
+  EXPECT_NEAR(xyxy[0], 43.0, 1e-3);
+  EXPECT_NEAR(xyxy[1], 38.0, 1e-3);
 }
 
 TEST(STrack, ActivateAssignsIdStateAndBox) {
@@ -311,6 +389,150 @@ TEST(TrackerFactory, UnknownTypeIsNull) {
 TEST(TrackerFactory, MismatchedParamsIsNull) {
   TrackerParams params;
   params.type = "bytetrack";
+  EXPECT_EQ(create_tracker(params), nullptr);
+}
+
+TEST(CameraMotionCompensator, NoneIsIdentityAndDisabled) {
+  utils::CameraMotionCompensator cmc("none");
+  EXPECT_FALSE(cmc.enabled());
+  const cv::Mat frame(16, 16, CV_8UC1, cv::Scalar(0));
+  const auto warp = cmc.apply(frame);
+  EXPECT_DOUBLE_EQ(warp.t[0], 0.0);
+  EXPECT_DOUBLE_EQ(warp.t[1], 0.0);
+  EXPECT_DOUBLE_EQ(warp.r[0][0], 1.0);
+}
+
+TEST(CameraMotionCompensator, EmptyFrameIsIdentity) {
+  utils::CameraMotionCompensator cmc("sparseOptFlow", 2);
+  EXPECT_TRUE(cmc.enabled());
+  const auto warp = cmc.apply(cv::Mat{});
+  EXPECT_DOUBLE_EQ(warp.t[0], 0.0);
+  EXPECT_DOUBLE_EQ(warp.t[1], 0.0);
+}
+
+TEST(CameraMotionCompensator, FirstFrameIsIdentity) {
+  utils::CameraMotionCompensator cmc("sparseOptFlow", 1);
+  const cv::Mat frame(64, 64, CV_8UC1, cv::Scalar(0));
+  const auto warp = cmc.apply(frame);
+  EXPECT_DOUBLE_EQ(warp.t[0], 0.0);
+  EXPECT_DOUBLE_EQ(warp.t[1], 0.0);
+}
+
+TEST(CameraMotionCompensator, SparseOptFlowRecoversTranslation) {
+  utils::CameraMotionCompensator cmc("sparseOptFlow", 1);
+  cv::Mat frame1(240, 320, CV_8UC1, cv::Scalar(0));
+  for (int y = 20; y < 220; y += 40) {
+    for (int x = 20; x < 300; x += 40) {
+      cv::circle(frame1, cv::Point(x, y), 5, cv::Scalar(255), cv::FILLED);
+    }
+  }
+  cv::Mat frame2;
+  const cv::Mat translate = (cv::Mat_<double>(2, 3) << 1, 0, 4, 0, 1, -3);
+  cv::warpAffine(frame1, frame2, translate, frame1.size());
+
+  const auto first = cmc.apply(frame1);
+  EXPECT_NEAR(first.t[0], 0.0, 1e-9);
+  const auto warp = cmc.apply(frame2);
+  EXPECT_NEAR(warp.t[0], 4.0, 1.0);
+  EXPECT_NEAR(warp.t[1], -3.0, 1.0);
+}
+
+TEST(CameraMotionCompensator, OrbAndEccAreFiniteAndIdentityOnFirstFrame) {
+  for (const std::string method : {"orb", "ecc"}) {
+    utils::CameraMotionCompensator cmc(method, 2);
+    EXPECT_TRUE(cmc.enabled()) << method;
+    cv::Mat frame(64, 64, CV_8UC1, cv::Scalar(0));
+    cv::rectangle(frame, cv::Rect(10, 10, 40, 40), cv::Scalar(255), cv::FILLED);
+    const auto warp = cmc.apply(frame);
+    EXPECT_TRUE(std::isfinite(warp.t[0])) << method;
+    EXPECT_TRUE(std::isfinite(warp.t[1])) << method;
+  }
+}
+
+TEST(BotSort, KeepsIdAcrossFrames) {
+  BotSort tracker(BotSortParams{});
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out1 = tracker.update(dets);
+  ASSERT_EQ(out1.size(), 1u);
+  const int id = out1[0].id;
+  dets[0].cx = 52.0f;
+  const auto out2 = tracker.update(dets);
+  ASSERT_EQ(out2.size(), 1u);
+  EXPECT_EQ(out2[0].id, id);
+}
+
+TEST(BotSort, EmitsUnconfirmedNewTrackImmediately) {
+  BotSort tracker(BotSortParams{});
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  ASSERT_EQ(tracker.update(dets).size(), 1u);
+  dets.push_back({500, 500, 20, 20, 0.9f, 0, 1});
+  const auto out = tracker.update(dets);
+  EXPECT_EQ(out.size(), 2u);
+}
+
+TEST(BotSort, BelowNewTrackThresholdStartsNoTrack) {
+  BotSortParams params;
+  params.new_track_thresh = 0.5;
+  BotSort tracker(params);
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.3f, 0, 0};
+  EXPECT_TRUE(tracker.update(dets).empty());
+}
+
+TEST(BotSort, ExpiresLostTrackAfterBuffer) {
+  BotSortParams params;
+  params.track_buffer = 1;
+  BotSort tracker(params);
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  const auto out1 = tracker.update(dets);
+  ASSERT_EQ(out1.size(), 1u);
+  const int id = out1[0].id;
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_TRUE(tracker.update({}).empty());
+  }
+  const auto out = tracker.update(dets);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_NE(out[0].id, id);
+}
+
+TEST(BotSort, ResetClearsStateAndRestartsIds) {
+  BotSort tracker(BotSortParams{});
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  ASSERT_EQ(tracker.update(dets).size(), 1u);
+  tracker.reset();
+  EXPECT_EQ(tracker.frame_id(), 0);
+  const auto out = tracker.update(dets);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0].id, 1);
+}
+
+TEST(BotSort, NeedsFrameFollowsGmcMethod) {
+  BotSortParams params;
+  BotSort without_gmc(params);
+  EXPECT_FALSE(without_gmc.needs_frame());
+  params.gmc_method = "sparseOptFlow";
+  BotSort with_gmc(params);
+  EXPECT_TRUE(with_gmc.needs_frame());
+}
+
+TEST(TrackerFactory, CreatesBotSort) {
+  BotSortParams params;
+  EXPECT_NE(create_tracker(params), nullptr);
+}
+
+TEST(TrackerFactory, BotSortCaseInsensitive) {
+  BotSortParams params;
+  params.type = "BotSort";
+  EXPECT_NE(create_tracker(params), nullptr);
+}
+
+TEST(TrackerFactory, BotSortMismatchedParamsIsNull) {
+  TrackerParams params;
+  params.type = "botsort";
   EXPECT_EQ(create_tracker(params), nullptr);
 }
 

@@ -46,7 +46,7 @@ public:
   /// sets bookkeeping fields.
   /// @param[in] kalman_filter Filter used to initiate the state.
   /// @param[in] frame_id Current frame index.
-  void activate(const utils::KalmanFilterXYAH *kalman_filter, int frame_id);
+  void activate(const utils::KalmanFilter *kalman_filter, int frame_id);
 
   /// @brief Reactivate a previously lost track with a new detection.
   /// @param[in] new_track Detection to re-associate.
@@ -64,6 +64,16 @@ public:
   void mark_lost() { state_ = TrackState::Lost; }
   /// @brief Mark the track as removed.
   void mark_removed() { state_ = TrackState::Removed; }
+
+  /// @brief Apply a camera-motion warp to the Kalman state (BoT-SORT CMC).
+  ///
+  /// Warps the (mean, covariance) pair the same way the reference `multi_gmc`
+  /// does: the 2x2 linear part is lifted to the 8x8 block-diagonal
+  /// kron(I4, R), the state mean is rotated/scaled and the translation added to
+  /// the box center. No-op before the track has a Kalman state.
+  /// @param[in] warp Affine warp mapping the previous frame onto this one.
+  void apply_affine(const utils::KalmanAffine &warp);
+
   /// @brief Frame index at which the track last ended.
   /// @return The internal frame_id_.
   int end_frame() const { return frame_id_; }
@@ -106,11 +116,6 @@ public:
   /// @return The tlwh box.
   std::array<float, 4> tlwh() const;
 
-  /// @brief Convert tlwh to (center-x, center-y, aspect = w / h, height).
-  /// @param[in] tlwh Box as top-left x, top-left y, width, height.
-  /// @return The xyah box.
-  static std::array<double, 4> tlwh_to_xyah(const std::array<float, 4> &tlwh);
-
   /// @brief Global track-id counter shared by all STrack instances.
   static int count_;
 
@@ -118,8 +123,8 @@ private:
   /// @brief Original detection box (top-left x, top-left y, width, height).
   std::array<float, 4> _tlwh_{}; // original detection box (tlwh)
   /// @brief Kalman filter used for predict/update (non-owning).
-  const utils::KalmanFilterXYAH *kf_ = nullptr;
-  /// @brief Kalman state mean (x, y, a, h, vx, vy, va, vh).
+  const utils::KalmanFilter *kf_ = nullptr;
+  /// @brief Kalman state mean (x, y, s1, s2, vx, vy, vs1, vs2).
   utils::KalmanMean mean_{};
   /// @brief Kalman state covariance (8x8).
   utils::KalmanCovariance covariance_{};

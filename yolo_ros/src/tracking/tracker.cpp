@@ -7,7 +7,10 @@
 #include <cctype>
 #include <string>
 
+#include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace yolo_ros::tracking {
 
@@ -20,6 +23,11 @@ std::string lowercase(std::string s) {
 }
 
 } // namespace
+
+std::vector<Track>
+Tracker::update(const std::vector<TrackDetection> &detections) {
+  return update(detections, cv::Mat{});
+}
 
 std::unique_ptr<Tracker> create_tracker(const TrackerParams &params) {
   const std::string type = lowercase(params.type);
@@ -40,6 +48,14 @@ std::unique_ptr<Tracker> create_tracker(const TrackerParams &params) {
       return nullptr;
     }
     return std::make_unique<ByteTrack>(*byte_params);
+  }
+
+  if (type == "botsort") {
+    const auto *bot_params = dynamic_cast<const BotSortParams *>(&params);
+    if (bot_params == nullptr) {
+      return nullptr;
+    }
+    return std::make_unique<BotSort>(*bot_params);
   }
 
   return nullptr;

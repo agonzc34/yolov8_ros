@@ -1,13 +1,15 @@
 // Copyright (c) 2026 Alejandro González Cantón
 // Portions Copyright (c) 2021 Yifu Zhang
+// Portions Copyright (c) 2022 Nir Aharon
 // SPDX-License-Identifier: MIT
 
-#include "yolo_ros/tracking/byte_tracker.hpp"
+#include "yolo_ros/tracking/bot_sort.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
 #include <utility>
+#include <vector>
 
 #include "yolo_ros/tracking/utils/matching.hpp"
 
@@ -15,11 +17,13 @@ namespace yolo_ros::tracking {
 
 using namespace utils;
 
-ByteTrack::ByteTrack(const ByteTrackParams &params) : params_(params) {}
+BotSort::BotSort(const BotSortParams &params)
+    : params_(params), cmc_(params.gmc_method, params.gmc_downscale) {}
 
-std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
-                                     const cv::Mat &frame) {
-  (void)frame; // ByteTrack does not use camera-motion compensation
+bool BotSort::needs_frame() const { return cmc_.enabled(); }
+
+std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
+                                   const cv::Mat &frame) {
   ++frame_id_;
   std::vector<std::shared_ptr<STrack>> activated_stracks;
   std::vector<std::shared_ptr<STrack>> refind_stracks;
@@ -27,17 +31,17 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
   std::vector<std::shared_ptr<STrack>> removed_stracks;
 
   // --- Step 1: split detections into high / low score pools.
-  // ------------------
+  // BoT-SORT uses strict > on the high threshold, unlike ByteTrack.
   std::vector<std::shared_ptr<STrack>> detections;        // high-score
   std::vector<std::shared_ptr<STrack>> detections_second; // low-score
   for (const auto &d : dets) {
     if (d.w <= 0 || d.h <= 0) {
-      continue; // guard: the XYAH measurement divides by height
+      continue; // guard: the XYWH measurement keeps w/h direct
     }
     const std::array<float, 4> xywh = {d.cx, d.cy, d.w, d.h};
     auto detection =
         std::make_shared<STrack>(xywh, d.score, d.class_id, d.index);
-    if (d.score >= params_.track_high_thresh) {
+    if (d.score > params_.track_high_thresh) {
       detections.push_back(detection);
     } else if (d.score > params_.track_low_thresh &&
                d.score < params_.track_high_thresh) {
@@ -46,7 +50,6 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
   }
 
   // --- Step 2: split the tracked pool into unconfirmed / confirmed.
-  // -----------
   std::vector<std::shared_ptr<STrack>> unconfirmed;
   std::vector<std::shared_ptr<STrack>> tracked;
   for (auto &t : tracked_stracks_) {
@@ -54,15 +57,22 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
   }
 
   // --- Step 3: joint pool (confirmed tracked + lost) and Kalman predict.
-  // ------
   std::vector<std::shared_ptr<STrack>> strack_pool =
       joint_stracks(tracked, lost_stracks_);
   for (auto &t : strack_pool) {
     t->predict();
   }
 
-  // --- Step 4: first association, high-score detections.
-  // ----------------------
+  // --- Step 4: camera-motion compensation of the predicted boxes.
+  const KalmanAffine warp = cmc_.apply(frame);
+  for (auto &t : strack_pool) {
+    t->apply_affine(warp);
+  }
+  for (auto &t : unconfirmed) {
+    t->apply_affine(warp);
+  }
+
+  // --- Step 5: first association, high-score detections.
   std::vector<std::pair<int, int>> matches;
   std::vector<int> u_track;
   std::vector<int> u_detection;
@@ -86,8 +96,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
     }
   }
 
-  // --- Step 5: second association with low-score detections.
-  // -------------------
+  // --- Step 6: second association with low-score detections.
   std::vector<std::shared_ptr<STrack>> r_tracked_stracks;
   for (int i : u_track) {
     if (strack_pool[i]->state() == TrackState::Tracked) {
@@ -124,8 +133,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
     }
   }
 
-  // --- Step 6: associate unconfirmed tracks with leftover high detections.
-  // ----
+  // --- Step 7: associate unconfirmed tracks with leftover high detections.
   std::vector<std::shared_ptr<STrack>> detections_left;
   for (int i : u_detection) {
     detections_left.push_back(detections[i]);
@@ -154,8 +162,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
     std::iota(u_detection_left.begin(), u_detection_left.end(), 0);
   }
 
-  // --- Step 7: activate brand-new tracks.
-  // --------------------------------------
+  // --- Step 8: activate brand-new tracks.
   for (int inew : u_detection_left) {
     auto track = detections_left[inew];
     if (track->score() < params_.new_track_thresh) {
@@ -165,8 +172,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
     activated_stracks.push_back(track);
   }
 
-  // --- Step 8: remove lost tracks aged past the buffer.
-  // ------------------------
+  // --- Step 9: remove lost tracks aged past the buffer.
   for (auto &track : lost_stracks_) {
     if (frame_id_ - track->end_frame() > params_.track_buffer) {
       track->mark_removed();
@@ -174,8 +180,7 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
     }
   }
 
-  // --- Step 9: update the persistent pools in the original ByteTrack order.
-  // ----
+  // --- Step 10: update the persistent pools (reference merge order).
   tracked_stracks_.erase(
       std::remove_if(tracked_stracks_.begin(), tracked_stracks_.end(),
                      [](const std::shared_ptr<STrack> &track) {
@@ -200,14 +205,11 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
   tracked_stracks_ = std::move(deduplicated.first);
   lost_stracks_ = std::move(deduplicated.second);
 
-  // --- Step 10: format output (only activated tracks).
-  // --------------------------
+  // --- Step 11: format output (all tracked; the reference drops the
+  // is_activated filter ByteTrack uses).
   std::vector<Track> output;
   output.reserve(tracked_stracks_.size());
   for (auto &t : tracked_stracks_) {
-    if (!t->is_activated()) {
-      continue;
-    }
     const auto xyxy = t->xyxy();
     Track tr;
     tr.id = t->track_id();
@@ -223,12 +225,13 @@ std::vector<Track> ByteTrack::update(const std::vector<TrackDetection> &dets,
   return output;
 }
 
-void ByteTrack::reset() {
+void BotSort::reset() {
   tracked_stracks_.clear();
   lost_stracks_.clear();
   removed_stracks_.clear();
   frame_id_ = 0;
-  kalman_filter_ = KalmanFilterXYAH();
+  kalman_filter_ = KalmanFilterXYWH();
+  cmc_.reset();
   STrack::reset_id();
 }
 

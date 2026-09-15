@@ -4,6 +4,8 @@
 
 #include "yolo_ros/tracking/strack.hpp"
 
+#include <cstddef>
+
 namespace yolo_ros::tracking {
 
 using namespace utils;
@@ -45,10 +47,10 @@ void STrack::predict() {
   covariance_ = predicted.second;
 }
 
-void STrack::activate(const KalmanFilterXYAH *kalman_filter, int frame_id) {
+void STrack::activate(const utils::KalmanFilter *kalman_filter, int frame_id) {
   kf_ = kalman_filter;
   track_id_ = next_id();
-  auto initiated = kf_->initiate(tlwh_to_xyah(_tlwh_));
+  auto initiated = kf_->initiate(kf_->box_to_measurement(_tlwh_));
   mean_ = initiated.first;
   covariance_ = initiated.second;
   has_state_ = true;
@@ -61,8 +63,8 @@ void STrack::activate(const KalmanFilterXYAH *kalman_filter, int frame_id) {
 }
 
 void STrack::re_activate(const STrack &new_track, int frame_id, bool new_id) {
-  auto updated =
-      kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
+  auto updated = kf_->update(mean_, covariance_,
+                             kf_->box_to_measurement(new_track._tlwh_));
   mean_ = updated.first;
   covariance_ = updated.second;
 
@@ -82,8 +84,8 @@ void STrack::update(const STrack &new_track, int frame_id) {
   frame_id_ = frame_id;
   tracklet_len_ += 1;
 
-  auto updated =
-      kf_->update(mean_, covariance_, tlwh_to_xyah(new_track._tlwh_));
+  auto updated = kf_->update(mean_, covariance_,
+                             kf_->box_to_measurement(new_track._tlwh_));
   mean_ = updated.first;
   covariance_ = updated.second;
   state_ = TrackState::Tracked;
@@ -100,12 +102,7 @@ std::array<float, 4> STrack::tlwh() const {
   if (!has_state_) {
     return _tlwh_;
   }
-  // mean: (mx, my, aspect, height) -> (x, y, w, h)
-  const float w = static_cast<float>(mean_[2] * mean_[3]);
-  const float h = static_cast<float>(mean_[3]);
-  const float x = static_cast<float>(mean_[0] - mean_[2] * mean_[3] / 2.0);
-  const float y = static_cast<float>(mean_[1] - mean_[3] / 2.0);
-  return {x, y, w, h};
+  return kf_->measurement_to_tlwh(mean_);
 }
 
 std::array<float, 4> STrack::xyxy() const {
@@ -122,14 +119,54 @@ std::array<float, 4> STrack::xywh() const {
   return box;
 }
 
-std::array<double, 4> STrack::tlwh_to_xyah(const std::array<float, 4> &tlwh) {
-  std::array<double, 4> out;
-  out[0] = static_cast<double>(tlwh[0] + tlwh[2] / 2);
-  out[1] = static_cast<double>(tlwh[1] + tlwh[3] / 2);
-  out[2] = static_cast<double>(tlwh[2]) /
-           tlwh[3]; // aspect (h > 0 guaranteed upstream)
-  out[3] = static_cast<double>(tlwh[3]);
-  return out;
+void STrack::apply_affine(const utils::KalmanAffine &warp) {
+  if (!has_state_) {
+    return;
+  }
+  // R8 = kron(I4, R): the 2x2 linear part repeated as four 2x2 diagonal blocks.
+  double r8[8][8] = {};
+  for (std::size_t b = 0; b < 4; ++b) {
+    r8[2 * b][2 * b] = warp.r[0][0];
+    r8[2 * b][2 * b + 1] = warp.r[0][1];
+    r8[2 * b + 1][2 * b] = warp.r[1][0];
+    r8[2 * b + 1][2 * b + 1] = warp.r[1][1];
+  }
+
+  KalmanMean new_mean{};
+  for (std::size_t i = 0; i < 8; ++i) {
+    double acc = 0.0;
+    for (std::size_t j = 0; j < 8; ++j) {
+      acc += r8[i][j] * mean_[j];
+    }
+    new_mean[i] = acc;
+  }
+  new_mean[0] += warp.t[0];
+  new_mean[1] += warp.t[1];
+
+  // cov = R8 * cov * R8^T
+  KalmanCovariance tmp{};
+  for (std::size_t i = 0; i < 8; ++i) {
+    for (std::size_t j = 0; j < 8; ++j) {
+      double acc = 0.0;
+      for (std::size_t k = 0; k < 8; ++k) {
+        acc += r8[i][k] * covariance_[k][j];
+      }
+      tmp[i][j] = acc;
+    }
+  }
+  KalmanCovariance new_cov{};
+  for (std::size_t i = 0; i < 8; ++i) {
+    for (std::size_t j = 0; j < 8; ++j) {
+      double acc = 0.0;
+      for (std::size_t k = 0; k < 8; ++k) {
+        acc += tmp[i][k] * r8[j][k];
+      }
+      new_cov[i][j] = acc;
+    }
+  }
+
+  mean_ = new_mean;
+  covariance_ = new_cov;
 }
 
 } // namespace yolo_ros::tracking

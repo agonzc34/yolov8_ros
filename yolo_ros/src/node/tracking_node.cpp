@@ -9,7 +9,10 @@
 #include <string>
 #include <vector>
 
+#include <cv_bridge/cv_bridge.h>
+
 #include "rclcpp/exceptions.hpp"
+#include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
 
 namespace yolo_ros::node {
@@ -125,6 +128,8 @@ void TrackingNode::declare_params() {
 
   if (tracker_type == "bytetrack") {
     yolo_ros::tracking::declare_byte_track_params(*this);
+  } else if (tracker_type == "botsort") {
+    yolo_ros::tracking::declare_bot_sort_params(*this);
   }
   // --- add new trackers here: declare their parameters when selected ---
 }
@@ -148,13 +153,24 @@ void TrackingNode::load_params() {
                    "[%s] ByteTrack parameters not declared: %s",
                    this->get_name(), e.what());
     }
+  } else if (tracker_type == "botsort") {
+    try {
+      const yolo_ros::tracking::BotSortParams params =
+          yolo_ros::tracking::load_bot_sort_params(*this);
+      this->tracker_ = yolo_ros::tracking::create_tracker(params);
+    } catch (const rclcpp::exceptions::ParameterNotDeclaredException &e) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "[%s] BoT-SORT parameters not declared: %s",
+                   this->get_name(), e.what());
+    }
   }
   // --- add new trackers here: load their parameters and create the tracker ---
 
   if (this->tracker_ == nullptr) {
     RCLCPP_ERROR(this->get_logger(),
                  "[%s] No tracker created for tracker_type '%s' "
-                 "(supported: bytetrack); forwarding detections unchanged",
+                 "(supported: bytetrack, botsort); forwarding detections "
+                 "unchanged",
                  this->get_name(), tracker_type.c_str());
   } else {
     RCLCPP_INFO(this->get_logger(), "[%s] Using tracker '%s'", this->get_name(),
@@ -201,7 +217,21 @@ void TrackingNode::recieve_callback(
     dets.push_back(td);
   }
 
-  const auto tracks = this->tracker_->update(dets);
+  // Camera-motion compensation needs the current frame; decode it only when
+  // the active tracker actually consumes it (BoT-SORT with gmc_method != none).
+  cv::Mat frame;
+  if (this->tracker_->needs_frame()) {
+    try {
+      frame = cv_bridge::toCvShare(msg_image, "bgr8")->image;
+    } catch (const cv_bridge::Exception &e) {
+      RCLCPP_WARN_ONCE(this->get_logger(),
+                       "[%s] Image conversion failed (%s); running the tracker "
+                       "without camera-motion compensation",
+                       this->get_name(), e.what());
+    }
+  }
+
+  const auto tracks = this->tracker_->update(dets, frame);
 
   for (const auto &track : tracks) {
     if (track.index < 0 ||

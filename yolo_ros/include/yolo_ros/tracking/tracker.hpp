@@ -12,6 +12,12 @@
 #include <string>
 #include <vector>
 
+/// @brief cv::Mat is only used as a reference in this header; the definition is
+/// pulled in by the implementations that actually touch the frame.
+namespace cv {
+class Mat;
+} // namespace cv
+
 /// @addtogroup yolo_tracking
 /// @{
 namespace yolo_ros::tracking {
@@ -72,9 +78,24 @@ public:
   /// @p detections should already be NMS-filtered (implementations re-split
   /// them by confidence as their algorithm requires).
   /// @param[in] detections NMS-filtered detections for the current frame.
+  /// @param[in] frame Current camera frame, empty when the tracker does not
+  /// consume it (see needs_frame()). Valid only for this call.
   /// @return The currently active (activated) tracked objects.
   virtual std::vector<Track>
-  update(const std::vector<TrackDetection> &detections) = 0;
+  update(const std::vector<TrackDetection> &detections,
+         const cv::Mat &frame) = 0;
+
+  /// @brief Advance the tracker one frame without an image.
+  ///
+  /// Convenience overload for trackers that do not need the frame; forwards an
+  /// empty cv::Mat to update().
+  /// @param[in] detections NMS-filtered detections for the current frame.
+  /// @return The currently active (activated) tracked objects.
+  std::vector<Track> update(const std::vector<TrackDetection> &detections);
+
+  /// @brief Whether update() consumes the frame argument.
+  /// @return True for trackers that use camera-motion compensation.
+  virtual bool needs_frame() const { return false; }
 
   /// @brief Clear all track state and the track-id counter.
   virtual void reset() = 0;

@@ -98,9 +98,11 @@ add_executable(tracking_node
 
   src/tracking/tracker.cpp
   src/tracking/byte_tracker.cpp
+  src/tracking/bot_sort.cpp
   src/tracking/strack.cpp
 
   src/tracking/utils/kalman_filter.cpp
+  src/tracking/utils/camera_motion.cpp
   src/tracking/utils/lapjv.cpp
   src/tracking/utils/matching.cpp
 )
@@ -116,6 +118,11 @@ ament_target_dependencies(tracking_node
   yolo_msgs
   rclcpp_lifecycle
   message_filters
+  cv_bridge
+)
+
+target_link_libraries(tracking_node
+  ${OpenCV_LIBS}
 )
 
 # Install 3D detection node
@@ -202,14 +209,19 @@ if(BUILD_TESTING)
     test/test_tracking.cpp
     src/tracking/tracker.cpp
     src/tracking/byte_tracker.cpp
+    src/tracking/bot_sort.cpp
     src/tracking/strack.cpp
     src/tracking/utils/kalman_filter.cpp
+    src/tracking/utils/camera_motion.cpp
     src/tracking/utils/lapjv.cpp
     src/tracking/utils/matching.cpp
   )
   target_include_directories(test_tracking PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+  )
+  target_link_libraries(test_tracking
+    ${OpenCV_LIBS}
   )
 
   ament_add_gtest(test_depth_utils
