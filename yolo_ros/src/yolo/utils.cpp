@@ -30,6 +30,12 @@ cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
   return img_out;
 }
 
+cv::Mat bgr_to_rgb(const cv::Mat &img) {
+  cv::Mat rgb;
+  cv::cvtColor(img, rgb, cv::COLOR_BGR2RGB);
+  return rgb;
+}
+
 yolo_ros::yolo::utils::Box scale_box(const yolo_ros::yolo::utils::Box &box,
                                      const cv::Size &original_image_size,
                                      const cv::Size &resized_image_size) {

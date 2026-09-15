@@ -162,6 +162,43 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   // Load the class names (ONNX graph metadata first, coco.names as fallback).
   this->load_class_names();
 
+  // Resolve the input channel order: parameter first, then the ONNX metadata
+  // ("input_color") which our export tool stamps. Graphs cannot encode it.
+  {
+    std::string color = params.input_color;
+    std::transform(color.begin(), color.end(), color.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    this->input_is_rgb_ = true; // ultralytics exports expect RGB
+    if (color == "bgr") {
+      this->input_is_rgb_ = false;
+    } else if (!color.empty() && color != "rgb") {
+      std::cerr << "Unknown input_color \"" << params.input_color
+                << "\"; using rgb." << std::endl;
+    }
+    try {
+      const Ort::ModelMetadata metadata = this->session.GetModelMetadata();
+      Ort::AllocatorWithDefaultOptions allocator;
+      auto value = metadata.LookupCustomMetadataMapAllocated(
+          "input_color", static_cast<OrtAllocator *>(allocator));
+      if (value) {
+        std::string meta(value.get());
+        std::transform(meta.begin(), meta.end(), meta.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (meta == "rgb") {
+          this->input_is_rgb_ = true;
+        } else if (meta == "bgr") {
+          this->input_is_rgb_ = false;
+        }
+      }
+    } catch (const Ort::Exception &e) {
+      std::cerr << "Warning: could not read \"input_color\" from the ONNX "
+                   "metadata: "
+                << e.what() << std::endl;
+    }
+    std::cout << "Input channel order: "
+              << (this->input_is_rgb_ ? "rgb" : "bgr") << std::endl;
+  }
+
   this->memory_info =
       Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
@@ -253,6 +290,10 @@ void yolo_ros::engine::Model::preprocess(
   cv::Mat resized_image = yolo_ros::yolo::utils::letterbox(
       image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]),
       cv::Scalar(114, 114, 114));
+
+  if (this->input_is_rgb_) {
+    resized_image = yolo_ros::yolo::utils::bgr_to_rgb(resized_image);
+  }
 
   // Normalize to float (OpenCV-optimized), then split channels straight into
   // the persistent buffer. This keeps the fast SIMD convertTo+split path while

@@ -157,6 +157,19 @@ struct YoloParams {
   /// (softmax probabilities, sorted descending).
   int top_k = 5; // classification: number of top classes to publish per
                  // image (softmax probabilities, sorted descending)
+  /// @brief Expected input channel order: "rgb" (default; ultralytics exports
+  /// expect RGB) or "bgr" (OpenCV default). ONNX graphs do not encode this; the
+  /// node reads it from the ONNX metadata ("input_color") when present and
+  /// otherwise uses this parameter.
+  std::string input_color = "rgb";
+  /// @brief Runtime text prompts: local path to the text-encoder ONNX.
+  std::string text_encoder;
+  /// @brief Runtime text prompts: Hugging Face repo for the text encoder.
+  std::string text_encoder_repo;
+  /// @brief Runtime text prompts: file inside the Hugging Face repo.
+  std::string text_encoder_filename;
+  /// @brief Runtime text prompts: comma-separated initial class names.
+  std::string classes;
 };
 
 /// @brief Intersection over union of two boxes.
@@ -227,6 +240,10 @@ std::vector<int> nms(std::vector<BoxT> &boxes, float iou_threshold,
 /// @return The letterboxed image.
 cv::Mat letterbox(const cv::Mat &img, const cv::Size &new_shape,
                   const cv::Scalar &color);
+/// @brief Convert an OpenCV BGR image to RGB (channel order only).
+/// @param[in] img Source BGR image.
+/// @return A new RGB image.
+cv::Mat bgr_to_rgb(const cv::Mat &img);
 /// @brief Crop/pad a letterboxed image back to the original image dimensions.
 /// @param[in] letterboxed Letterboxed image.
 /// @param[in] original_image_size Size of the original camera image.

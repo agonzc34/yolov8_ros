@@ -99,6 +99,9 @@ private:
   /// @brief Reusable CHW input blob (1*3*H*W floats).
   std::vector<float> input_buffer_;
 
+  /// @brief Resolved input channel order (true = RGB, false = BGR).
+  bool input_is_rgb_{false};
+
   // Vectors to hold allocated input and output node names
   /// @brief Allocated storage backing inputNames.
   std::vector<Ort::AllocatedStringPtr> input_node_name_alloc_strings;

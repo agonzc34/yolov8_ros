@@ -84,6 +84,15 @@ TEST(Letterbox, PreservesAspectAndPads) {
   EXPECT_EQ(out.at<cv::Vec3b>(4, 4)[0], 255); // genuine content
 }
 
+TEST(BgrToRgb, SwapsRedAndBlue) {
+  cv::Mat bgr(1, 1, CV_8UC3, cv::Scalar(10, 20, 30)); // B=10, G=20, R=30
+  const cv::Mat rgb = bgr_to_rgb(bgr);
+  const cv::Vec3b px = rgb.at<cv::Vec3b>(0, 0);
+  EXPECT_EQ(px[0], 30);
+  EXPECT_EQ(px[1], 20);
+  EXPECT_EQ(px[2], 10);
+}
+
 TEST(InverseLetterbox, RestoresOriginalSize) {
   cv::Mat letterboxed(8, 8, CV_8U, cv::Scalar(200));
   letterboxed.rowRange(1, 7).setTo(cv::Scalar(50));
