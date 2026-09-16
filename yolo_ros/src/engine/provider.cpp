@@ -10,7 +10,9 @@
 #include <system_error>
 #include <vector>
 
+#if YOLO_ORT_USE_TENSORRT
 #include "tensorrt_provider_factory.h"
+#endif
 
 namespace yolo_ros::engine {
 namespace {
@@ -39,11 +41,13 @@ int parse_device_id(const std::string &device) {
 }
 
 bool tensorrt_available() {
+#if YOLO_ORT_USE_TENSORRT
   for (const std::string &name : Ort::GetAvailableProviders()) {
     if (to_lower(name) == "tensorrtexecutionprovider") {
       return true;
     }
   }
+#endif
   return false;
 }
 
@@ -53,8 +57,12 @@ Ort::SessionOptions build_session_options(int device_id) {
   // The TensorRT EP owns all GPU execution; ORT's built-in CPU EP handles any
   // nodes TensorRT does not claim.
   options.SetIntraOpNumThreads(1);
+#if YOLO_ORT_USE_TENSORRT
   Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(
       static_cast<OrtSessionOptions *>(options), device_id));
+#else
+  (void)device_id;
+#endif
   return options;
 }
 

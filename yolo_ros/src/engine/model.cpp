@@ -26,9 +26,9 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   this->iou_threshold = params.iou;
   std::string model_path = params.model_path;
 
-  // This branch always uses the TensorRT execution provider; there is no
-  // provider selection.
-  if (!tensorrt_available()) {
+  // The TensorRT EP is the only GPU provider on this branch (no provider
+  // selection). CPU-only builds (smoke tests) set YOLO_ORT_USE_TENSORRT=0.
+  if (kTensorrtEnabled && !tensorrt_available()) {
     throw std::runtime_error(
         "The linked ONNX Runtime build has no TensorRT execution provider. "
         "Rebuild ONNX Runtime 1.6 with --use_tensorrt.");
@@ -38,9 +38,16 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   this->session_options = build_session_options(device_id);
   this->session =
       Ort::Session(this->env, model_path.c_str(), this->session_options);
-  this->active_provider_ = "tensorrt";
-  std::cout << "Using execution provider: tensorrt (device " << device_id << ")"
-            << std::endl;
+  if (kTensorrtEnabled) {
+    this->active_provider_ = "tensorrt";
+    std::cout << "Using execution provider: tensorrt (device " << device_id
+              << ")" << std::endl;
+  } else {
+    this->active_provider_ = "cpu";
+    std::cout << "Using execution provider: cpu (TensorRT disabled at build "
+                 "time)"
+              << std::endl;
+  }
 
   Ort::AllocatorWithDefaultOptions allocator;
 
