@@ -364,11 +364,16 @@ exported with `opset<=12` (ORT 1.6 = ONNX 1.7):
 
 ```bash
 uv run --with ultralytics --with onnx --with onnxslim \
-  yolo export model=yolo26m.pt format=onnx opset=12 imgsz=640 nms=True
+  yolo export model=yolo26m.pt format=onnx opset=12 imgsz=640
 ```
+
+Do **not** pass `nms=True`: the baked end-to-end head introduces TRT-hostile ops
+(`NonZero`, `ScatterND`, `Where`) that ONNX Runtime 1.6 / TensorRT 7 cannot build
+(`getPluginCreator could not find plugin NonZero`). The raw export yields
+`[1, 4+nc, N]` and the C++ `YoloDetect` applies NMS itself, so **iou** below is
+the one that matters.
 - **threshold**: Detection confidence threshold (default: `0.7`).
-- **iou**: IoU threshold for NMS. Re-tunes the C++ NMS for raw-output exports
-  (segment/pose/OBB) and has no effect on baked-NMS models (default: `0.45`).
+- **iou**: IoU threshold for the C++ NMS (default: `0.45`).
 - **max_det**: Maximum number of detections per image (default: `300`).
 - **enable**: Whether to start with inference enabled (default: `true`).
 - **image_topic**: Input RGB image topic (default: machine-specific).
