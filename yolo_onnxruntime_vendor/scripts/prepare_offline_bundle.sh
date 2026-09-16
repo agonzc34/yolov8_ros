@@ -26,6 +26,11 @@ OUT_DIR="${1:-${SCRIPT_DIR}/../offline-bundle}"
 MODELS_DIR="${MODELS_DIR:-/home/agonzc34/models}"
 MODELS="${MODELS:-yolo26m.onnx yolo11n-seg.onnx yolo11n-segment.onnx yolo11n-pose.onnx yolo26m-pose.onnx}"
 ORT_GIT_URL="https://github.com/microsoft/onnxruntime"
+HFHUB_GIT_URL="https://github.com/agonzc34/huggingface-hub-cpp"
+HFHUB_TAG="1.1.4"
+
+# The colcon workspace root (repo is <workspace>/src/yolov8_ros/).
+WORKSPACE="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
 for tool in git tar; do
   command -v "${tool}" >/dev/null 2>&1 || {
@@ -69,6 +74,14 @@ if [[ "${found}" -eq 0 ]]; then
   exit 1
 fi
 
+# yolo_hfhub_vendor pulls huggingface-hub-cpp with CMake FetchContent at
+# configure time, which needs network. Bundle the source and let the robot build
+# pass -DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=<this dir>.
+echo "==> Bundling huggingface-hub-cpp (${HFHUB_TAG})..."
+git clone --depth 1 -b "${HFHUB_TAG}" "${HFHUB_GIT_URL}" \
+  "${OUT_DIR}/huggingface-hub-cpp"
+rm -rf "${OUT_DIR}/huggingface-hub-cpp/.git"
+
 BUNDLE="${OUT_DIR}.tar.gz"
 echo "==> Creating ${BUNDLE}..."
 tar -C "$(dirname "${OUT_DIR}")" -czf "${BUNDLE}" "$(basename "${OUT_DIR}")"
@@ -78,14 +91,21 @@ cat <<EOF
 
 Bundle ready: ${BUNDLE} (${SIZE})
 
-Copy it to the robot (replace <user>@<robot>):
-  scp "${BUNDLE}" <user>@<robot>:~/
+1. Copy the workspace source and the bundle to the robot (replace <user>@<robot>):
+     rsync -a --exclude build --exclude install --exclude log \\
+         "${WORKSPACE}/" <user>@<robot>:~/yr_ws/
+     scp "${BUNDLE}" <user>@<robot>:~/
 
-On the robot (offline):
-  tar xzf ~/$(basename "${BUNDLE}")
-  ORT_SOURCE_DIR=~/offline-bundle/onnxruntime \\
-      src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
-  colcon build --symlink-install --packages-select yolo_msgs yolo_onnxruntime_vendor yolo_ros
-  source install/setup.bash
-  ros2 launch yolo_bringup yolo.launch.py model:=~/offline-bundle/models/yolo26m.onnx
+2. On the robot (offline):
+     tar xzf ~/$(basename "${BUNDLE}") -C ~
+     cd ~/yr_ws
+     source /opt/ros/<distro>/setup.bash
+     ORT_SOURCE_DIR=~/offline-bundle/onnxruntime \\
+         src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
+     colcon build --symlink-install --cmake-args \\
+         -DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=\$HOME/offline-bundle/huggingface-hub-cpp \\
+         -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+     source install/setup.bash
+     ros2 launch yolo_bringup yolo.launch.py \\
+         model:=\$HOME/offline-bundle/models/yolo26m.onnx
 EOF
