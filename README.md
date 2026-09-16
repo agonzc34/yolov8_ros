@@ -74,6 +74,8 @@ scp src/yolov8_ros/yolo_onnxruntime_vendor/offline-bundle.tar.gz <user>@<robot>:
 
 ```shell
 # --- On the robot (offline) ---
+# Extract OUTSIDE the colcon workspace: the bundle contains the ONNX Runtime
+# source tree, which has a setup.py colcon would otherwise build as a package.
 tar xzf ~/offline-bundle.tar.gz -C ~
 cd ~/yr_ws
 source /opt/ros/galactic/setup.bash
@@ -83,10 +85,12 @@ source /opt/ros/galactic/setup.bash
 ORT_SOURCE_DIR=~/offline-bundle/onnxruntime \
     src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
 
-# Build the workspace. The two -D flags keep the build fully offline:
+# Build the workspace. --base-paths src and the bundle's COLCON_IGNORE keep
+# colcon away from the ONNX Runtime source tree. The two -D flags keep the build
+# fully offline:
 #   FETCHCONTENT_SOURCE_DIR_YOLO_HFHUB -> use the bundled huggingface-hub-cpp
 #   FETCHCONTENT_FULLY_DISCONNECTED    -> forbid any download
-colcon build --symlink-install --cmake-args \
+colcon build --symlink-install --base-paths src --cmake-args \
     -DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=$HOME/offline-bundle/huggingface-hub-cpp \
     -DFETCHCONTENT_FULLY_DISCONNECTED=ON
 source install/setup.bash

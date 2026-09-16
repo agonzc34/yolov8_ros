@@ -24,7 +24,7 @@ ORT_VERSION="1.6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="${1:-${SCRIPT_DIR}/../offline-bundle}"
 MODELS_DIR="${MODELS_DIR:-/home/agonzc34/models}"
-MODELS="${MODELS:-yolo26m.onnx yolo11n-seg.onnx yolo11n-segment.onnx yolo11n-pose.onnx yolo26m-pose.onnx}"
+MODELS="${MODELS:-yolo26m.onnx yolo26m-seg.onnx yolo11n-seg.onnx yolo11n-segment.onnx yolo11n-pose.onnx yolo26m-pose.onnx}"
 ORT_GIT_URL="https://github.com/microsoft/onnxruntime"
 HFHUB_GIT_URL="https://github.com/agonzc34/huggingface-hub-cpp"
 HFHUB_TAG="1.1.4"
@@ -82,6 +82,14 @@ git clone --depth 1 -b "${HFHUB_TAG}" "${HFHUB_GIT_URL}" \
   "${OUT_DIR}/huggingface-hub-cpp"
 rm -rf "${OUT_DIR}/huggingface-hub-cpp/.git"
 
+# The ONNX Runtime source tree and the fetched library contain setup.py /
+# CMakeLists.txt, which colcon would otherwise treat as workspace packages if the
+# bundle is extracted inside a colcon workspace. Mark them so colcon skips them.
+echo "==> Marking the bundle with COLCON_IGNORE..."
+touch "${OUT_DIR}/COLCON_IGNORE" \
+  "${OUT_DIR}/onnxruntime/COLCON_IGNORE" \
+  "${OUT_DIR}/huggingface-hub-cpp/COLCON_IGNORE"
+
 BUNDLE="${OUT_DIR}.tar.gz"
 echo "==> Creating ${BUNDLE}..."
 tar -C "$(dirname "${OUT_DIR}")" -czf "${BUNDLE}" "$(basename "${OUT_DIR}")"
@@ -96,13 +104,15 @@ Bundle ready: ${BUNDLE} (${SIZE})
          "${WORKSPACE}/" <user>@<robot>:~/yr_ws/
      scp "${BUNDLE}" <user>@<robot>:~/
 
-2. On the robot (offline):
-     tar xzf ~/$(basename "${BUNDLE}") -C ~
+2. On the robot (offline). Extract the bundle OUTSIDE the colcon workspace:
+     tar xzf ~/$(basename "${BUNDLE}") -C ~       # -> ~/offline-bundle
      cd ~/yr_ws
      source /opt/ros/<distro>/setup.bash
      ORT_SOURCE_DIR=~/offline-bundle/onnxruntime \\
          src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
-     colcon build --symlink-install --cmake-args \\
+     # --base-paths src + the bundle's COLCON_IGNORE keep colcon away from the
+     # ONNX Runtime source tree.
+     colcon build --symlink-install --base-paths src --cmake-args \\
          -DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=\$HOME/offline-bundle/huggingface-hub-cpp \\
          -DFETCHCONTENT_FULLY_DISCONNECTED=ON
      source install/setup.bash
