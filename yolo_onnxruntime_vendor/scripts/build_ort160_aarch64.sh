@@ -49,6 +49,48 @@ done
   exit 1
 }
 
+# --- CUDA host-compiler compatibility -----------------------------------------
+# nvcc only supports host compilers up to a version that depends on the CUDA
+# release (CUDA 10.2 -> gcc <= 8). Distros with a newer default gcc (9+ on
+# Ubuntu 20.04) make nvcc fail with "unsupported GNU version". Auto-select an
+# older g++ when needed; override with CUDAHOSTCXX to skip the detection.
+NVCC="${CUDA_HOME}/bin/nvcc"
+[[ -x "${NVCC}" ]] || {
+  echo "error: nvcc not found at ${NVCC}" >&2
+  exit 1
+}
+CUDA_MAJOR="$("${NVCC}" --version | sed -n 's/.*release \([0-9]\+\).*/\1/p')"
+case "${CUDA_MAJOR}" in
+  9) CUDA_MAX_GCC=7 ;;
+  10) CUDA_MAX_GCC=8 ;;
+  11) CUDA_MAX_GCC=10 ;;
+  *) CUDA_MAX_GCC=99 ;;
+esac
+DEFAULT_GCC_MAJOR="$(g++ -dumpversion | cut -d. -f1)"
+if [[ -z "${CUDAHOSTCXX:-}" && "${DEFAULT_GCC_MAJOR}" -gt "${CUDA_MAX_GCC}" ]]; then
+  host_cxx=""
+  for cand in "g++-${CUDA_MAX_GCC}" "g++-$((CUDA_MAX_GCC - 1))" g++-7 g++-6; do
+    if command -v "${cand}" >/dev/null 2>&1; then
+      host_cxx="$(command -v "${cand}")"
+      break
+    fi
+  done
+  if [[ -z "${host_cxx}" ]]; then
+    echo "error: CUDA ${CUDA_MAJOR} supports host gcc <= ${CUDA_MAX_GCC}, but the" >&2
+    echo "       default is gcc ${DEFAULT_GCC_MAJOR}. Install a compatible one, e.g.:" >&2
+    echo "         sudo apt install gcc-${CUDA_MAX_GCC} g++-${CUDA_MAX_GCC}" >&2
+    echo "       or export CUDAHOSTCXX=/usr/bin/g++-${CUDA_MAX_GCC}" >&2
+    exit 1
+  fi
+  export CUDAHOSTCXX="${host_cxx}"
+  export CC="$(command -v "gcc-${CUDA_MAX_GCC}")"
+  export CXX="${host_cxx}"
+  echo "==> Default g++ ${DEFAULT_GCC_MAJOR} is too new for CUDA ${CUDA_MAJOR};" \
+    "using gcc-${CUDA_MAX_GCC} (${host_cxx})"
+fi
+CUDAHOSTCXX="${CUDAHOSTCXX:-$(command -v g++)}"
+echo "==> CUDA host compiler: ${CUDAHOSTCXX}"
+
 mkdir -p "${WORK_DIR}"
 SRC_DIR="${WORK_DIR}/onnxruntime"
 
@@ -79,6 +121,10 @@ fi
 }
 
 echo "==> Building ONNX Runtime ${ORT_VERSION} (CUDA ${CUDA_HOME}, TRT ${TRT_HOME})"
+if [[ -d "${SRC_DIR}/build" ]]; then
+  echo "    note: ${SRC_DIR}/build already exists; if a previous attempt used a" \
+    "different compiler, remove it first (rm -rf ${SRC_DIR}/build)."
+fi
 pushd "${SRC_DIR}"
 # --skip_submodule_sync keeps the build offline (prepare_offline_bundle.sh has
 # already populated every submodule).
@@ -87,6 +133,7 @@ pushd "${SRC_DIR}"
   --use_tensorrt --tensorrt_home "${TRT_HOME}" \
   --use_cuda --cuda_home "${CUDA_HOME}" --cudnn_home "${CUDNN_HOME}" \
   --cmake_extra_defines "CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}" \
+  --cmake_extra_defines "CMAKE_CUDA_HOST_COMPILER=${CUDAHOSTCXX}" \
   --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF
 popd
 
