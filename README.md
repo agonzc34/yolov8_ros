@@ -38,8 +38,9 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 ### Prerequisites
 
 - Ubuntu 22.04 with ROS 2 Humble (the workspace is sourced as an overlay over `/opt/ros/humble`).
-- A CUDA toolchain for GPU builds, plus cuDNN 9 on the host:
-  `sudo apt install libcudnn9-cuda-12`.
+- CUDA 10.2 + cuDNN 8.0 and TensorRT 7 (JetPack) on the aarch64 robot. ONNX
+  Runtime 1.6.0 has no official aarch64 binary and is built from source (see
+  [Build](#build)).
 - libcurl / OpenSSL headers if you use the Hugging Face Hub model download:
   `sudo apt install libcurl4-openssl-dev libssl-dev`.
 - An exported ONNX model. Models live outside the repository — pass
@@ -48,10 +49,12 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 
 ### Build
 
-Clone the repository into your ROS 2 workspace and build it. ONNX Runtime
-1.20.0 is downloaded automatically by `yolo_onnxruntime_vendor` at configure
-time (CPU or, with `-DONNX_GPU=ON`, the GPU tarball), so there is no runtime
-dependency to install for inference.
+Clone the repository into your ROS 2 workspace. This branch is **aarch64-only**
+and targets the Jetson robot. There is no official aarch64 ONNX Runtime 1.6.0
+binary, so `yolo_onnxruntime_vendor` consumes a source build produced by
+`yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh` (run it once on the
+robot; it takes several hours and needs TensorRT 7 + CUDA 10.2 / cuDNN 8
+development files).
 
 ```shell
 # Clone this repo
@@ -62,19 +65,21 @@ git clone https://github.com/agonzc34/yolov8_ros.git
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -r -y
 
-# GPU build (what this branch is developed with)
-colcon build --symlink-install --cmake-args -DONNX_GPU=ON
+# Build ONNX Runtime 1.6.0 once (installs into yolo_onnxruntime_vendor/ort160)
+src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
+
+# Build the workspace
+colcon build --symlink-install
 source install/setup.bash
 ```
 
-For a CPU-only build, omit `-DONNX_GPU=ON`; `yolo_onnxruntime_vendor` then
-fetches the CPU ONNX Runtime. For a fast C++-only loop, rebuild just the
+For a fast C++-only loop, rebuild just the
 package (select `yolo_msgs` first if the messages changed — it must build
 before `yolo_ros`):
 
 ```shell
-colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_msgs
-colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_ros
+colcon build --symlink-install --packages-select yolo_msgs
+colcon build --symlink-install --packages-select yolo_ros
 ```
 
 Launch from the workspace root so relative source paths resolve.
@@ -87,9 +92,10 @@ with the rest of the Python implementation.
 
 ## Docker
 
-Build the yolo_ros docker image. Note that the bundled `Dockerfile` performs a
-CPU build (plain `colcon build`, no `-DONNX_GPU=ON`); derive from it and add
-`-DONNX_GPU=ON` yourself for a GPU image.
+Build the yolo_ros docker image. Note that the bundled `Dockerfile` builds on
+x86_64 and is **not usable on this aarch64-only branch**: `yolo_onnxruntime_vendor`
+requires an aarch64 ONNX Runtime 1.6 source build (there is no downloadable
+binary). Build on the robot instead.
 
 ```shell
 docker build -t yolo_ros .
@@ -323,15 +329,19 @@ below; see `yolo_bringup/config/yolo*.yaml` for the complete set.
 - **model**: Path to the ONNX model (default: machine-specific).
 - **model_repo** / **model_filename** / **force_download** / **cache_dir**:
   Optional Hugging Face Hub download (used instead of `model` when set).
-- **provider**: Execution provider: `auto` (TensorRT → CUDA → CPU fallback
-  chain), or force `tensorrt`/`trt`, `cuda`, `cpu` (default: `auto`).
-- **device**: CUDA/TensorRT device ordinal, e.g. `cuda:0`, `trt:1`, `1`
-  (default: `cuda:0`). The `cuda:`/`trt:` prefix is accepted but `provider`
-  selects the execution provider.
-- **trt_fp16_enable**: TensorRT FP16 precision (default: `true`).
-- **trt_engine_cache_enable**: Persist built TensorRT engines (default: `true`).
-- **trt_engine_cache_path**: TensorRT engine cache base directory; empty →
-  `~/.cache/yolo_ros/trt_engines/<model>` (default: empty).
+- **device**: TensorRT device ordinal, e.g. `0`, `trt:0`, `cuda:0`
+  (default: `0`). Only the ordinal is used.
+
+This branch always uses the TensorRT execution provider; there is no `provider`
+parameter, no FP16 toggle, and no TensorRT engine cache. ONNX Runtime is 1.6.0
+and is only supported on aarch64 (see
+`docs/superpowers/specs/2026-09-16-ort16-aarch64-port-design.md`). Models must be
+exported with `opset<=12` (ORT 1.6 = ONNX 1.7):
+
+```bash
+uv run --with ultralytics --with onnx --with onnxslim \
+  yolo export model=yolo26m.pt format=onnx opset=12 imgsz=640 nms=True
+```
 - **threshold**: Detection confidence threshold (default: `0.7`).
 - **iou**: IoU threshold for NMS. Re-tunes the C++ NMS for raw-output exports
   (segment/pose/OBB) and has no effect on baked-NMS models (default: `0.45`).
