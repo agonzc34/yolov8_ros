@@ -4,6 +4,11 @@
 cmake_minimum_required(VERSION 3.8)
 project(yolo_hfhub_vendor)
 
+# huggingface-hub-cpp requires C++17 (std::variant, std::filesystem). Do not rely
+# on the compiler default: GCC 9 (Ubuntu 20.04 / Galactic) defaults to gnu++14.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 include(FetchContent)
 find_package(ament_cmake REQUIRED)
 find_package(CURL REQUIRED)
@@ -17,6 +22,12 @@ FetchContent_Declare(
   GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(yolo_hfhub)
+
+# Enforce C++17 on the fetched target even if it sets its own standard.
+set_target_properties(hfhub PROPERTIES
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+)
 
 # Export the hfhub target and its include directories for downstream packages.
 install(
