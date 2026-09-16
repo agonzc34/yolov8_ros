@@ -1,10 +1,10 @@
 # Third-party notices
 
-This package downloads and installs ONNX Runtime 1.20.0 from its official
-release archives:
+This package builds and installs ONNX Runtime 1.6.0 from source (there is no
+official aarch64 binary) via `scripts/build_ort160_aarch64.sh`:
 
 - Project: <https://github.com/microsoft/onnxruntime>
-- Version: 1.20.0
+- Version: 1.6.0
 - License: MIT
 
 MIT License
