@@ -49,31 +49,47 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 
 ### Build
 
-Clone the repository into your ROS 2 workspace. This branch is **aarch64-only**
-and targets the Jetson robot. There is no official aarch64 ONNX Runtime 1.6.0
-binary, so `yolo_onnxruntime_vendor` consumes a source build produced by
-`yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh` (run it once on the
-robot; it takes several hours and needs TensorRT 7 + CUDA 10.2 / cuDNN 8
-development files).
+This branch is **aarch64-only** and targets an **offline** Jetson robot (Ubuntu
+18.04, ROS 2 Galactic, CUDA 10.2 / cuDNN 8 / TensorRT 7). There is no official
+aarch64 ONNX Runtime 1.6.0 binary, and every build input (ONNX Runtime sources
+and submodules, `huggingface-hub-cpp`) needs network, so **prepare a bundle on an
+internet-connected host first**:
 
 ```shell
-# Clone this repo
-cd ~/ros2_ws/src
-git clone https://github.com/agonzc34/yolov8_ros.git
-
-# Install rosdep dependencies
+# --- On the internet-connected host (same arch is NOT required) ---
 cd ~/ros2_ws
-rosdep install --from-paths src --ignore-src -r -y
+# Bundles ONNX Runtime v1.6.0 sources + huggingface-hub-cpp + the opset-12 models
+src/yolov8_ros/yolo_onnxruntime_vendor/scripts/prepare_offline_bundle.sh
+# -> ~/ros2_ws/yolo_onnxruntime_vendor/offline-bundle.tar.gz (~750 MB)
 
-# Build ONNX Runtime 1.6.0 once (installs into yolo_onnxruntime_vendor/ort160)
-src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
+# Copy the workspace source and the bundle to the robot
+rsync -a --exclude build --exclude install --exclude log \
+    ~/ros2_ws/ <user>@<robot>:~/yr_ws/
+scp src/yolov8_ros/yolo_onnxruntime_vendor/offline-bundle.tar.gz <user>@<robot>:~/
+```
 
-# Build the workspace
-colcon build --symlink-install
+```shell
+# --- On the robot (offline) ---
+tar xzf ~/offline-bundle.tar.gz -C ~
+cd ~/yr_ws
+source /opt/ros/galactic/setup.bash
+
+# Build ONNX Runtime 1.6.0 with CUDA + TensorRT into yolo_onnxruntime_vendor/ort160
+# (takes hours; needs TensorRT 7 + CUDA 10.2 / cuDNN 8 development files).
+ORT_SOURCE_DIR=~/offline-bundle/onnxruntime \
+    src/yolov8_ros/yolo_onnxruntime_vendor/scripts/build_ort160_aarch64.sh
+
+# Build the workspace. The two -D flags keep the build fully offline:
+#   FETCHCONTENT_SOURCE_DIR_YOLO_HFHUB -> use the bundled huggingface-hub-cpp
+#   FETCHCONTENT_FULLY_DISCONNECTED    -> forbid any download
+colcon build --symlink-install --cmake-args \
+    -DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=$HOME/offline-bundle/huggingface-hub-cpp \
+    -DFETCHCONTENT_FULLY_DISCONNECTED=ON
 source install/setup.bash
 ```
 
-For a fast C++-only loop, rebuild just the
+Models must be exported at `opset<=12`; the pre-exported set is in the bundle
+under `~/offline-bundle/models/`. For a fast C++-only loop, rebuild just the
 package (select `yolo_msgs` first if the messages changed — it must build
 before `yolo_ros`):
 
