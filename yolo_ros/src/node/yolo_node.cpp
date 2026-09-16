@@ -101,11 +101,7 @@ void yolo_ros::node::YoloNode::declare_params() {
   this->declare_parameter<std::string>("model_filename", "");
   this->declare_parameter<std::string>("cache_dir", "~/.cache/huggingface/hub");
   this->declare_parameter<bool>("force_download", false);
-  this->declare_parameter<std::string>("device", "cuda:0");
-  this->declare_parameter<std::string>("provider", "auto");
-  this->declare_parameter<bool>("trt_fp16_enable", true);
-  this->declare_parameter<bool>("trt_engine_cache_enable", true);
-  this->declare_parameter<std::string>("trt_engine_cache_path", "");
+  this->declare_parameter<std::string>("device", "0");
   this->declare_parameter<float>("threshold", 0.7);
   this->declare_parameter<float>("iou", 0.45);
   this->declare_parameter<int>("max_det", 300);
@@ -126,11 +122,6 @@ yolo_ros::yolo::utils::YoloParams yolo_ros::node::YoloNode::get_params() {
   this->get_parameter("cache_dir", params.cache_dir);
   this->get_parameter("force_download", params.force_download);
   this->get_parameter("device", params.device);
-  this->get_parameter("provider", params.provider);
-  this->get_parameter("trt_fp16_enable", params.trt_fp16_enable);
-  this->get_parameter("trt_engine_cache_enable",
-                      params.trt_engine_cache_enable);
-  this->get_parameter("trt_engine_cache_path", params.trt_engine_cache_path);
   this->get_parameter("threshold", params.threshold);
   this->get_parameter("iou", params.iou);
   this->get_parameter("enable", params.enable);

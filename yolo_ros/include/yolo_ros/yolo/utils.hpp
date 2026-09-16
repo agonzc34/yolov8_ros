@@ -121,19 +121,9 @@ struct YoloParams {
   std::string cache_dir; // HF cache dir, default ~/.cache/huggingface/hub
   /// @brief Re-download the model even when a cached copy exists.
   bool force_download = false; // re-download even if cached
-  /// @brief Execution provider preference: "auto" (TensorRT -> CUDA -> CPU
-  /// fallback chain) or "tensorrt"/"trt", "cuda", "cpu" (case-insensitive).
-  std::string provider = "auto";
-  /// @brief Execution device; its ordinal (e.g. "cuda:0", "trt:1", "1") is
-  /// passed as device_id to the CUDA and TensorRT execution providers.
+  /// @brief Execution device; its ordinal (e.g. "trt:0", "0") is passed as the
+  /// TensorRT device id.
   std::string device;
-  /// @brief TensorRT: enable FP16 precision.
-  bool trt_fp16_enable = true;
-  /// @brief TensorRT: persist the built engine across sessions.
-  bool trt_engine_cache_enable = true;
-  /// @brief TensorRT: engine cache base directory (empty ->
-  /// ~/.cache/yolo_ros/trt_engines).
-  std::string trt_engine_cache_path;
   /// @brief Detection confidence threshold in [0, 1].
   float threshold;
   /// @brief IoU threshold for the C++ NMS.
