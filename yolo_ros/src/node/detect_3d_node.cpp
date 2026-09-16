@@ -51,15 +51,14 @@ Detect3DNode::on_activate(const rclcpp_lifecycle::State &) {
   rclcpp::QoS depth_info_qos = rclcpp::QoS(1).reliability(
       reliability_to_policy(this->depth_info_reliability_));
 
-  this->depth_image_subscription_.subscribe(
-      this->shared_from_this(), this->depth_image_topic_,
-      depth_image_qos.get_rmw_qos_profile());
-  this->depth_info_subscription_.subscribe(
-      this->shared_from_this(), this->depth_info_topic_,
-      depth_info_qos.get_rmw_qos_profile());
-  this->detection_subscription_.subscribe(
-      this->shared_from_this(), this->detections_topic_,
-      rclcpp::QoS(10).get_rmw_qos_profile());
+  // NodeSubscription creates the subscription via rclcpp::create_subscription,
+  // which works with the lifecycle node.
+  this->depth_image_subscription_.subscribe(*this, this->depth_image_topic_,
+                                            depth_image_qos);
+  this->depth_info_subscription_.subscribe(*this, this->depth_info_topic_,
+                                           depth_info_qos);
+  this->detection_subscription_.subscribe(*this, this->detections_topic_,
+                                          rclcpp::QoS(10));
 
   this->synchronizer_ =
       std::make_shared<message_filters::Synchronizer<SyncPolicy3D>>(10);

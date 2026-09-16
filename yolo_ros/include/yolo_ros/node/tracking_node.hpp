@@ -11,13 +11,13 @@
 
 #include <memory>
 
-#include "message_filters/subscriber.h"
 #include "message_filters/sync_policies/approximate_time.h"
 #include "message_filters/synchronizer.h"
 #include "rclcpp/qos.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
+#include "yolo_ros/node/subscription_filter.hpp"
 #include "yolo_ros/tracking/tracker.hpp"
 
 /// @addtogroup yolo_nodes
@@ -67,13 +67,9 @@ public:
 
 private:
   /// @brief Synchronized subscription to the input image topic.
-  message_filters::Subscriber<sensor_msgs::msg::Image,
-                              rclcpp_lifecycle::LifecycleNode>
-      image_subscription_;
+  NodeSubscription<sensor_msgs::msg::Image> image_subscription_;
   /// @brief Synchronized subscription to the 2D detection topic.
-  message_filters::Subscriber<yolo_msgs::msg::DetectionArray,
-                              rclcpp_lifecycle::LifecycleNode>
-      detection_subscription_;
+  NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription_;
   /// @brief Publisher of the tracked detections.
   rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
       tracking_publisher_;

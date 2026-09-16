@@ -66,12 +66,12 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 TrackingNode::on_activate(const rclcpp_lifecycle::State &) {
-  this->image_subscription_.subscribe(this->shared_from_this(),
-                                      this->image_topic_,
-                                      image_qos_profile_.get_rmw_qos_profile());
-  this->detection_subscription_.subscribe(
-      this->shared_from_this(), "detections",
-      image_qos_profile_.get_rmw_qos_profile());
+  // NodeSubscription creates the subscription via rclcpp::create_subscription,
+  // which works with the lifecycle node.
+  this->image_subscription_.subscribe(*this, this->image_topic_,
+                                      image_qos_profile_);
+  this->detection_subscription_.subscribe(*this, "detections",
+                                          image_qos_profile_);
 
   this->synchronizer_ =
       std::make_shared<message_filters::Synchronizer<TrackingSyncPolicy>>(10);

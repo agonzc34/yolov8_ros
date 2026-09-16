@@ -62,12 +62,13 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_activate(const rclcpp_lifecycle::State &) {
-  this->image_subscription.subscribe(this->shared_from_this(),
-                                     this->image_topic_,
-                                     image_qos_profile.get_rmw_qos_profile());
-  this->detection_subscription.subscribe(
-      this->shared_from_this(), this->detections_topic_,
-      image_qos_profile.get_rmw_qos_profile());
+  // NodeSubscription creates the subscription via rclcpp::create_subscription,
+  // which works with the lifecycle node (Galactic's message_filters::Subscriber
+  // only accepts rclcpp::Node*).
+  this->image_subscription.subscribe(*this, this->image_topic_,
+                                     image_qos_profile);
+  this->detection_subscription.subscribe(*this, this->detections_topic_,
+                                         image_qos_profile);
 
   uint32_t queue_size = 10;
 
@@ -157,7 +158,7 @@ void DebugNode::recieve_callback(
 // stream's rate (min(debug image, 3D detections)) and does not throttle the
 // debug image.
 void DebugNode::markers_callback(
-    const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections) {
+    yolo_msgs::msg::DetectionArray::ConstSharedPtr msg_detections) {
   visualization_msgs::msg::MarkerArray bb_marker_array;
   visualization_msgs::msg::MarkerArray kp_marker_array;
 

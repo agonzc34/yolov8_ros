@@ -9,6 +9,7 @@
 #define YOLO_ROS__NODE__DETECT_3D_NODE_HPP_
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "yolo_ros/node/subscription_filter.hpp"
 
 #include <array>
 #include <memory>
@@ -19,7 +20,6 @@
 
 #include "cv_bridge/cv_bridge.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "message_filters/subscriber.h"
 #include "message_filters/sync_policies/approximate_time.h"
 #include "message_filters/synchronizer.h"
 #include "rclcpp/qos.hpp"
@@ -86,17 +86,11 @@ public:
 
 private:
   /// @brief Synchronized subscription to the depth image.
-  message_filters::Subscriber<sensor_msgs::msg::Image,
-                              rclcpp_lifecycle::LifecycleNode>
-      depth_image_subscription_;
+  NodeSubscription<sensor_msgs::msg::Image> depth_image_subscription_;
   /// @brief Synchronized subscription to the depth CameraInfo.
-  message_filters::Subscriber<sensor_msgs::msg::CameraInfo,
-                              rclcpp_lifecycle::LifecycleNode>
-      depth_info_subscription_;
+  NodeSubscription<sensor_msgs::msg::CameraInfo> depth_info_subscription_;
   /// @brief Synchronized subscription to the 2D detection topic.
-  message_filters::Subscriber<yolo_msgs::msg::DetectionArray,
-                              rclcpp_lifecycle::LifecycleNode>
-      detection_subscription_;
+  NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription_;
   /// @brief Publisher of the 3D-enriched detections.
   rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
       detections_3d_publisher_;

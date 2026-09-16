@@ -9,8 +9,8 @@
 #define YOLO_ROS__NODE__DEBUG_NODE_HPP_
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "yolo_ros/node/subscription_filter.hpp"
 
-#include "message_filters/subscriber.h"
 #include "rclcpp/qos.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "visualization_msgs/msg/marker.hpp"
@@ -72,13 +72,9 @@ public:
 
 private:
   /// @brief Synchronized subscription to the input image topic.
-  message_filters::Subscriber<sensor_msgs::msg::Image,
-                              rclcpp_lifecycle::LifecycleNode>
-      image_subscription;
+  NodeSubscription<sensor_msgs::msg::Image> image_subscription;
   /// @brief Synchronized subscription to the 2D detection topic.
-  message_filters::Subscriber<yolo_msgs::msg::DetectionArray,
-                              rclcpp_lifecycle::LifecycleNode>
-      detection_subscription;
+  NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription;
   /// @brief Publisher of the annotated debug image.
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_publisher;
   /// @brief Publisher of the 3D bounding-box markers.
@@ -122,7 +118,7 @@ private:
   /// @brief Callback on the 3D detection stream: rebuild the RViz markers.
   /// @param[in] msg_detections Incoming 3D-enriched detections.
   void markers_callback(
-      const yolo_msgs::msg::DetectionArray::ConstSharedPtr &msg_detections);
+      yolo_msgs::msg::DetectionArray::ConstSharedPtr msg_detections);
 
   /// @brief Return the cached color for @p class_name, assigning one on first
   /// use.
