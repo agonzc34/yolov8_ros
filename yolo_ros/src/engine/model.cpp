@@ -22,99 +22,24 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
     : env(ORT_LOGGING_LEVEL_WARNING, "yolo"), session_options(),
       input_image_shape(), num_input_nodes(0), num_output_nodes(0),
       memory_info(nullptr) {
-  // Initialize session options
-  int n_threads = params.n_threads;
   this->conf_threshold = params.threshold;
   this->iou_threshold = params.iou;
   std::string model_path = params.model_path;
 
-  if (n_threads == -1) {
-    n_threads = std::thread::hardware_concurrency();
-  }
-
-  // Resolve the availability-filtered provider fallback chain. "auto" prefers
-  // TensorRT, then CUDA, then CPU; an explicit provider forces its own chain.
-  std::string requested = params.provider;
-  std::transform(requested.begin(), requested.end(), requested.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  if (requested.empty()) {
-    requested = "auto";
-  }
-  if (requested != "auto" && requested != "cpu" && requested != "cuda" &&
-      requested != "tensorrt" && requested != "trt") {
-    std::cerr << "Unknown provider \"" << params.provider << "\"; using auto."
-              << std::endl;
-    requested = "auto";
-  }
-  const std::vector<Provider> chain =
-      provider_chain(requested, available_providers());
-  std::cout << "Execution provider chain:";
-  for (const Provider provider : chain) {
-    std::cout << " " << provider_name(provider);
-  }
-  std::cout << std::endl;
-
-  // Warn when an explicitly requested provider was dropped by the
-  // availability filter (e.g. TensorRT requested on a CPU build).
-  const std::string requested_norm =
-      requested == "trt" ? "tensorrt" : requested;
-  if (requested != "auto" && !chain.empty() &&
-      requested_norm != provider_name(chain.front())) {
-    std::cerr << "Requested provider \"" << requested
-              << "\" is unavailable; using " << provider_name(chain.front())
-              << "." << std::endl;
-  }
-
-  // An explicit provider wins over the device prefix; warn when they disagree
-  // (only when the requested provider is actually the one being used).
-  const std::string device_provider = device_provider_name(params.device);
-  if (requested != "auto" && !chain.empty() &&
-      requested_norm == provider_name(chain.front()) &&
-      !device_provider.empty() && device_provider != requested_norm) {
-    std::cerr << "provider \"" << requested << "\" contradicts device \""
-              << params.device << "\"; using " << requested_norm << "."
-              << std::endl;
-  }
-
-  // Try each provider in order. A provider can be available yet still fail to
-  // build the session (unsupported op, TensorRT engine build error), so the
-  // provider options and the Session construction both live in the retry loop.
-  const int device_id = parse_device_id(params.device);
-  std::string last_error;
-  for (const Provider provider : chain) {
-    ProviderConfig config;
-    config.n_threads = n_threads;
-    config.device_id = device_id;
-    config.trt_fp16_enable = params.trt_fp16_enable;
-    config.trt_engine_cache_enable = params.trt_engine_cache_enable;
-    if (provider == Provider::TensorRt && config.trt_engine_cache_enable) {
-      config.trt_engine_cache_path =
-          engine_cache_dir(params.trt_engine_cache_path, model_path);
-      if (config.trt_engine_cache_path.empty()) {
-        config.trt_engine_cache_enable = false;
-      }
-    }
-    try {
-      this->session_options = build_session_options(provider, config);
-      this->session =
-          Ort::Session(this->env, model_path.c_str(), this->session_options);
-      this->active_provider_ = provider_name(provider);
-      break;
-    } catch (const Ort::Exception &e) {
-      last_error = e.what();
-      std::cerr << "Execution provider " << provider_name(provider)
-                << " failed to initialize: " << e.what() << std::endl;
-    }
-  }
-
-  if (this->active_provider_.empty()) {
+  // This branch always uses the TensorRT execution provider; there is no
+  // provider selection.
+  if (!tensorrt_available()) {
     throw std::runtime_error(
-        "No execution provider could initialize the ONNX Runtime session" +
-        (last_error.empty() ? std::string(".") : ": " + last_error));
+        "The linked ONNX Runtime build has no TensorRT execution provider. "
+        "Rebuild ONNX Runtime 1.6 with --use_tensorrt.");
   }
-  // Names the primary EP that accepted the session; within a TensorRT session
-  // ORT may still fall back node-by-node to CUDA.
-  std::cout << "Using execution provider: " << this->active_provider_
+
+  const int device_id = parse_device_id(params.device);
+  this->session_options = build_session_options(device_id);
+  this->session =
+      Ort::Session(this->env, model_path.c_str(), this->session_options);
+  this->active_provider_ = "tensorrt";
+  std::cout << "Using execution provider: tensorrt (device " << device_id << ")"
             << std::endl;
 
   Ort::AllocatorWithDefaultOptions allocator;
@@ -123,19 +48,23 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   this->num_input_nodes = this->session.GetInputCount();
   this->num_output_nodes = this->session.GetOutputCount();
 
-  // Allocate input and output node names
+  // Allocate input and output node names. ORT 1.6 returns a char* the caller
+  // owns; copy into std::string storage and free it immediately.
   for (size_t i = 0; i < this->num_input_nodes; i++) {
-    this->input_node_name_alloc_strings.push_back(
-        this->session.GetInputNameAllocated(i, allocator));
-    this->inputNames.push_back(
-        this->input_node_name_alloc_strings.back().get());
+    char *name = this->session.GetInputName(i, allocator);
+    this->input_name_storage_.emplace_back(name);
+    allocator.Free(name);
   }
-
+  for (const std::string &name : this->input_name_storage_) {
+    this->inputNames.push_back(name.c_str());
+  }
   for (size_t i = 0; i < this->num_output_nodes; i++) {
-    this->output_node_name_alloc_strings.push_back(
-        this->session.GetOutputNameAllocated(i, allocator));
-    this->outputNames.push_back(
-        this->output_node_name_alloc_strings.back().get());
+    char *name = this->session.GetOutputName(i, allocator);
+    this->output_name_storage_.emplace_back(name);
+    allocator.Free(name);
+  }
+  for (const std::string &name : this->output_name_storage_) {
+    this->outputNames.push_back(name.c_str());
   }
 
   Ort::TypeInfo input_type_info = this->session.GetInputTypeInfo(0);
@@ -178,10 +107,10 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
     try {
       const Ort::ModelMetadata metadata = this->session.GetModelMetadata();
       Ort::AllocatorWithDefaultOptions allocator;
-      auto value = metadata.LookupCustomMetadataMapAllocated(
-          "input_color", static_cast<OrtAllocator *>(allocator));
-      if (value) {
-        std::string meta(value.get());
+      char *value = metadata.LookupCustomMetadataMap("input_color", allocator);
+      if (value != nullptr) {
+        std::string meta(value);
+        allocator.Free(value);
         std::transform(meta.begin(), meta.end(), meta.begin(),
                        [](unsigned char c) { return std::tolower(c); });
         if (meta == "rgb") {
@@ -217,10 +146,10 @@ void yolo_ros::engine::Model::load_class_names() {
   try {
     const Ort::ModelMetadata metadata = this->session.GetModelMetadata();
     Ort::AllocatorWithDefaultOptions allocator;
-    auto names_value = metadata.LookupCustomMetadataMapAllocated(
-        "names", static_cast<OrtAllocator *>(allocator));
-    if (names_value) {
-      const std::string names(names_value.get());
+    char *names_value = metadata.LookupCustomMetadataMap("names", allocator);
+    if (names_value != nullptr) {
+      const std::string names(names_value);
+      allocator.Free(names_value);
       std::map<int, std::string> indexed_names;
       int max_index = -1;
       const std::regex name_re(R"((\d+):\s*['"]([^'"]*)['"])");

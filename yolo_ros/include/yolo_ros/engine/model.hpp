@@ -102,13 +102,15 @@ private:
   /// @brief Resolved input channel order (true = RGB, false = BGR).
   bool input_is_rgb_{false};
 
-  // Vectors to hold allocated input and output node names
-  /// @brief Allocated storage backing inputNames.
-  std::vector<Ort::AllocatedStringPtr> input_node_name_alloc_strings;
+  // Owned storage for input and output node names. `inputNames`/`outputNames`
+  // hold pointers into these strings, so the storage must be filled (and not
+  // reallocated) before the pointer vectors are populated.
+  /// @brief Owned storage backing inputNames.
+  std::vector<std::string> input_name_storage_;
   /// @brief Input node names passed to the ONNX Runtime session.
   std::vector<const char *> inputNames;
-  /// @brief Allocated storage backing outputNames.
-  std::vector<Ort::AllocatedStringPtr> output_node_name_alloc_strings;
+  /// @brief Owned storage backing outputNames.
+  std::vector<std::string> output_name_storage_;
   /// @brief Output node names requested from the ONNX Runtime session.
   std::vector<const char *> outputNames;
 
