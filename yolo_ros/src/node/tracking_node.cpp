@@ -66,6 +66,10 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 TrackingNode::on_activate(const rclcpp_lifecycle::State &) {
+  // LifecycleNode publishers start deactivated; without this every publish is
+  // dropped ("publisher is not activated").
+  this->tracking_publisher_->on_activate();
+
   // NodeSubscription creates the subscription via rclcpp::create_subscription,
   // which works with the lifecycle node.
   this->image_subscription_.subscribe(*this, this->image_topic_,
@@ -91,6 +95,9 @@ TrackingNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->detection_subscription_.unsubscribe();
   this->image_subscription_.unsubscribe();
   this->synchronizer_.reset();
+  if (this->tracking_publisher_) {
+    this->tracking_publisher_->on_deactivate();
+  }
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;

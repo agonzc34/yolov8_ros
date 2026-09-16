@@ -47,6 +47,9 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
   this->detection_publisher =
       this->create_publisher<yolo_msgs::msg::DetectionArray>("detections",
                                                              rclcpp::QoS(10));
+  // LifecycleNode publishers start deactivated; without this every publish is
+  // dropped ("publisher is not activated").
+  this->detection_publisher->on_activate();
   this->image_subscription = this->create_subscription<sensor_msgs::msg::Image>(
       this->yolo_params.image_topic, img_sub_qos,
       std::bind(&YoloNode::recieve_image_callback, this,
@@ -67,6 +70,9 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->destroy_yolo();
   this->enable_service_.reset();
+  if (this->detection_publisher) {
+    this->detection_publisher->on_deactivate();
+  }
   this->detection_publisher.reset();
   this->image_subscription.reset();
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());

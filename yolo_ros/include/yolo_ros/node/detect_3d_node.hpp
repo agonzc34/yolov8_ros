@@ -92,8 +92,8 @@ private:
   /// @brief Synchronized subscription to the 2D detection topic.
   NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription_;
   /// @brief Publisher of the 3D-enriched detections.
-  rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
-      detections_3d_publisher_;
+  rclcpp_lifecycle::LifecyclePublisher<
+      yolo_msgs::msg::DetectionArray>::SharedPtr detections_3d_publisher_;
   /// @brief Approximate-time synchronizer for the three subscriptions.
   std::shared_ptr<message_filters::Synchronizer<SyncPolicy3D>> synchronizer_;
 

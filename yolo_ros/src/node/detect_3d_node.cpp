@@ -36,6 +36,10 @@ Detect3DNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 Detect3DNode::on_activate(const rclcpp_lifecycle::State &) {
+  // LifecycleNode publishers start deactivated; without this every publish is
+  // dropped ("publisher is not activated").
+  this->detections_3d_publisher_->on_activate();
+
   auto reliability_to_policy = [](int r) {
     if (r == 0) {
       return rclcpp::ReliabilityPolicy::SystemDefault;
@@ -80,6 +84,9 @@ Detect3DNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->depth_info_subscription_.unsubscribe();
   this->depth_image_subscription_.unsubscribe();
   this->synchronizer_.reset();
+  if (this->detections_3d_publisher_) {
+    this->detections_3d_publisher_->on_deactivate();
+  }
 
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::

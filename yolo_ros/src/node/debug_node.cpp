@@ -62,6 +62,12 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_activate(const rclcpp_lifecycle::State &) {
+  // LifecycleNode publishers start deactivated; without this every publish is
+  // dropped ("publisher is not activated").
+  this->debug_publisher->on_activate();
+  this->bb_markers_publisher->on_activate();
+  this->kp_markers_publisher->on_activate();
+
   // NodeSubscription creates the subscription via rclcpp::create_subscription,
   // which works with the lifecycle node (Galactic's message_filters::Subscriber
   // only accepts rclcpp::Node*).
@@ -97,6 +103,15 @@ DebugNode::on_activate(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->markers_subscription_.reset();
+  if (this->debug_publisher) {
+    this->debug_publisher->on_deactivate();
+  }
+  if (this->bb_markers_publisher) {
+    this->bb_markers_publisher->on_deactivate();
+  }
+  if (this->kp_markers_publisher) {
+    this->kp_markers_publisher->on_deactivate();
+  }
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;

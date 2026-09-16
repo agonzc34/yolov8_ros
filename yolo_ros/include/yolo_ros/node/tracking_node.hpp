@@ -71,8 +71,8 @@ private:
   /// @brief Synchronized subscription to the 2D detection topic.
   NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription_;
   /// @brief Publisher of the tracked detections.
-  rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
-      tracking_publisher_;
+  rclcpp_lifecycle::LifecyclePublisher<
+      yolo_msgs::msg::DetectionArray>::SharedPtr tracking_publisher_;
   /// @brief Approximate-time synchronizer for the two subscriptions.
   std::shared_ptr<message_filters::Synchronizer<TrackingSyncPolicy>>
       synchronizer_;

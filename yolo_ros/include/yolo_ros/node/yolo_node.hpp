@@ -67,8 +67,8 @@ protected:
   std::unique_ptr<yolo_ros::engine::Model> yolo_model;
 
   /// @brief Publisher of the detection results.
-  rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr
-      detection_publisher;
+  rclcpp_lifecycle::LifecyclePublisher<
+      yolo_msgs::msg::DetectionArray>::SharedPtr detection_publisher;
   /// @brief Subscription to the input image topic.
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription;
 

@@ -76,13 +76,14 @@ private:
   /// @brief Synchronized subscription to the 2D detection topic.
   NodeSubscription<yolo_msgs::msg::DetectionArray> detection_subscription;
   /// @brief Publisher of the annotated debug image.
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_publisher;
+  rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::Image>::SharedPtr
+      debug_publisher;
   /// @brief Publisher of the 3D bounding-box markers.
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
-      bb_markers_publisher;
+  rclcpp_lifecycle::LifecyclePublisher<
+      visualization_msgs::msg::MarkerArray>::SharedPtr bb_markers_publisher;
   /// @brief Publisher of the 3D keypoint markers.
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
-      kp_markers_publisher;
+  rclcpp_lifecycle::LifecyclePublisher<
+      visualization_msgs::msg::MarkerArray>::SharedPtr kp_markers_publisher;
   /// @brief Approximate-time synchronizer for image + 2D detections.
   std::shared_ptr<message_filters::Synchronizer<ApproximateSyncPolicy>>
       synchronizer;
