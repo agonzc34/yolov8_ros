@@ -69,9 +69,11 @@ esac
 DEFAULT_GCC_MAJOR="$(g++ -dumpversion | cut -d. -f1)"
 if [[ -z "${CUDAHOSTCXX:-}" && "${DEFAULT_GCC_MAJOR}" -gt "${CUDA_MAX_GCC}" ]]; then
   host_cxx=""
-  for cand in "g++-${CUDA_MAX_GCC}" "g++-$((CUDA_MAX_GCC - 1))" g++-7 g++-6; do
-    if command -v "${cand}" >/dev/null 2>&1; then
-      host_cxx="$(command -v "${cand}")"
+  host_ver=""
+  for ver in "${CUDA_MAX_GCC}" "$((CUDA_MAX_GCC - 1))" 7 6; do
+    if command -v "g++-${ver}" >/dev/null 2>&1; then
+      host_cxx="$(command -v "g++-${ver}")"
+      host_ver="${ver}"
       break
     fi
   done
@@ -82,14 +84,16 @@ if [[ -z "${CUDAHOSTCXX:-}" && "${DEFAULT_GCC_MAJOR}" -gt "${CUDA_MAX_GCC}" ]]; 
     echo "       or export CUDAHOSTCXX=/usr/bin/g++-${CUDA_MAX_GCC}" >&2
     exit 1
   fi
-  export CUDAHOSTCXX="${host_cxx}"
-  export CC="$(command -v "gcc-${CUDA_MAX_GCC}")"
   export CXX="${host_cxx}"
+  export CUDAHOSTCXX="${host_cxx}"
+  if host_cc="$(command -v "gcc-${host_ver}" 2>/dev/null)"; then
+    export CC="${host_cc}"
+  fi
   echo "==> Default g++ ${DEFAULT_GCC_MAJOR} is too new for CUDA ${CUDA_MAJOR};" \
-    "using gcc-${CUDA_MAX_GCC} (${host_cxx})"
+    "using g++-${host_ver} (${host_cxx})"
 fi
 CUDAHOSTCXX="${CUDAHOSTCXX:-$(command -v g++)}"
-echo "==> CUDA host compiler: ${CUDAHOSTCXX}"
+echo "==> CUDA host compiler: ${CUDAHOSTCXX} (CC=${CC:-$(command -v gcc)}, CXX=${CXX:-$(command -v g++)})"
 
 mkdir -p "${WORK_DIR}"
 SRC_DIR="${WORK_DIR}/onnxruntime"
