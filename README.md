@@ -60,7 +60,7 @@ internet-connected host first**:
 cd ~/ros2_ws
 # Bundles ONNX Runtime v1.6.0 sources + huggingface-hub-cpp + the opset-12 models
 src/yolov8_ros/yolo_onnxruntime_vendor/scripts/prepare_offline_bundle.sh
-# -> ~/ros2_ws/yolo_onnxruntime_vendor/offline-bundle.tar.gz (~750 MB)
+# -> src/yolov8_ros/yolo_onnxruntime_vendor/offline-bundle.tar.gz (~750 MB)
 
 # Copy the workspace source and the bundle to the robot
 rsync -a --exclude build --exclude install --exclude log \
