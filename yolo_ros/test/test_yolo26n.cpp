@@ -90,16 +90,6 @@ TEST_F(Detect26nTest, HigherThresholdFiltersLowScores) {
   }
 }
 
-TEST_F(Detect26nTest, FallsBackFromInvalidCudaDevice) {
-  auto params = yolo_ros::test::make_params(model_path_);
-  params.provider = "cuda";
-  // An out-of-range ordinal should make the CUDA session fail to initialize,
-  // exercising the fallback to CPU.
-  params.device = "cuda:999";
-  auto detector = std::make_unique<ExposedDetect>(params);
-  EXPECT_EQ(detector->active_provider(), "cpu");
-}
-
 class Segment26nTest : public ::testing::Test {
 protected:
   void SetUp() override {

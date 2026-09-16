@@ -155,7 +155,6 @@ inline yolo_ros::yolo::utils::YoloParams make_params(std::string model_path) {
   params.max_fps = 0;
   params.n_threads = 1;
   params.top_k = 5;
-  params.provider = "cuda"; // avoid TensorRT engine builds during tests
   return params;
 }
 
