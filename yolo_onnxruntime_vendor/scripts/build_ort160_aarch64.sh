@@ -5,8 +5,21 @@
 # Build ONNX Runtime 1.6.0 with CUDA + TensorRT for the aarch64 Jetson robot and
 # package it in the flat layout consumed by yolo_onnxruntime_vendor.
 #
+# Run this on the robot. It can work fully offline when given a source tree
+# prepared by scripts/prepare_offline_bundle.sh (see that script for the
+# host-side workflow).
+#
 # Usage: scripts/build_ort160_aarch64.sh [output_dir]
 # Default output_dir: <package>/ort160
+#
+# Source acquisition (first match wins):
+#   ORT_SOURCE_DIR=<path>     an existing onnxruntime source tree (contains build.sh)
+#   ORT_SOURCE_TARBALL=<path> a tarball whose top level contains onnxruntime/
+#   ${ORT_BUILD_DIR}/onnxruntime   a previously extracted/cloned tree
+#   otherwise                 git clone --recursive (requires internet)
+#
+# Env overrides: ORT_CUDA_ARCH, CUDA_HOME, CUDNN_HOME, TENSORRT_HOME,
+#                ORT_BUILD_DIR
 set -euo pipefail
 
 ORT_VERSION="1.6.0"
@@ -25,7 +38,7 @@ if [[ "${ARCH}" != "aarch64" ]]; then
   exit 1
 fi
 
-for tool in git cmake python3; do
+for tool in cmake python3; do
   command -v "${tool}" >/dev/null 2>&1 || {
     echo "error: ${tool} not found" >&2
     exit 1
@@ -38,14 +51,39 @@ done
 
 mkdir -p "${WORK_DIR}"
 SRC_DIR="${WORK_DIR}/onnxruntime"
-# --recursive is mandatory: the GitHub source tarball has no submodules.
-if [[ ! -d "${SRC_DIR}/.git" ]]; then
+
+if [[ -n "${ORT_SOURCE_TARBALL:-}" ]]; then
+  echo "==> Extracting source from ${ORT_SOURCE_TARBALL}"
+  rm -rf "${SRC_DIR}"
+  tar -xf "${ORT_SOURCE_TARBALL}" -C "${WORK_DIR}"
+elif [[ -n "${ORT_SOURCE_DIR:-}" ]]; then
+  SRC_DIR="${ORT_SOURCE_DIR}"
+elif [[ -d "${SRC_DIR}" ]]; then
+  echo "==> Reusing existing source tree at ${SRC_DIR}"
+else
+  command -v git >/dev/null 2>&1 || {
+    echo "error: no local ONNX Runtime source and git is unavailable." >&2
+    echo "       Run prepare_offline_bundle.sh on an internet host first." >&2
+    exit 1
+  }
+  echo "==> Cloning ONNX Runtime v${ORT_VERSION} (requires internet)"
+  # --recursive is mandatory: the GitHub source tarball has no submodules.
   git clone --recursive -b "v${ORT_VERSION}" \
     https://github.com/microsoft/onnxruntime "${SRC_DIR}"
 fi
 
+[[ -f "${SRC_DIR}/build.sh" ]] || {
+  echo "error: no build.sh under '${SRC_DIR}'. Expected onnxruntime/ at the" >&2
+  echo "       source root (e.g. ORT_SOURCE_DIR=<bundle>/onnxruntime)." >&2
+  exit 1
+}
+
+echo "==> Building ONNX Runtime ${ORT_VERSION} (CUDA ${CUDA_HOME}, TRT ${TRT_HOME})"
 pushd "${SRC_DIR}"
-./build.sh --config Release --update --build --build_shared_lib --skip_tests --parallel \
+# --skip_submodule_sync keeps the build offline (prepare_offline_bundle.sh has
+# already populated every submodule).
+./build.sh --config Release --update --build --build_shared_lib --skip_tests \
+  --skip_submodule_sync --parallel \
   --use_tensorrt --tensorrt_home "${TRT_HOME}" \
   --use_cuda --cuda_home "${CUDA_HOME}" --cudnn_home "${CUDNN_HOME}" \
   --cmake_extra_defines "CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}" \
