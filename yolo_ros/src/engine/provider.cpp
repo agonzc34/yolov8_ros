@@ -6,13 +6,11 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
-#include <cstdlib>
-#include <filesystem>
-#include <iostream>
-#include <memory>
 #include <string>
 #include <system_error>
 #include <vector>
+
+#include "tensorrt_provider_factory.h"
 
 namespace yolo_ros::engine {
 namespace {
@@ -23,81 +21,7 @@ std::string to_lower(std::string value) {
   return value;
 }
 
-bool contains(const std::vector<Provider> &providers, Provider provider) {
-  return std::find(providers.begin(), providers.end(), provider) !=
-         providers.end();
-}
-
-std::string model_stem(const std::string &model_path) {
-  return std::filesystem::path(model_path).stem().string();
-}
-
-struct TensorRtOptionsDeleter {
-  void operator()(OrtTensorRTProviderOptionsV2 *options) const {
-    if (options != nullptr) {
-      Ort::GetApi().ReleaseTensorRTProviderOptions(options);
-    }
-  }
-};
-
-struct CudaOptionsDeleter {
-  void operator()(OrtCUDAProviderOptionsV2 *options) const {
-    if (options != nullptr) {
-      Ort::GetApi().ReleaseCUDAProviderOptions(options);
-    }
-  }
-};
-
 } // namespace
-
-std::vector<Provider> available_providers() {
-  std::vector<Provider> providers;
-  for (const std::string &name : Ort::GetAvailableProviders()) {
-    const std::string lower = to_lower(name);
-    if (lower == "cudaexecutionprovider") {
-      providers.push_back(Provider::Cuda);
-    } else if (lower == "tensorrtexecutionprovider") {
-      providers.push_back(Provider::TensorRt);
-    } else if (lower == "cpuexecutionprovider") {
-      providers.push_back(Provider::Cpu);
-    }
-  }
-  return providers;
-}
-
-std::vector<Provider> provider_chain(const std::string &requested,
-                                     const std::vector<Provider> &available) {
-  const std::string key = to_lower(requested.empty() ? "auto" : requested);
-  std::vector<Provider> base;
-  if (key == "cpu") {
-    base = {Provider::Cpu};
-  } else if (key == "cuda") {
-    base = {Provider::Cuda, Provider::Cpu};
-  } else {
-    // "auto", "tensorrt", "trt" and unknown values prefer TensorRT.
-    base = {Provider::TensorRt, Provider::Cuda, Provider::Cpu};
-  }
-
-  std::vector<Provider> chain;
-  for (const Provider provider : base) {
-    if (provider == Provider::Cpu || contains(available, provider)) {
-      chain.push_back(provider);
-    }
-  }
-  return chain;
-}
-
-const char *provider_name(Provider provider) {
-  switch (provider) {
-  case Provider::Cpu:
-    return "cpu";
-  case Provider::Cuda:
-    return "cuda";
-  case Provider::TensorRt:
-    return "tensorrt";
-  }
-  return "unknown";
-}
 
 int parse_device_id(const std::string &device) {
   const std::string value = to_lower(device);
@@ -114,97 +38,24 @@ int parse_device_id(const std::string &device) {
   return id;
 }
 
-const char *device_provider_name(const std::string &device) {
-  const std::string value = to_lower(device);
-  const std::size_t colon = value.find(':');
-  const std::string prefix =
-      colon == std::string::npos ? value : value.substr(0, colon);
-  if (prefix == "cuda") {
-    return "cuda";
+bool tensorrt_available() {
+  for (const std::string &name : Ort::GetAvailableProviders()) {
+    if (to_lower(name) == "tensorrtexecutionprovider") {
+      return true;
+    }
   }
-  if (prefix == "tensorrt" || prefix == "trt") {
-    return "tensorrt";
-  }
-  if (prefix == "cpu") {
-    return "cpu";
-  }
-  return "";
+  return false;
 }
 
-Ort::SessionOptions build_session_options(Provider primary,
-                                          const ProviderConfig &config) {
+Ort::SessionOptions build_session_options(int device_id) {
   Ort::SessionOptions options;
   options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-  options.SetIntraOpNumThreads(primary == Provider::Cpu ? config.n_threads : 1);
-
-  if (primary == Provider::TensorRt) {
-    OrtTensorRTProviderOptionsV2 *raw_trt_options = nullptr;
-    Ort::ThrowOnError(
-        Ort::GetApi().CreateTensorRTProviderOptions(&raw_trt_options));
-    std::unique_ptr<OrtTensorRTProviderOptionsV2, TensorRtOptionsDeleter>
-        trt_options(raw_trt_options);
-
-    const std::string device_id = std::to_string(config.device_id);
-    const std::string fp16 = config.trt_fp16_enable ? "1" : "0";
-    const bool cache_enabled =
-        config.trt_engine_cache_enable && !config.trt_engine_cache_path.empty();
-    const std::string cache_enable = cache_enabled ? "1" : "0";
-    std::vector<const char *> keys = {"device_id", "trt_fp16_enable",
-                                      "trt_engine_cache_enable"};
-    std::vector<const char *> values = {device_id.c_str(), fp16.c_str(),
-                                        cache_enable.c_str()};
-    if (cache_enabled) {
-      keys.push_back("trt_engine_cache_path");
-      values.push_back(config.trt_engine_cache_path.c_str());
-    }
-    Ort::ThrowOnError(Ort::GetApi().UpdateTensorRTProviderOptions(
-        trt_options.get(), keys.data(), values.data(), keys.size()));
-    options.AppendExecutionProvider_TensorRT_V2(*trt_options);
-  }
-
-  if (primary == Provider::TensorRt || primary == Provider::Cuda) {
-    OrtCUDAProviderOptionsV2 *raw_cuda_options = nullptr;
-    Ort::ThrowOnError(
-        Ort::GetApi().CreateCUDAProviderOptions(&raw_cuda_options));
-    std::unique_ptr<OrtCUDAProviderOptionsV2, CudaOptionsDeleter> cuda_options(
-        raw_cuda_options);
-
-    const std::string device_id = std::to_string(config.device_id);
-    std::vector<const char *> keys = {"device_id", "arena_extend_strategy",
-                                      "cudnn_conv_algo_search"};
-    std::vector<const char *> values = {device_id.c_str(), "kSameAsRequested",
-                                        "HEURISTIC"};
-    Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(
-        cuda_options.get(), keys.data(), values.data(), keys.size()));
-    options.AppendExecutionProvider_CUDA_V2(*cuda_options);
-  }
-
+  // The TensorRT EP owns all GPU execution; ORT's built-in CPU EP handles any
+  // nodes TensorRT does not claim.
+  options.SetIntraOpNumThreads(1);
+  Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(
+      static_cast<OrtSessionOptions *>(options), device_id));
   return options;
-}
-
-std::string engine_cache_dir(const std::string &base,
-                             const std::string &model_path) {
-  std::string root = base;
-  if (root.empty()) {
-    const char *home = std::getenv("HOME");
-    if (home == nullptr) {
-      std::cerr << "Cannot resolve $HOME for the TensorRT engine cache."
-                << std::endl;
-      return "";
-    }
-    root = std::string(home) + "/.cache/yolo_ros/trt_engines";
-  }
-
-  const std::filesystem::path dir =
-      std::filesystem::path(root) / model_stem(model_path);
-  std::error_code error;
-  std::filesystem::create_directories(dir, error);
-  if (error) {
-    std::cerr << "Cannot create TensorRT engine cache directory " << dir << ": "
-              << error.message() << std::endl;
-    return "";
-  }
-  return dir.string();
 }
 
 } // namespace yolo_ros::engine
