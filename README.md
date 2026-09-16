@@ -41,6 +41,10 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 - CUDA 10.2 + cuDNN 8.0 and TensorRT 7 (JetPack) on the aarch64 robot. ONNX
   Runtime 1.6.0 has no official aarch64 binary and is built from source (see
   [Build](#build)).
+- A host compiler supported by your CUDA. CUDA 10.2 accepts **GCC ≤ 8**, so on a
+  distro whose default `g++` is 9+ install a compatible one
+  (`sudo apt install gcc-8 g++-8`). `build_ort160_aarch64.sh` auto-selects it, or
+  set `CUDAHOSTCXX=/usr/bin/g++-8` explicitly.
 - libcurl / OpenSSL headers if you use the Hugging Face Hub model download:
   `sudo apt install libcurl4-openssl-dev libssl-dev`.
 - An exported ONNX model. Models live outside the repository — pass
