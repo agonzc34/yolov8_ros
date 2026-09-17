@@ -13,6 +13,24 @@
 
 namespace yolo_ros::node {
 
+namespace {
+/// @brief Map a hue (OpenCV 8-bit H, 0..179) to a fully saturated, fully bright
+/// BGR color.
+///
+/// The old palette derived colors straight from the hash bytes, which produced
+/// muddy, low-contrast colors for many classes. Pinning saturation/value and
+/// only varying the hue guarantees every color is vivid while remaining
+/// deterministic for a given class name.
+cv::Scalar vivid_bgr(int hue) {
+  const int h = ((hue % 180) + 180) % 180;
+  cv::Mat hsv(1, 1, CV_8UC3, cv::Scalar(h, 235, 255));
+  cv::Mat bgr;
+  cv::cvtColor(hsv, bgr, cv::COLOR_HSV2BGR);
+  const cv::Vec3b pixel = bgr.at<cv::Vec3b>(0, 0);
+  return cv::Scalar(pixel[0], pixel[1], pixel[2]);
+}
+} // namespace
+
 DebugNode::DebugNode()
     : rclcpp_lifecycle::LifecycleNode("yolo_node"), image_qos_profile(1),
       class_to_color() {
@@ -215,8 +233,7 @@ cv::Scalar DebugNode::color_for_class(const std::string &class_name) {
       hash ^= static_cast<uint8_t>(c);
       hash *= 16777619u;
     }
-    class_to_color[class_name] =
-        cv::Scalar(hash & 0xFF, (hash >> 8) & 0xFF, (hash >> 16) & 0xFF);
+    class_to_color[class_name] = vivid_bgr(static_cast<int>(hash % 180));
     color_it = class_to_color.find(class_name);
   }
   return color_it->second;
@@ -228,9 +245,10 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
   const auto &center = detection.bbox.center.position;
   const double theta = detection.bbox.center.theta;
 
-  // Text anchor, filled in below (top-left of the drawn box).
-  int text_x = 0;
-  int text_y = 0;
+  // Label anchor, filled in below (top-left INSIDE the drawn box so a large
+  // detection near the frame edge cannot push the label off screen).
+  cv::Point label_anchor(0, 0);
+  constexpr int label_inset = 2;
 
   if (std::abs(theta) > 0.0) {
     // Oriented bounding box (OBB): the rotation angle rides in center.theta
@@ -257,15 +275,14 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
       min_y = std::min(min_y, p.y);
     }
     cv::polylines(image, quad, true, color, 2, cv::LINE_AA);
-    text_x = cvRound(min_x);
-    text_y = cvRound(min_y) - 5;
+    label_anchor =
+        cv::Point(cvRound(min_x) + label_inset, cvRound(min_y) + label_inset);
   } else {
     cv::Rect box(center.x - detection.bbox.size.x / 2,
                  center.y - detection.bbox.size.y / 2, detection.bbox.size.x,
                  detection.bbox.size.y);
     cv::rectangle(image, box, color, 2);
-    text_x = box.x;
-    text_y = box.y - 5;
+    label_anchor = cv::Point(box.x + label_inset, box.y + label_inset);
   }
 
   // Text
@@ -276,10 +293,66 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
   std::ostringstream ss;
   ss << std::fixed << std::setprecision(3) << detection.score;
   text += " " + ss.str();
-  cv::putText(image, text, cv::Point(text_x, text_y), cv::FONT_HERSHEY_SIMPLEX,
-              0.5, color, 2);
+  draw_label(image, text, label_anchor, color);
 
   return image;
+}
+
+void DebugNode::draw_label(const cv::Mat &image, const std::string &text,
+                           const cv::Point &anchor,
+                           const cv::Scalar &background, double font_scale,
+                           int thickness) {
+  constexpr int font = cv::FONT_HERSHEY_SIMPLEX;
+  constexpr int pad = 3;
+
+  int baseline = 0;
+  const cv::Size size =
+      cv::getTextSize(text, font, font_scale, thickness, &baseline);
+  const int label_w = size.width + 2 * pad;
+  const int label_h = size.height + baseline + 2 * pad;
+
+  // `anchor` is the desired top-left corner. Slide the label back inside the
+  // frame when the requested corner would push it off screen (e.g. a detection
+  // touching the border), so the text is never clipped.
+  int x0 = anchor.x;
+  int y0 = anchor.y;
+  if (x0 + label_w > image.cols) {
+    x0 = image.cols - label_w;
+  }
+  if (y0 + label_h > image.rows) {
+    y0 = image.rows - label_h;
+  }
+  x0 = std::max(0, x0);
+  y0 = std::max(0, y0);
+  const int x1 = std::min(image.cols - 1, x0 + label_w - 1);
+  const int y1 = std::min(image.rows - 1, y0 + label_h - 1);
+  if (x1 <= x0 || y1 <= y0) {
+    return; // degenerate or fully off-frame
+  }
+
+  cv::rectangle(image, cv::Point(x0, y0), cv::Point(x1, y1), background,
+                cv::FILLED);
+
+  // Pick black or white glyphs by WCAG contrast ratio (relative luminance)
+  // against the background, so the label is readable for every class color.
+  auto relative_luminance = [](const cv::Scalar &bgr) {
+    auto channel = [](double value) {
+      value /= 255.0;
+      return value <= 0.03928 ? value / 12.92
+                              : std::pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(bgr[2]) + 0.7152 * channel(bgr[1]) +
+           0.0722 * channel(bgr[0]);
+  };
+  const double luminance = relative_luminance(background);
+  const double contrast_black = (luminance + 0.05) / 0.05;
+  const double contrast_white = 1.05 / (luminance + 0.05);
+  const cv::Scalar text_color = contrast_black >= contrast_white
+                                    ? cv::Scalar(0, 0, 0)
+                                    : cv::Scalar(255, 255, 255);
+
+  cv::putText(image, text, cv::Point(x0 + pad, y0 + pad + size.height), font,
+              font_scale, text_color, thickness, cv::LINE_AA);
 }
 
 void DebugNode::draw_mask(cv::Mat &overlay, cv::Mat &image,
@@ -313,13 +386,10 @@ cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
       {6, 7},   {6, 8},   {7, 9},   {8, 10},  {9, 11},  {2, 3},  {1, 2},
       {1, 3},   {2, 4},   {3, 5},   {4, 6},   {5, 7}};
 
-  // Generate a stable BGR color directly from the keypoint or limb index.
-  // This keeps adjacent parts visually distinct without a borrowed palette.
-  auto indexed_color = [](int index) {
-    const int i = ((index % 256) + 256) % 256;
-    return cv::Scalar((53 * i + 67) % 256, (97 * i + 149) % 256,
-                      (193 * i + 43) % 256);
-  };
+  // Generate a stable, vivid BGR color directly from the keypoint or limb
+  // index. The 47 stride is coprime with 180, so adjacent indices land on
+  // well-separated hues (a borrowed palette is deliberately avoided).
+  auto indexed_color = [](int index) { return vivid_bgr(index * 47 + 11); };
 
   std::map<int, cv::Point> points;
   for (const auto &kp : detection.keypoints.data) {
@@ -327,8 +397,8 @@ cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
     points[kp.id] = pt;
     const auto color_k = indexed_color(kp.id);
     cv::circle(image, pt, 5, color_k, -1, cv::LINE_AA);
-    cv::putText(image, std::to_string(kp.id), pt, cv::FONT_HERSHEY_SIMPLEX, 1,
-                color_k, 1, cv::LINE_AA);
+    draw_label(image, std::to_string(kp.id), pt + cv::Point(6, -7), color_k,
+               0.5, 1);
   }
 
   // Draw the skeleton limbs on top (per-limb colors, only when both
