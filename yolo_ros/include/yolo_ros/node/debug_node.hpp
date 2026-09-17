@@ -154,6 +154,19 @@ private:
   cv::Mat draw_keypoints(const cv::Mat &image,
                          const yolo_msgs::msg::Detection &detection);
 
+  /// @brief Draw @p text inside a filled label box placed at @p anchor (its
+  /// top-left corner), with the highest-contrast (black or white) glyphs and
+  /// clamped so the label always stays inside the frame.
+  /// @param[in] image Image to draw on.
+  /// @param[in] text Text to render.
+  /// @param[in] anchor Desired top-left corner of the label box.
+  /// @param[in] background Fill color of the label background (BGR).
+  /// @param[in] font_scale OpenCV Hershey font scale.
+  /// @param[in] thickness Glyph stroke thickness.
+  void draw_label(const cv::Mat &image, const std::string &text,
+                  const cv::Point &anchor, const cv::Scalar &background,
+                  double font_scale = 0.5, int thickness = 1);
+
   /// @brief Build the RViz marker for a 3D bounding box.
   /// @param[in] detection Detection carrying a 3D box.
   /// @param[in] color Marker color.
