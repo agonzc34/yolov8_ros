@@ -2,8 +2,13 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
+#include <cv_bridge/cv_bridge.h>
+#endif
+
 #include "yolo_ros/node/debug_node.hpp"
-#include "cv_bridge/cv_bridge.h"
 #include <algorithm>
 #include <array>
 #include <cmath>

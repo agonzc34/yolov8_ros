@@ -17,7 +17,11 @@
 #include <utility>
 #include <vector>
 
-#include "cv_bridge/cv_bridge.h"
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
+#include <cv_bridge/cv_bridge.h>
+#endif
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "message_filters/subscriber.h"
 #include "message_filters/sync_policies/approximate_time.h"
