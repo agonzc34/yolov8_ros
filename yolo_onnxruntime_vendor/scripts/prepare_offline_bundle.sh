@@ -53,7 +53,7 @@ ORT_GIT_URL="https://github.com/microsoft/onnxruntime"
 HFHUB_GIT_URL="https://github.com/agonzc34/huggingface-hub-cpp"
 HFHUB_TAG="1.1.4"
 # Kitware prebuilt aarch64 CMake bundled for the robot (needs only glibc 2.17).
-CMAKE_VERSION="${CMAKE_VERSION:-3.31.12}"
+CMAKE_VERSION="${CMAKE_VERSION:-3.26.6}"
 
 # The colcon workspace root (repo is <workspace>/src/yolov8_ros/).
 WORKSPACE="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
