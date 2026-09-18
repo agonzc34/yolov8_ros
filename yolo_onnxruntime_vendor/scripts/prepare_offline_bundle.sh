@@ -159,6 +159,41 @@ if [[ "${found}" -eq 0 ]]; then
   exit 1
 fi
 
+# --- Reduced-operator-kernel build config ------------------------------------
+# The robot builds ONNX Runtime with only the kernels the bundled models need
+# (--include_ops_by_config). Generate that list here: the host has the models,
+# the ORT source and internet; the robot has none of the Python tooling. Failure
+# is non-fatal -- the robot then does a full kernel build.
+REDUCED_OPS_CONFIG="${OUT_DIR}/onnxruntime/reduced_ops.config"
+PY_RUN=()
+if [[ -n "${ONNX_PY:-}" ]]; then
+  # ONNX_PY may be a command with arguments, e.g. "uv run --with onnx python3".
+  read -r -a PY_RUN <<< "${ONNX_PY}"
+elif command -v python3 >/dev/null 2>&1 && python3 -c 'import onnx' >/dev/null 2>&1; then
+  PY_RUN=(python3)
+elif command -v uv >/dev/null 2>&1 && uv run --with onnx python3 -c 'import onnx' >/dev/null 2>&1; then
+  PY_RUN=(uv run --with onnx python3)
+fi
+
+REDUCED_OPS_NOTE=""
+if [[ ${#PY_RUN[@]} -eq 0 ]]; then
+  echo "warning: no Python with 'onnx' found; skipping the reduced-ops config" >&2
+  echo "         set ONNX_PY or install onnx to shrink the onnxruntime build" >&2
+  REDUCED_OPS_NOTE="has NO reduced-ops config (the robot build is a full build)"
+elif "${PY_RUN[@]}" \
+       "${OUT_DIR}/onnxruntime/tools/python/create_reduced_build_config.py" \
+       -f ONNX "${OUT_DIR}/models" "${REDUCED_OPS_CONFIG}" \
+     && [[ -s "${REDUCED_OPS_CONFIG}" ]] \
+     && grep -q '^ai\.onnx;' "${REDUCED_OPS_CONFIG}"; then
+  op_count="$(awk -F';' '/^[^#]/{n=split($3,a,","); c+=n} END{print c+0}' "${REDUCED_OPS_CONFIG}")"
+  echo "    reduced-ops config: ${REDUCED_OPS_CONFIG} (${op_count} ops)"
+  REDUCED_OPS_NOTE="ships onnxruntime/reduced_ops.config (picked up automatically)"
+else
+  echo "warning: reduced-ops config generation failed; continuing without it" >&2
+  rm -f "${REDUCED_OPS_CONFIG}"
+  REDUCED_OPS_NOTE="has NO reduced-ops config (the robot build is a full build)"
+fi
+
 # ONNX Runtime 1.16+ requires CMake >= 3.26, but JetPack 6 / Ubuntu 22.04 ship
 # 3.22 and the robot is offline. Bundle Kitware's prebuilt aarch64 CMake so the
 # robot can put it on PATH.
@@ -218,6 +253,7 @@ BUNDLE_NAME="$(basename "${OUT_DIR}")"
 cat <<EOF
 
 Bundle ready: ${BUNDLE} (${SIZE})
+This bundle ${REDUCED_OPS_NOTE}.
 
 1. Copy the workspace source and the bundle to the robot (replace <user>@<robot>):
      rsync -a --exclude build --exclude install --exclude log \\
