@@ -24,7 +24,10 @@
 #   ${ORT_BUILD_DIR}/onnxruntime   a previously extracted/cloned tree
 #   otherwise                 git clone --recursive (requires internet)
 #
-# Env overrides: CUDA_HOME, CUDNN_HOME, TENSORRT_HOME, ORT_BUILD_DIR
+# Env overrides: CUDA_HOME, CUDNN_HOME, TENSORRT_HOME, ORT_BUILD_DIR,
+#   ORT_OPS_CONFIG (default: <source>/reduced_ops.config; empty disables the
+#   reduced build), ORT_DISABLE_UNUSED_OPS (default 1), ORT_DISABLE_CONTRIB_OPS
+#   (default 0)
 set -euo pipefail
 
 usage() {
@@ -187,16 +190,72 @@ if [[ -d "${SRC_DIR}/build" ]]; then
   echo "    note: ${SRC_DIR}/build already exists; if a previous attempt used a" \
     "different compiler, remove it first (rm -rf ${SRC_DIR}/build)."
 fi
+
+# --- Optional build reduction ------------------------------------------------
+# Passing an unknown flag aborts build.py, and older releases (e.g. 1.20.0)
+# lack --disable_generation_ops, so probe each flag in the source tree first.
+supports_build_flag() {
+  grep -q -- "$1" "${SRC_DIR}/tools/ci_build/build.py"
+}
+
+# Empty ORT_OPS_CONFIG disables the reduced build; unset uses the bundled config.
+reduced_ops_config="${ORT_OPS_CONFIG-${SRC_DIR}/reduced_ops.config}"
+if [[ -n "${reduced_ops_config}" && ! -f "${reduced_ops_config}" ]]; then
+  echo "warning: reduced-ops config '${reduced_ops_config}' not found;" \
+    "building without --include_ops_by_config" >&2
+  reduced_ops_config=""
+fi
+
+extra_build_args=()
+skipped_build_args=()
+if [[ -n "${reduced_ops_config}" ]]; then
+  extra_build_args+=(--include_ops_by_config "${reduced_ops_config}")
+fi
+if [[ "${ORT_DISABLE_UNUSED_OPS:-1}" == "1" ]]; then
+  for flag in --disable_ml_ops --disable_generation_ops; do
+    if supports_build_flag "${flag}"; then
+      extra_build_args+=("${flag}")
+    else
+      skipped_build_args+=("${flag}")
+    fi
+  done
+fi
+if [[ "${ORT_DISABLE_CONTRIB_OPS:-0}" == "1" ]]; then
+  if supports_build_flag --disable_contrib_ops; then
+    extra_build_args+=(--disable_contrib_ops)
+  else
+    skipped_build_args+=(--disable_contrib_ops)
+  fi
+fi
+
+echo "==> Build reduction:"
+if [[ -n "${reduced_ops_config}" ]]; then
+  echo "    --include_ops_by_config ${reduced_ops_config}"
+else
+  echo "    reduced-ops config: none (full kernel set)"
+fi
+if [[ ${#skipped_build_args[@]} -gt 0 ]]; then
+  echo "    skipped (unsupported by this ORT version): ${skipped_build_args[*]}"
+fi
+
 pushd "${SRC_DIR}"
 # --skip_submodule_sync keeps the build offline (prepare_offline_bundle.sh has
-# already populated every submodule).
-./build.sh --config Release --update --build --build_shared_lib --skip_tests \
+# already populated every submodule). --update is what runs the operator
+# reduction when --include_ops_by_config is set.
+if ! ./build.sh --config Release --update --build --build_shared_lib --skip_tests \
   --skip_submodule_sync --parallel \
   --use_tensorrt --tensorrt_home "${TRT_HOME}" \
   --use_cuda --cuda_home "${CUDA_HOME}" --cudnn_home "${CUDNN_HOME}" \
   --cmake_extra_defines "CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}" \
   --cmake_extra_defines "CMAKE_CUDA_HOST_COMPILER=${CUDAHOSTCXX}" \
-  --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF
+  --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF \
+  "${extra_build_args[@]}"; then
+  popd >/dev/null
+  echo "error: ONNX Runtime build failed." >&2
+  echo "       To check whether the reduction caused it, retry with:" >&2
+  echo "         ORT_OPS_CONFIG= ORT_DISABLE_UNUSED_OPS=0 $0 $*" >&2
+  exit 1
+fi
 popd
 
 BUILD_DIR="${SRC_DIR}/build/Linux/Release"
