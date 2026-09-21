@@ -2,19 +2,19 @@
 
 ROS 2 wrap for YOLO models from [Ultralytics](https://github.com/ultralytics/ultralytics) to perform object detection and tracking, instance segmentation, human pose estimation, Oriented Bounding Box (OBB) and image classification. There are also 3D versions of object detection, instance segmentation and human pose estimation based on depth images.
 
-This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in which the Python nodes have been replaced by a pure **C++ / ONNX Runtime** implementation (no Python runtime, no `ultralytics` dependency at run time), and the whole repository is licensed under **MIT**.
+The pipeline is a pure **C++ / ONNX Runtime** implementation: there is no Python runtime and no `ultralytics` dependency at run time. It runs any Ultralytics-exported ONNX model (see [Models](#models)), and the whole repository is licensed under **MIT**.
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit) [![GitHub release](https://img.shields.io/github/release/agonzc34/yolov8_ros.svg)](https://github.com/agonzc34/yolov8_ros/releases) [![Code Size](https://img.shields.io/github/languages/code-size/agonzc34/yolov8_ros.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros?branch=yolo_onnx_cpp) [![Last Commit](https://img.shields.io/github/last-commit/agonzc34/yolov8_ros.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/commits/yolo_onnx_cpp) [![GitHub issues](https://img.shields.io/github/issues/agonzc34/yolov8_ros)](https://github.com/agonzc34/yolov8_ros/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/agonzc34/yolov8_ros)](https://github.com/agonzc34/yolov8_ros/pulls) [![Contributors](https://img.shields.io/github/contributors/agonzc34/yolov8_ros.svg)](https://github.com/agonzc34/yolov8_ros/graphs/contributors) [![Doxygen Deployment](https://github.com/agonzc34/yolov8_ros/actions/workflows/doxygen-deployment.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/doxygen-deployment.yml?branch=yolo_onnx_cpp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit) [![GitHub release](https://img.shields.io/github/release/mgonzs13/yolo_ros.svg)](https://github.com/mgonzs13/yolo_ros/releases) [![Code Size](https://img.shields.io/github/languages/code-size/mgonzs13/yolo_ros.svg?branch=main)](https://github.com/mgonzs13/yolo_ros?branch=main) [![Last Commit](https://img.shields.io/github/last-commit/mgonzs13/yolo_ros.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/commits/main) [![GitHub issues](https://img.shields.io/github/issues/mgonzs13/yolo_ros)](https://github.com/mgonzs13/yolo_ros/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/mgonzs13/yolo_ros)](https://github.com/mgonzs13/yolo_ros/pulls) [![Contributors](https://img.shields.io/github/contributors/mgonzs13/yolo_ros.svg)](https://github.com/mgonzs13/yolo_ros/graphs/contributors) [![Doxygen Deployment](https://github.com/mgonzs13/yolo_ros/actions/workflows/doxygen-deployment.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/doxygen-deployment.yml?branch=main)
 
-| ROS 2 Distro |                          Branch                          |                                                                                                         Build status                                                                                                         |
-| :----------: | :------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-|  **Humble**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |  [![Humble Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/humble-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/humble-docker-build.yml?branch=yolo_onnx_cpp)   |
-|   **Iron**   | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |     [![Iron Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/iron-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/iron-docker-build.yml?branch=yolo_onnx_cpp)      |
-|  **Jazzy**   | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |    [![Jazzy Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/jazzy-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/jazzy-docker-build.yml?branch=yolo_onnx_cpp)    |
-|  **Kilted**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |  [![Kilted Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/kilted-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/kilted-docker-build.yml?branch=yolo_onnx_cpp)   |
-| **Lyrical**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) | [![Lyrical Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/lyrical-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/lyrical-docker-build.yml?branch=yolo_onnx_cpp) |
+| ROS 2 Distro |                          Branch                          |                                                                                                         Build status                                                                                                         |                                                               Docker Image                                                                |
+| :----------: | :------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------: |
+|  **Humble**  | [`main`](https://github.com/mgonzs13/yolo_ros/tree/main) |  [![Humble Build](https://github.com/mgonzs13/yolo_ros/actions/workflows/humble-docker-build.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/humble-docker-build.yml?branch=main)   |  [![Docker Image](https://img.shields.io/badge/Docker%20Image%20-humble-blue)](https://hub.docker.com/r/mgons/yolo_ros/tags?name=humble)  |
+|   **Iron**   | [`main`](https://github.com/mgonzs13/yolo_ros/tree/main) |     [![Iron Build](https://github.com/mgonzs13/yolo_ros/actions/workflows/iron-docker-build.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/iron-docker-build.yml?branch=main)      |    [![Docker Image](https://img.shields.io/badge/Docker%20Image%20-iron-blue)](https://hub.docker.com/r/mgons/yolo_ros/tags?name=iron)    |
+|  **Jazzy**   | [`main`](https://github.com/mgonzs13/yolo_ros/tree/main) |    [![Jazzy Build](https://github.com/mgonzs13/yolo_ros/actions/workflows/jazzy-docker-build.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/jazzy-docker-build.yml?branch=main)    |   [![Docker Image](https://img.shields.io/badge/Docker%20Image%20-jazzy-blue)](https://hub.docker.com/r/mgons/yolo_ros/tags?name=jazzy)   |
+|  **Kilted**  | [`main`](https://github.com/mgonzs13/yolo_ros/tree/main) |  [![Kilted Build](https://github.com/mgonzs13/yolo_ros/actions/workflows/kilted-docker-build.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/kilted-docker-build.yml?branch=main)   |  [![Docker Image](https://img.shields.io/badge/Docker%20Image%20-kilted-blue)](https://hub.docker.com/r/mgons/yolo_ros/tags?name=kilted)  |
+| **Lyrical**  | [`main`](https://github.com/mgonzs13/yolo_ros/tree/main) | [![Lyrical Build](https://github.com/mgonzs13/yolo_ros/actions/workflows/lyrical-docker-build.yml/badge.svg?branch=main)](https://github.com/mgonzs13/yolo_ros/actions/workflows/lyrical-docker-build.yml?branch=main) | [![Docker Image](https://img.shields.io/badge/Docker%20Image%20-lyrical-blue)](https://hub.docker.com/r/mgons/yolo_ros/tags?name=lyrical) |
 
 </div>
 
@@ -34,34 +34,29 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 
 ## Installation
 
-### Prerequisites
-
-- Ubuntu 22.04 with ROS 2 Humble (the workspace is sourced as an overlay over `/opt/ros/humble`).
-- A CUDA toolchain for GPU builds, plus cuDNN 9 on the host:
-  `sudo apt install libcudnn9-cuda-12`.
-- libcurl / OpenSSL headers if you use the Hugging Face Hub model download:
-  `sudo apt install libcurl4-openssl-dev libssl-dev`.
-- An exported ONNX model. Models live outside the repository — pass
-  `model:=<path>` to every launch, since the launch defaults are
-  machine-specific. See [Models](#models).
+The nodes build and run on **Ubuntu 22.04 with ROS 2 Humble**, with the
+workspace sourced as an overlay over `/opt/ros/humble`. ONNX Runtime 1.20.0 is
+downloaded automatically by `yolo_onnxruntime_vendor` at configure time (CPU or,
+with `-DONNX_GPU=ON`, the GPU tarball), so there is no runtime dependency to
+install for inference.
 
 ### Build
 
-Clone the repository into your ROS 2 workspace and build it. ONNX Runtime
-1.20.0 is downloaded automatically by `yolo_onnxruntime_vendor` at configure
-time (CPU or, with `-DONNX_GPU=ON`, the GPU tarball), so there is no runtime
-dependency to install for inference.
-
 ```shell
+# System dependencies: a CUDA toolchain plus cuDNN 9 for GPU builds, and the
+# libcurl/OpenSSL headers for the Hugging Face Hub model download.
+sudo apt install libcudnn9-cuda-12
+sudo apt install libcurl4-openssl-dev libssl-dev
+
 # Clone this repo
 cd ~/ros2_ws/src
-git clone https://github.com/agonzc34/yolov8_ros.git
+git clone https://github.com/mgonzs13/yolo_ros.git
 
 # Install rosdep dependencies
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -r -y
 
-# GPU build (what this branch is developed with)
+# GPU build (the CPU build just omits -DONNX_GPU=ON)
 colcon build --symlink-install --cmake-args -DONNX_GPU=ON
 source install/setup.bash
 ```
@@ -77,6 +72,31 @@ colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo
 ```
 
 Launch from the workspace root so relative source paths resolve.
+
+### Jetson / aarch64 (offline build)
+
+GPU inference on an aarch64 Jetson (Xavier, Orin) needs an ONNX Runtime built
+with CUDA + TensorRT — the prebuilt x64 tarball cannot provide it.
+`yolo_onnxruntime_vendor/scripts/` ships two tools for that, each documented in
+its own file header:
+
+- **`build_ort_aarch64.sh`** — runs on the robot and builds ONNX Runtime from
+  source into a flat `lib/` + `include/` prefix. Consume it with
+  `colcon build --cmake-args -DONNXRUNTIME_ROOT=<prefix>`, which overrides the
+  prebuilt download. Set `ORT_CUDA_ARCH` for the target GPU (Xavier `72`,
+  Orin `87`).
+- **`prepare_offline_bundle.sh`** — runs on an internet-connected host and
+  produces a self-contained tarball for a robot with no network: the ONNX
+  Runtime source tree with its submodules, the mirrored CMake dependency
+  archives, the ONNX models, a bundled CMake (ONNX Runtime 1.16+ needs
+  CMake ≥ 3.26, while JetPack 6 / Ubuntu 22.04 ship 3.22) and both scripts. It
+  prints the exact copy-paste sequence for the robot when it finishes.
+
+Extract the bundle **outside** the colcon workspace — it carries
+`COLCON_IGNORE` markers so colcon does not treat the ONNX Runtime tree as a
+package. The robot build also passes
+`-DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=<bundle>/huggingface-hub-cpp` so
+`yolo_hfhub_vendor` does not fetch `huggingface-hub-cpp` from the network.
 
 ### Testing
 
@@ -418,10 +438,9 @@ footprint low.
 
 ## Demos
 
-> The detection, segmentation, pose and 3D demos below are reused from the
-> [upstream project](https://github.com/mgonzs13/yolo_ros). The OBB and
-> classification demos are not yet recorded — drop the recordings at the listed
-> paths to have them show up here.
+> The detection, segmentation, pose and 3D demos below were recorded with the
+> earlier Python implementation. The OBB and classification demos are not yet
+> recorded — drop the recordings at the listed paths to have them show up here.
 
 ### Object Detection
 
@@ -462,9 +481,11 @@ Rotated boxes are estimated for oriented objects.
 ros2 launch yolo_bringup yolo_obb.launch.py
 ```
 
+<!-- Demo recording pending: add ./docs/media/demo_obb.gif to display it here.
 <p align="center">
   <img src="./docs/media/demo_obb.gif" alt="Oriented bounding box demo" width="100%" />
 </p>
+-->
 
 ### Image Classification
 
@@ -474,9 +495,11 @@ Image-level ImageNet-1k labels are published as detections with an empty bbox.
 ros2 launch yolo_bringup yolo_classify.launch.py
 ```
 
+<!-- Demo recording pending: add ./docs/media/demo_classify.gif to display it here.
 <p align="center">
   <img src="./docs/media/demo_classify.gif" alt="Image classification demo" width="100%" />
 </p>
+-->
 
 ### 3D Object Detection
 
@@ -494,7 +517,7 @@ ros2 launch yolo_bringup yolo.launch.py use_3d:=True
 The C++ API reference is generated with Doxygen and published to GitHub Pages
 on every release:
 
-- Latest: <https://agonzc34.github.io/yolov8_ros/>
+- Latest: <https://mgonzs13.github.io/yolo_ros/>
 
 Build it locally (Doxygen + Graphviz):
 
