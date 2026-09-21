@@ -106,14 +106,6 @@ flight, throughput the saturated end-to-end rate.
 | CUDA | CUDA EP (fp32) | 22.6 ms | 49 FPS | ~1.4 cores | 1002 MiB | 478 MiB |
 | TensorRT | TensorRT EP (fp16) | 6.2 ms | 194 FPS | ~1.3 cores | 3234 MiB | 240 MiB |
 
-Measured on an Intel i7-12700F (20 threads) with an NVIDIA RTX 3060 12 GB.
-CPU-only is not viable at this model size (~7× short of 30 Hz); its only win is
-RSS (535 MiB). TensorRT is ~3.6× the CUDA rate at about half the GPU memory, at
-the cost of a much larger host RSS and a one-off engine build — the first
-TensorRT run per model builds and caches an engine (about 3 minutes cold on the
-reference machine, 1.6 s warm; see `trt_engine_cache_*` in
-[Parameters](#parameters)).
-
 ### Jetson / aarch64 (offline build)
 
 GPU inference on an aarch64 Jetson (Xavier, Orin) needs an ONNX Runtime built
