@@ -41,6 +41,10 @@ class MessageFilterSubscriber
     : public message_filters::Subscriber<MessageT,
                                          rclcpp_lifecycle::LifecycleNode> {
 public:
+  /// @brief Subscribe to a topic.
+  /// @param node Node used to create the subscription.
+  /// @param topic Topic name to subscribe to.
+  /// @param qos QoS profile for the subscription.
   template <typename NodeT>
   void subscribe(NodeT node, const std::string &topic, const rclcpp::QoS &qos) {
     message_filters::Subscriber<MessageT, rclcpp_lifecycle::LifecycleNode>::
@@ -51,6 +55,10 @@ public:
 template <typename MessageT>
 class MessageFilterSubscriber : public message_filters::Subscriber<MessageT> {
 public:
+  /// @brief Subscribe to a topic.
+  /// @param node Node used to create the subscription.
+  /// @param topic Topic name to subscribe to.
+  /// @param qos QoS profile for the subscription.
   template <typename NodeT>
   void subscribe(NodeT node, const std::string &topic, const rclcpp::QoS &qos) {
     message_filters::Subscriber<MessageT>::subscribe(node, topic, qos);
