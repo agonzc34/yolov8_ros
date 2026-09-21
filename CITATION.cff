@@ -6,6 +6,6 @@ authors:
   - family-names: "González Cantón"
     given-names: "Alejandro"
 title: "yolo_ros"
-version: 5.0.0-rc1
+version: 5.0.0
 date-released: 2023-02-21
 url: "https://github.com/mgonzs13/yolo_ros"
