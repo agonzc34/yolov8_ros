@@ -19,7 +19,7 @@ repos:
         files: \.launch\.py$
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v14.0.6  # matches the local clang-format-14 on Ubuntu 22.04
+    rev: v18.1.8  # matches CI (.github/workflows/cpp-formatter.yml)
     hooks:
       - id: clang-format
         # Check-only (lint): --dry-run cancels the -i baked into the mirror's
