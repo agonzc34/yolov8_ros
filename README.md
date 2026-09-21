@@ -98,12 +98,6 @@ package. The robot build also passes
 `-DFETCHCONTENT_SOURCE_DIR_YOLO_HFHUB=<bundle>/huggingface-hub-cpp` so
 `yolo_hfhub_vendor` does not fetch `huggingface-hub-cpp` from the network.
 
-### Testing
-
-There is currently no C++ test suite: `ament_lint_auto` is declared but no
-tests are registered. The Python package and its ament lint were removed along
-with the rest of the Python implementation.
-
 ## Docker
 
 Build the yolo_ros docker image. Note that the bundled `Dockerfile` performs a
