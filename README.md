@@ -105,9 +105,12 @@ docker run -it --rm --gpus all yolo_ros
 
 ## Models
 
-The C++ pipeline runs any Ultralytics-exported **ONNX** model. The compatible
-model families are:
+The C++ pipeline runs any Ultralytics-exported **ONNX** model whose output
+matches one of the YOLO layouts below. The compatible model families are:
 
+- [YOLOv3](https://docs.ultralytics.com/models/yolov3/) (`yolov3u`, Ultralytics'
+  updated anchor-free head)
+- [YOLOv5](https://docs.ultralytics.com/models/yolov5/) (`yolov5u`)
 - [YOLOv8](https://docs.ultralytics.com/models/yolov8/)
 - [YOLOv9](https://docs.ultralytics.com/models/yolov9/)
 - [YOLOv10](https://docs.ultralytics.com/models/yolov10/)
@@ -115,11 +118,19 @@ model families are:
 - [YOLOv12](https://docs.ultralytics.com/models/yolo12/)
 - [YOLOv26](https://docs.ultralytics.com/models/yolo26/)
 
-Each family can be exported for **detection** (`detect`), **instance
+These families are verified end-to-end with this C++ node. Export
+`yolov3u`/`yolov5u`, not `yolov3`/`yolov5` — Ultralytics only ships the updated
+heads for those generations. YOLOv4, YOLOv6 and YOLOv7 appear in the Ultralytics
+docs but have no downloadable weights, so they cannot be exported; YOLO-World
+and YOLOE depend on open-vocabulary text prompts, which this C++ pipeline does
+not implement.
+
+Models are exported for one task — **detection** (`detect`), **instance
 segmentation** (`segment`), **human pose** (`pose`), **oriented bounding box**
-(`obb`) and **image classification** (`classify`). Export a `.pt` checkpoint to
-ONNX with the `ultralytics` package — either with `uv` (no environment needed)
-or a plain `pip install`:
+(`obb`) or **image classification** (`classify`) — depending on the tasks the
+family's checkpoint provides (not every family offers every task). Export a
+`.pt` checkpoint to ONNX with the `ultralytics` package — either with `uv` (no
+environment needed) or a plain `pip install`:
 
 ```shell
 # uv one-liner (fetches ultralytics + ONNX deps on the fly)
