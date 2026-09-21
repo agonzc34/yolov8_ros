@@ -1,7 +1,8 @@
 /yolo/yolo_node:
   ros__parameters:
     model_type: Classify # force classification (auto works for paths containing "cls")
-    model_repo: zwh20081/yolo26-onnx
+    # YOLO26 ONNX mirror (https://huggingface.co/unileon-robotics/YOLO26-ONNX).
+    model_repo: unileon-robotics/YOLO26-ONNX
     model_filename: yolo26s-cls.onnx
     force_download: false
     device: cuda:0 # device ordinal for the CUDA/TensorRT EPs

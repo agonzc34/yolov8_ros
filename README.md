@@ -180,16 +180,26 @@ is then ignored. The file is cached under `~/.cache/huggingface/hub` by default
 ```yaml
 /yolo/yolo_node:
   ros__parameters:
-    model_repo: agonzc34/yolo26m # HF repo id
-    model_filename: yolo26m.onnx # file inside that repo
+    model_repo: unileon-robotics/YOLO26-ONNX # HF repo id
+    model_filename: yolo26s.onnx # file inside that repo
     force_download: false
 ```
 
 Or on the command line: `ros2 launch yolo_bringup yolo.launch.py
-model_repo:=agonzc34/yolo26m model_filename:=yolo26m.onnx`. Requires the libcurl
-dev headers listed above; only used when `model_repo`/`model_filename` are set.
-The node logs the model source as `[huggingface]` (with repo/filename) or
-`[local]` (with the path) so the two are easy to tell apart.
+model_repo:=unileon-robotics/YOLO26-ONNX model_filename:=yolo26s.onnx`. Requires
+the libcurl dev headers listed above; only used when
+`model_repo`/`model_filename` are set. The node logs the model source as
+`[huggingface]` (with repo/filename) or `[local]` (with the path) so the two are
+easy to tell apart.
+
+The shipped `config/yolo*.yaml` files already default to the
+[`unileon-robotics/YOLO26-ONNX`](https://huggingface.co/unileon-robotics/YOLO26-ONNX)
+mirror — ONNX exports of the
+[`Ultralytics/YOLO26`](https://huggingface.co/Ultralytics/YOLO26) checkpoints
+(25 files: `yolo26{n,s,m,l,x}` for detect / `-seg` / `-pose` / `-obb` / `-cls`,
+exported with `imgsz=640 opset=12`). The first launch per model downloads it
+(so it needs network access) and caches it; clear `model_repo` to fall back to
+the local `model` path, or pass `model:=<path>` for a local file.
 
 > **License note**: Ultralytics models and pretrained weights are **not** MIT
 > licensed. They are released under the **AGPL-3.0** license (with commercial /
@@ -332,7 +342,9 @@ below; see `yolo_bringup/config/yolo*.yaml` for the complete set.
   `Classify` or `auto` (default: `auto`).
 - **model**: Path to the ONNX model (default: machine-specific).
 - **model_repo** / **model_filename** / **force_download** / **cache_dir**:
-  Optional Hugging Face Hub download (used instead of `model` when set).
+  Hugging Face Hub download (used instead of `model` when set). The shipped
+  configs default to the `unileon-robotics/YOLO26-ONNX` mirror; clear
+  `model_repo` to fall back to the local `model` path.
 - **provider**: Execution provider: `auto` (TensorRT → CUDA → CPU fallback
   chain), or force `tensorrt`/`trt`, `cuda`, `cpu` (default: `auto`).
 - **device**: CUDA/TensorRT device ordinal, e.g. `cuda:0`, `trt:1`, `1`
