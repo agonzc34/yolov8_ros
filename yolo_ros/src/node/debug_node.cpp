@@ -2,10 +2,10 @@
 // Portions Copyright (c) 2023-2025 Miguel Ángel González Santamarta
 // SPDX-License-Identifier: MIT
 
-#if __has_include(<cv_bridge/cv_bridge.hpp>)
-#include <cv_bridge/cv_bridge.hpp>
-#else
+#if defined(CV_BRIDGE_H)
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
 #endif
 
 #include "yolo_ros/node/debug_node.hpp"
@@ -86,11 +86,9 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 DebugNode::on_activate(const rclcpp_lifecycle::State &) {
   this->image_subscription.subscribe(this->shared_from_this(),
-                                     this->image_topic_,
-                                     image_qos_profile.get_rmw_qos_profile());
+                                     this->image_topic_, image_qos_profile);
   this->detection_subscription.subscribe(
-      this->shared_from_this(), this->detections_topic_,
-      image_qos_profile.get_rmw_qos_profile());
+      this->shared_from_this(), this->detections_topic_, image_qos_profile);
 
   uint32_t queue_size = 10;
 

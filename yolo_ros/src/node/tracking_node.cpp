@@ -9,10 +9,10 @@
 #include <string>
 #include <vector>
 
-#if __has_include(<cv_bridge/cv_bridge.hpp>)
-#include <cv_bridge/cv_bridge.hpp>
-#else
+#if defined(CV_BRIDGE_H)
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
 #endif
 
 #include "rclcpp/exceptions.hpp"
@@ -71,11 +71,9 @@ TrackingNode::on_configure(const rclcpp_lifecycle::State &) {
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 TrackingNode::on_activate(const rclcpp_lifecycle::State &) {
   this->image_subscription_.subscribe(this->shared_from_this(),
-                                      this->image_topic_,
-                                      image_qos_profile_.get_rmw_qos_profile());
-  this->detection_subscription_.subscribe(
-      this->shared_from_this(), "detections",
-      image_qos_profile_.get_rmw_qos_profile());
+                                      this->image_topic_, image_qos_profile_);
+  this->detection_subscription_.subscribe(this->shared_from_this(),
+                                          "detections", image_qos_profile_);
 
   this->synchronizer_ =
       std::make_shared<message_filters::Synchronizer<TrackingSyncPolicy>>(10);

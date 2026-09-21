@@ -10,16 +10,13 @@
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-#include "message_filters/subscriber.h"
 #include "rclcpp/qos.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 #include "yolo_msgs/msg/key_point3_d.hpp"
-
-#include "message_filters/sync_policies/approximate_time.h"
-#include "message_filters/synchronizer.h"
+#include "yolo_ros/message_filters_compat.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <rclcpp/context.hpp>
@@ -72,12 +69,9 @@ public:
 
 private:
   /// @brief Synchronized subscription to the input image topic.
-  message_filters::Subscriber<sensor_msgs::msg::Image,
-                              rclcpp_lifecycle::LifecycleNode>
-      image_subscription;
+  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::Image> image_subscription;
   /// @brief Synchronized subscription to the 2D detection topic.
-  message_filters::Subscriber<yolo_msgs::msg::DetectionArray,
-                              rclcpp_lifecycle::LifecycleNode>
+  yolo_ros::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
       detection_subscription;
   /// @brief Publisher of the annotated debug image.
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_publisher;

@@ -7,7 +7,11 @@
 #include "yolo_ros/yolo/utils.hpp"
 #include <algorithm>
 #include <ament_index_cpp/get_package_prefix.hpp>
+#if __has_include(<ament_index_cpp/get_package_share_directory.hpp>)
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#else
+#include <ament_index_cpp/get_package_share_path.hpp>
+#endif
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -16,6 +20,21 @@
 #include <regex>
 #include <stdexcept>
 #include <thread>
+
+namespace {
+
+// ament_index_cpp renamed get_package_share_directory() to
+// get_package_share_path() (returning std::filesystem::path) in
+// Rolling/Lyrical; normalise both to std::string here.
+std::string get_package_share_directory(const std::string &package_name) {
+#if __has_include(<ament_index_cpp/get_package_share_directory.hpp>)
+  return ament_index_cpp::get_package_share_directory(package_name);
+#else
+  return ament_index_cpp::get_package_share_path(package_name).string();
+#endif
+}
+
+} // namespace
 
 namespace yolo_ros::engine {
 Model::Model(yolo_ros::yolo::utils::YoloParams params)
@@ -255,8 +274,7 @@ void yolo_ros::engine::Model::load_class_names() {
     std::string class_names_path;
     try {
       class_names_path =
-          ament_index_cpp::get_package_share_directory("yolo_ros") +
-          "/conf/coco.names";
+          get_package_share_directory("yolo_ros") + "/conf/coco.names";
     } catch (const ament_index_cpp::PackageNotFoundError &e) {
       std::cerr << "Error: could not locate yolo_ros share directory: "
                 << e.what() << std::endl;

@@ -17,19 +17,20 @@
 #include <utility>
 #include <vector>
 
-#if __has_include(<cv_bridge/cv_bridge.hpp>)
-#include <cv_bridge/cv_bridge.hpp>
-#else
+#if defined(CV_BRIDGE_H)
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
 #endif
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "message_filters/subscriber.h"
-#include "message_filters/sync_policies/approximate_time.h"
-#include "message_filters/synchronizer.h"
 #include "rclcpp/qos.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#if __has_include("tf2/exceptions.hpp")
+#include "tf2/exceptions.hpp"
+#else
 #include "tf2/exceptions.h"
+#endif
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "yolo_msgs/msg/bounding_box3_d.hpp"
@@ -38,6 +39,7 @@
 #include "yolo_msgs/msg/key_point3_d_array.hpp"
 
 #include "yolo_ros/3d/depth_utils.hpp"
+#include "yolo_ros/message_filters_compat.hpp"
 
 /// @addtogroup yolo_nodes
 /// @{
@@ -90,16 +92,13 @@ public:
 
 private:
   /// @brief Synchronized subscription to the depth image.
-  message_filters::Subscriber<sensor_msgs::msg::Image,
-                              rclcpp_lifecycle::LifecycleNode>
+  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::Image>
       depth_image_subscription_;
   /// @brief Synchronized subscription to the depth CameraInfo.
-  message_filters::Subscriber<sensor_msgs::msg::CameraInfo,
-                              rclcpp_lifecycle::LifecycleNode>
+  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::CameraInfo>
       depth_info_subscription_;
   /// @brief Synchronized subscription to the 2D detection topic.
-  message_filters::Subscriber<yolo_msgs::msg::DetectionArray,
-                              rclcpp_lifecycle::LifecycleNode>
+  yolo_ros::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
       detection_subscription_;
   /// @brief Publisher of the 3D-enriched detections.
   rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr

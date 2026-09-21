@@ -24,9 +24,26 @@ find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
+# Some dependencies renamed headers or changed their C++ API across distros.
+# ROS_DISTRO is exported by the sourced ROS environment; pick the variant with a
+# compile definition, mirroring the CV_BRIDGE_H handling in llama_ros.
+if("$ENV{ROS_DISTRO}" STREQUAL "humble")
+  # cv_bridge 3.x (Humble) ships cv_bridge/cv_bridge.h; 4.x (Iron and newer)
+  # renamed it to cv_bridge/cv_bridge.hpp.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCV_BRIDGE_H")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCV_BRIDGE_HPP")
+endif()
+if("$ENV{ROS_DISTRO}" STREQUAL "humble" OR "$ENV{ROS_DISTRO}" STREQUAL "iron" OR "$ENV{ROS_DISTRO}" STREQUAL "jazzy" OR "$ENV{ROS_DISTRO}" STREQUAL "kilted")
+  # Humble..Kilted take the node type as a second Subscriber template argument
+  # and subscribe() expects an rmw_qos_profile_t.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMESSAGE_FILTERS_OLD_API")
+endif()
+
 include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
+  ${yolo_onnxruntime_vendor_INCLUDE_DIRS}
 )
 
 # Install yolo_ros
@@ -50,21 +67,17 @@ target_include_directories(yolo_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(yolo_node
-  sensor_msgs
-  std_srvs
-  rclcpp
-  yolo_msgs
-  rclcpp_lifecycle
-  cv_bridge
-  yolo_onnxruntime_vendor
-  ament_index_cpp
-)
-
 target_link_libraries(yolo_node
-  ${OpenCV_LIBS}
-  ${ORT_LIBRARIES}
+  rclcpp::rclcpp
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${sensor_msgs_TARGETS}
+  ${std_srvs_TARGETS}
+  cv_bridge::cv_bridge
+  ament_index_cpp::ament_index_cpp
+  ${yolo_msgs_TARGETS}
+  ${yolo_onnxruntime_vendor_LIBRARIES}
   ${yolo_hfhub_vendor_TARGETS}
+  ${OpenCV_LIBS}
 )
 
 # Install debug node
@@ -77,17 +90,15 @@ target_include_directories(debug_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ament_target_dependencies(debug_node
-  sensor_msgs
-  rclcpp
-  yolo_msgs
-  rclcpp_lifecycle
-  cv_bridge
-  visualization_msgs
-  message_filters
-)
 
 target_link_libraries(debug_node
+  rclcpp::rclcpp
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${sensor_msgs_TARGETS}
+  cv_bridge::cv_bridge
+  ${visualization_msgs_TARGETS}
+  message_filters::message_filters
+  ${yolo_msgs_TARGETS}
   ${OpenCV_LIBS}
 )
 
@@ -112,16 +123,13 @@ target_include_directories(tracking_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(tracking_node
-  sensor_msgs
-  rclcpp
-  yolo_msgs
-  rclcpp_lifecycle
-  message_filters
-  cv_bridge
-)
-
 target_link_libraries(tracking_node
+  rclcpp::rclcpp
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${sensor_msgs_TARGETS}
+  cv_bridge::cv_bridge
+  message_filters::message_filters
+  ${yolo_msgs_TARGETS}
   ${OpenCV_LIBS}
 )
 
@@ -137,18 +145,15 @@ target_include_directories(detect_3d_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(detect_3d_node
-  sensor_msgs
-  rclcpp
-  yolo_msgs
-  rclcpp_lifecycle
-  cv_bridge
-  message_filters
-  tf2_ros
-  geometry_msgs
-)
-
 target_link_libraries(detect_3d_node
+  rclcpp::rclcpp
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${sensor_msgs_TARGETS}
+  cv_bridge::cv_bridge
+  message_filters::message_filters
+  tf2_ros::tf2_ros
+  ${geometry_msgs_TARGETS}
+  ${yolo_msgs_TARGETS}
   ${OpenCV_LIBS}
 )
 
@@ -181,13 +186,10 @@ if(BUILD_TESTING)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
     ${OpenCV_INCLUDE_DIRS}
   )
-  ament_target_dependencies(test_utils
-    yolo_msgs
-    yolo_onnxruntime_vendor
-  )
   target_link_libraries(test_utils
+    ${yolo_msgs_TARGETS}
+    ${yolo_onnxruntime_vendor_LIBRARIES}
     ${OpenCV_LIBS}
-    ${ORT_LIBRARIES}
   )
 
   ament_add_gtest(test_provider
@@ -198,11 +200,8 @@ if(BUILD_TESTING)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
   )
-  ament_target_dependencies(test_provider
-    yolo_onnxruntime_vendor
-  )
   target_link_libraries(test_provider
-    ${ORT_LIBRARIES}
+    ${yolo_onnxruntime_vendor_LIBRARIES}
   )
 
   ament_add_gtest(test_tracking
@@ -233,11 +232,9 @@ if(BUILD_TESTING)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
     ${OpenCV_INCLUDE_DIRS}
   )
-  ament_target_dependencies(test_depth_utils
-    yolo_msgs
-    sensor_msgs
-  )
   target_link_libraries(test_depth_utils
+    ${sensor_msgs_TARGETS}
+    ${yolo_msgs_TARGETS}
     ${OpenCV_LIBS}
   )
 
@@ -260,18 +257,15 @@ if(BUILD_TESTING)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
     ${OpenCV_INCLUDE_DIRS}
   )
-  ament_target_dependencies(test_yolo26n
-    rclcpp
-    sensor_msgs
-    yolo_msgs
-    cv_bridge
-    ament_index_cpp
-    yolo_onnxruntime_vendor
-  )
   target_link_libraries(test_yolo26n
-    ${OpenCV_LIBS}
-    ${ORT_LIBRARIES}
+    rclcpp::rclcpp
+    ${sensor_msgs_TARGETS}
+    cv_bridge::cv_bridge
+    ament_index_cpp::ament_index_cpp
+    ${yolo_msgs_TARGETS}
+    ${yolo_onnxruntime_vendor_LIBRARIES}
     ${yolo_hfhub_vendor_TARGETS}
+    ${OpenCV_LIBS}
     CURL::libcurl
     JPEG::JPEG
   )
