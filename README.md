@@ -15,7 +15,6 @@ This is a fork of [`mgonzs13/yolo_ros`](https://github.com/mgonzs13/yolo_ros) in
 |  **Jazzy**   | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |    [![Jazzy Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/jazzy-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/jazzy-docker-build.yml?branch=yolo_onnx_cpp)    |
 |  **Kilted**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) |  [![Kilted Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/kilted-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/kilted-docker-build.yml?branch=yolo_onnx_cpp)   |
 | **Lyrical**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) | [![Lyrical Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/lyrical-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/lyrical-docker-build.yml?branch=yolo_onnx_cpp) |
-| **Rolling**  | [`yolo_onnx_cpp`](https://github.com/agonzc34/yolov8_ros/tree/yolo_onnx_cpp) | [![Rolling Build](https://github.com/agonzc34/yolov8_ros/actions/workflows/rolling-docker-build.yml/badge.svg?branch=yolo_onnx_cpp)](https://github.com/agonzc34/yolov8_ros/actions/workflows/rolling-docker-build.yml?branch=yolo_onnx_cpp) |
 
 </div>
 
