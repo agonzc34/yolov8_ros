@@ -13,7 +13,6 @@ from launch_ros.actions import Node
 
 from yolo_bringup.launch_params import declare_param_arguments, node_parameters
 
-
 NODES = ("yolo_node", "tracking_node", "detect_3d_node", "debug_node")
 
 
