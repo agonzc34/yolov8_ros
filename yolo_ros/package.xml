@@ -2,9 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>yolo_ros</name>
-  <version>0.0.0</version>
+  <version>5.0.0-rc1</version>
   <description>YOLO ONNX C++ for ROS 2</description>
-  <maintainer email="55236157+agonzc34@users.noreply.github.com">agonzc34</maintainer>
+  <maintainer email="mgons@unileon.es">Miguel Ángel González Santamarta</maintainer>
+  <maintainer email="algonzc@unileon.es">Alejandro González Cantón</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
