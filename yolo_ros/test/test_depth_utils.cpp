@@ -203,6 +203,25 @@ TEST(Lifting, BoxConstantDepth) {
   EXPECT_NEAR(box->center.position.y, 0.0, 0.01);
 }
 
+TEST(Lifting, BoxHasIdentityOrientationWhenDisabled) {
+  cv::Mat depth(100, 100, CV_32FC1, cv::Scalar(2.0f));
+  const auto info = make_camera(100, 100, 100.0, 100.0, 50.0, 50.0);
+  yolo_msgs::msg::Detection det;
+  det.bbox.center.position.x = 50.0;
+  det.bbox.center.position.y = 50.0;
+  det.bbox.size.x = 20.0;
+  det.bbox.size.y = 20.0;
+
+  // Orientation estimation is disabled by default, so the box must keep the
+  // identity quaternion that geometry_msgs/Pose initializes (w = 1).
+  const auto box = convert_bb_to_3d(depth, info, det, 1000);
+  ASSERT_TRUE(box.has_value());
+  EXPECT_DOUBLE_EQ(box->center.orientation.x, 0.0);
+  EXPECT_DOUBLE_EQ(box->center.orientation.y, 0.0);
+  EXPECT_DOUBLE_EQ(box->center.orientation.z, 0.0);
+  EXPECT_DOUBLE_EQ(box->center.orientation.w, 1.0);
+}
+
 TEST(Lifting, BoxConstantDepthAsymmetric) {
   cv::Mat depth(480, 640, CV_32FC1, cv::Scalar(2.0f));
   const auto info = make_camera(640, 480, 600.0, 500.0, 320.0, 240.0);
