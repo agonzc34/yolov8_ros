@@ -34,18 +34,15 @@ The pipeline is a pure **C++ / ONNX Runtime** implementation: there is no Python
 
 ## Installation
 
-The nodes build and run on **Ubuntu 22.04 with ROS 2 Humble**, with the
-workspace sourced as an overlay over `/opt/ros/humble`. ONNX Runtime 1.20.0 is
-downloaded automatically by `yolo_onnxruntime_vendor` at configure time (CPU or,
-with `-DONNX_GPU=ON`, the GPU tarball), so there is no runtime dependency to
-install for inference.
+The nodes build as a standard ROS 2 `colcon` workspace. ONNX Runtime 1.20.0 is
+downloaded automatically by `yolo_onnxruntime_vendor` at configure time — the
+CPU tarball by default, the GPU tarball with `-DONNX_GPU=ON` — so the runtime is
+not something you install by hand.
 
 ### Build
 
 ```shell
-# System dependencies: a CUDA toolchain plus cuDNN 9 for GPU builds, and the
-# libcurl/OpenSSL headers for the Hugging Face Hub model download.
-sudo apt install libcudnn9-cuda-12
+# libcurl/OpenSSL headers, for the Hugging Face Hub model download
 sudo apt install libcurl4-openssl-dev libssl-dev
 
 # Clone this repo
@@ -55,23 +52,67 @@ git clone https://github.com/mgonzs13/yolo_ros.git
 # Install rosdep dependencies
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -r -y
+```
 
-# GPU build (the CPU build just omits -DONNX_GPU=ON)
+Then build for the execution backend you want:
+
+#### CPU
+
+```shell
+colcon build --symlink-install
+source install/setup.bash
+```
+
+`yolo_onnxruntime_vendor` downloads the CPU ONNX Runtime and the node runs on
+the CPU execution provider — no CUDA or cuDNN required.
+
+#### CUDA / TensorRT
+
+```shell
+# cuDNN 9 for the CUDA 12 series (required by the ONNX Runtime 1.20 GPU build)
+sudo apt install libcudnn9-cuda-12
+
 colcon build --symlink-install --cmake-args -DONNX_GPU=ON
 source install/setup.bash
 ```
 
-For a CPU-only build, omit `-DONNX_GPU=ON`; `yolo_onnxruntime_vendor` then
-fetches the CPU ONNX Runtime. For a fast C++-only loop, rebuild just the
-package (select `yolo_msgs` first if the messages changed — it must build
-before `yolo_ros`):
+`-DONNX_GPU=ON` fetches the ONNX Runtime GPU build, which links against the CUDA
+12 series at run time, so the host also needs an NVIDIA driver and a CUDA 12.x
+toolkit. TensorRT is optional: the default `provider: auto` tries the TensorRT
+execution provider first and falls back to CUDA (then CPU), so without it
+installed the model simply runs on the CUDA EP. `provider` and `device` are
+chosen at runtime — see [Parameters](#parameters).
+
+Launch from the workspace root so relative source paths resolve. For a fast
+C++-only rebuild loop, rebuild just the package (select `yolo_msgs` first if the
+messages changed — it must build before `yolo_ros`, and keep `-DONNX_GPU=ON` for
+a GPU build):
 
 ```shell
 colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_msgs
 colcon build --symlink-install --cmake-args -DONNX_GPU=ON --packages-select yolo_ros
 ```
 
-Launch from the workspace root so relative source paths resolve.
+### Benchmark: CPU vs CUDA vs TensorRT
+
+Same model (`yolo26m`), same 640x480 frames and same detection settings
+(`imgsz=640`, `conf=0.7`, ~8.7 detections/frame); only the execution provider
+changes. Latency is the median per-frame round trip with a single frame in
+flight, throughput the saturated end-to-end rate.
+
+| Backend | Provider | Latency (median) | Throughput | CPU | RSS | GPU memory |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| CPU | CPU EP | 158 ms | 4.5 FPS | ~18.5 cores | 535 MiB | — |
+| CUDA | CUDA EP (fp32) | 22.6 ms | 49 FPS | ~1.4 cores | 1002 MiB | 478 MiB |
+| TensorRT | TensorRT EP (fp16) | 6.2 ms | 194 FPS | ~1.3 cores | 3234 MiB | 240 MiB |
+
+Measured on an Intel i7-12700F (20 threads) with an NVIDIA RTX 3060 12 GB.
+CPU-only is not viable at this model size (~7× short of 30 Hz); its only win is
+RSS (535 MiB). TensorRT is ~3.6× the CUDA rate at about half the GPU memory, at
+the cost of a much larger host RSS and a one-off engine build — the first
+TensorRT run per model builds and caches an engine (about 3 minutes cold on the
+reference machine, 1.6 s warm; see `trt_engine_cache_*` in
+[Parameters](#parameters)).
 
 ### Jetson / aarch64 (offline build)
 
