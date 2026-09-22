@@ -42,6 +42,22 @@ cv::Scalar vivid_bgr(int hue) {
   return cv::Scalar(pixel[0], pixel[1], pixel[2]);
 }
 
+/// @brief Number of limbs in @ref kSkeleton.
+constexpr int kNumSkeletonLimbs = 19;
+
+/// @brief COCO human pose skeleton, using the 1-based keypoint ids published by
+/// yolo_node. Shared by the 2D debug image and the 3D RViz keypoint markers so
+/// both draw the same skeleton.
+constexpr int kSkeleton[kNumSkeletonLimbs][2] = {
+    {16, 14}, {14, 12}, {17, 15}, {15, 13}, {12, 13}, {6, 12}, {7, 13},
+    {6, 7},   {6, 8},   {7, 9},   {8, 10},  {9, 11},  {2, 3},  {1, 2},
+    {1, 3},   {2, 4},   {3, 5},   {4, 6},   {5, 7}};
+
+/// @brief Generate a stable, vivid BGR color directly from a keypoint or limb
+/// index. The 47 stride is coprime with 180, so adjacent indices land on
+/// well-separated hues (a borrowed palette is deliberately avoided).
+cv::Scalar indexed_color(int index) { return vivid_bgr(index * 47 + 11); }
+
 /// @brief Convert a lifetime in (fractional) seconds to a ROS duration.
 ///
 /// Negative inputs are clamped to zero so a misconfigured parameter degrades to
@@ -244,8 +260,28 @@ void DebugNode::markers_callback(
 
     // RViz markers for the 3D keypoints (pose output from a detect_3d node).
     if (!detection.keypoints3d.frame_id.empty()) {
+      std::map<int, const yolo_msgs::msg::KeyPoint3D *> points;
       for (const auto &keypoint : detection.keypoints3d.data) {
+        points[keypoint.id] = &keypoint;
+
         auto marker = create_kp_marker(keypoint);
+        marker.header.frame_id = detection.keypoints3d.frame_id;
+        marker.header.stamp = msg_detections->header.stamp;
+        marker.id = kp_marker_array.markers.size();
+        kp_marker_array.markers.push_back(marker);
+      }
+
+      // Connect the keypoints with the same per-limb COCO skeleton (and
+      // colors) the 2D debug image draws, whenever both endpoints are present
+      // in the 3D stream.
+      for (int i = 0; i < kNumSkeletonLimbs; ++i) {
+        auto it1 = points.find(kSkeleton[i][0]);
+        auto it2 = points.find(kSkeleton[i][1]);
+        if (it1 == points.end() || it2 == points.end()) {
+          continue;
+        }
+        auto marker = create_limb_marker(*it1->second, *it2->second,
+                                         indexed_color(i + 32));
         marker.header.frame_id = detection.keypoints3d.frame_id;
         marker.header.stamp = msg_detections->header.stamp;
         marker.id = kp_marker_array.markers.size();
@@ -418,18 +454,6 @@ cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
     return image;
   }
 
-  // COCO human pose skeleton, using the 1-based keypoint ids published by
-  // yolo_node.
-  static const int skeleton[19][2] = {
-      {16, 14}, {14, 12}, {17, 15}, {15, 13}, {12, 13}, {6, 12}, {7, 13},
-      {6, 7},   {6, 8},   {7, 9},   {8, 10},  {9, 11},  {2, 3},  {1, 2},
-      {1, 3},   {2, 4},   {3, 5},   {4, 6},   {5, 7}};
-
-  // Generate a stable, vivid BGR color directly from the keypoint or limb
-  // index. The 47 stride is coprime with 180, so adjacent indices land on
-  // well-separated hues (a borrowed palette is deliberately avoided).
-  auto indexed_color = [](int index) { return vivid_bgr(index * 47 + 11); };
-
   std::map<int, cv::Point> points;
   for (const auto &kp : detection.keypoints.data) {
     const auto pt = cv::Point(cvRound(kp.point.x), cvRound(kp.point.y));
@@ -442,9 +466,9 @@ cv::Mat DebugNode::draw_keypoints(const cv::Mat &image,
 
   // Draw the skeleton limbs on top (per-limb colors, only when both
   // endpoints of the limb are present in the detection).
-  for (int i = 0; i < 19; ++i) {
-    auto it1 = points.find(skeleton[i][0]);
-    auto it2 = points.find(skeleton[i][1]);
+  for (int i = 0; i < kNumSkeletonLimbs; ++i) {
+    auto it1 = points.find(kSkeleton[i][0]);
+    auto it2 = points.find(kSkeleton[i][1]);
     if (it1 != points.end() && it2 != points.end()) {
       cv::line(image, it1->second, it2->second, indexed_color(i + 32), 2,
                cv::LINE_AA);
@@ -522,6 +546,46 @@ DebugNode::create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint) {
   // keypoint that vanishes from the stream must expire in RViz too.
   marker.lifetime = duration_from_seconds(this->marker_lifetime_);
   marker.text = std::to_string(keypoint.id);
+
+  return marker;
+}
+
+visualization_msgs::msg::Marker
+DebugNode::create_limb_marker(const yolo_msgs::msg::KeyPoint3D &from,
+                              const yolo_msgs::msg::KeyPoint3D &to,
+                              const cv::Scalar &color) {
+  visualization_msgs::msg::Marker marker;
+
+  marker.ns = "yolo_3d_limbs";
+  marker.type = visualization_msgs::msg::Marker::LINE_LIST;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  marker.frame_locked = false;
+
+  // LINE_LIST consumes points in pairs; one limb is a single pair.
+  geometry_msgs::msg::Point p_from;
+  p_from.x = from.point.x;
+  p_from.y = from.point.y;
+  p_from.z = from.point.z;
+  geometry_msgs::msg::Point p_to;
+  p_to.x = to.point.x;
+  p_to.y = to.point.y;
+  p_to.z = to.point.z;
+  marker.points = {p_from, p_to};
+
+  marker.pose.orientation.w = 1.0;
+
+  // For LINE_LIST, scale.x is the line width in metres.
+  marker.scale.x = 0.02;
+
+  // The per-limb color is stored as an OpenCV BGR scalar -> convert to RGB.
+  marker.color.r = color[2] / 255.0;
+  marker.color.g = color[1] / 255.0;
+  marker.color.b = color[0] / 255.0;
+  marker.color.a = 0.8;
+
+  // Same finite lifetime as the other 3D markers (see create_bb_marker): a
+  // limb that vanishes from the stream must expire in RViz too.
+  marker.lifetime = duration_from_seconds(this->marker_lifetime_);
 
   return marker;
 }

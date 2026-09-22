@@ -183,6 +183,16 @@ private:
   /// @return The marker message.
   visualization_msgs::msg::Marker
   create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint);
+  /// @brief Build the RViz line marker connecting two 3D keypoints (a skeleton
+  /// limb).
+  /// @param[in] from First limb endpoint.
+  /// @param[in] to Second limb endpoint.
+  /// @param[in] color BGR color of the limb.
+  /// @return The marker message.
+  visualization_msgs::msg::Marker
+  create_limb_marker(const yolo_msgs::msg::KeyPoint3D &from,
+                     const yolo_msgs::msg::KeyPoint3D &to,
+                     const cv::Scalar &color);
 };
 } // namespace yolo_ros::node
 /// @}
