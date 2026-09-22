@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <opencv2/imgproc.hpp>
 #include <sstream>
@@ -40,6 +41,20 @@ cv::Scalar vivid_bgr(int hue) {
   const cv::Vec3b pixel = bgr.at<cv::Vec3b>(0, 0);
   return cv::Scalar(pixel[0], pixel[1], pixel[2]);
 }
+
+/// @brief Convert a lifetime in (fractional) seconds to a ROS duration.
+///
+/// Negative inputs are clamped to zero so a misconfigured parameter degrades to
+/// the persistent-marker behaviour instead of wrapping the unsigned
+/// nanoseconds.
+builtin_interfaces::msg::Duration duration_from_seconds(double seconds) {
+  builtin_interfaces::msg::Duration duration;
+  const double clamped = std::max(0.0, seconds);
+  duration.sec = static_cast<int32_t>(clamped);
+  duration.nanosec = static_cast<uint32_t>(
+      (clamped - static_cast<double>(duration.sec)) * 1e9);
+  return duration;
+}
 } // namespace
 
 DebugNode::DebugNode()
@@ -49,6 +64,7 @@ DebugNode::DebugNode()
   this->declare_parameter("image_topic", "image");
   this->declare_parameter("detections_topic", "detections");
   this->declare_parameter("markers_topic", "detections_3d");
+  this->declare_parameter<double>("marker_lifetime", 0.5);
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -58,6 +74,7 @@ DebugNode::on_configure(const rclcpp_lifecycle::State &) {
   this->image_topic_ = this->get_parameter("image_topic").as_string();
   this->detections_topic_ = this->get_parameter("detections_topic").as_string();
   this->markers_topic_ = this->get_parameter("markers_topic").as_string();
+  this->marker_lifetime_ = this->get_parameter("marker_lifetime").as_double();
 
   int image_reliability = this->get_parameter("image_reliability").as_int();
   rclcpp::ReliabilityPolicy qos_reliability_policy;
@@ -465,8 +482,13 @@ DebugNode::create_bb_marker(const yolo_msgs::msg::Detection &detection,
   marker.color.b = color[0] / 255.0;
   marker.color.a = 0.4;
 
-  marker.lifetime.sec = 0;
-  marker.lifetime.nanosec = 0; // persistent: stays visible until next update
+  // Finite lifetime so a marker whose detection disappears from the 3D stream
+  // (e.g. convert_bb_to_3d dropped it for invalid depth, or the stream stalled)
+  // expires in RViz instead of lingering forever: RViz never removes a marker
+  // just because it is missing from a later MarkerArray. The markers are
+  // re-published on every 3D message, so a still-valid box keeps refreshing its
+  // lifetime. 0 keeps the old persistent behaviour.
+  marker.lifetime = duration_from_seconds(this->marker_lifetime_);
   marker.text = detection.class_name;
 
   return marker;
@@ -496,8 +518,9 @@ DebugNode::create_kp_marker(const yolo_msgs::msg::KeyPoint3D &keypoint) {
   marker.color.b = keypoint.score;
   marker.color.a = 0.4;
 
-  marker.lifetime.sec = 0;
-  marker.lifetime.nanosec = 0; // persistent: stays visible until next update
+  // Same finite lifetime as the 3D box markers (see create_bb_marker): a
+  // keypoint that vanishes from the stream must expire in RViz too.
+  marker.lifetime = duration_from_seconds(this->marker_lifetime_);
   marker.text = std::to_string(keypoint.id);
 
   return marker;

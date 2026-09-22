@@ -90,6 +90,7 @@ NODE_PARAMS = {
         ParamSpec("image_topic", str, "input_image_topic"),
         ParamSpec("detections_topic", str),
         ParamSpec("markers_topic", str),
+        ParamSpec("marker_lifetime", float),
     ),
 }
 

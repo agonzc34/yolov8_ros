@@ -85,6 +85,10 @@
     # 3D-enriched stream read SEPARATELY just to drive the RViz 3D box /
     # keypoint markers (use_3d:=True). Markers publish at this stream's rate
     # (min(debug image, 3D detections)) and are decoupled from debug_image by
-    # the node's own markers_topic subscription. Markers are persistent (lifetime
-    # 0), staying visible until the next marker array updates them.
+    # the node's own markers_topic subscription.
     markers_topic: detections_3d
+    # Seconds a marker stays visible after its last update. RViz never drops a
+    # marker just because it is absent from a later MarkerArray, so without a
+    # lifetime a box whose detection vanished (invalid depth, stream stalled)
+    # would linger forever. 0 keeps markers persistent.
+    marker_lifetime: 0.5

@@ -69,3 +69,6 @@
     image_topic: /head_front_camera/rgb/image_raw
     detections_topic: tracking
     markers_topic: detections_3d
+    # Seconds a marker stays visible after its last update; 0 = persistent (see
+    # config/yolo.yaml for the rationale).
+    marker_lifetime: 0.5

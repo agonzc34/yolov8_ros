@@ -94,6 +94,10 @@ private:
   std::string detections_topic_;
   /// @brief 3D detection topic driving the RViz markers.
   std::string markers_topic_;
+  /// @brief Lifetime (seconds) of the RViz markers; a marker that stops being
+  /// re-published (its detection vanished from the 3D stream) expires after
+  /// this long. 0 keeps markers persistent.
+  double marker_lifetime_ = 0.5;
 
   // Independently subscribes to the 3D-enriched stream (detections_3d) purely
   // to drive the RViz 3D markers. Keeping this separate from the
