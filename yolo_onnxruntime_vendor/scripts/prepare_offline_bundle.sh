@@ -269,9 +269,10 @@ This bundle ${REDUCED_OPS_NOTE}.
      export PATH=~/${BUNDLE_NAME}/tools/${CMAKE_DIRNAME}/bin:\$PATH
      # The build script ships inside the bundle; write the ONNX Runtime prefix
      # into the workspace vendor package so the colcon arg below finds it.
-     ORT_CUDA_ARCH=87 ORT_SOURCE_DIR=~/${BUNDLE_NAME}/onnxruntime \\
-         ~/${BUNDLE_NAME}/tools/scripts/build_ort_aarch64.sh ${ORT_VERSION} \\
-         "\$HOME/yr_ws/src/yolov8_ros/yolo_onnxruntime_vendor/ort-${ORT_VERSION}"
+     ORT_SOURCE_DIR=~/${BUNDLE_NAME}/onnxruntime \\
+         ~/${BUNDLE_NAME}/tools/scripts/build_ort_from_source.sh ${ORT_VERSION} \\
+         "\$HOME/yr_ws/src/yolov8_ros/yolo_onnxruntime_vendor/ort-${ORT_VERSION}" \\
+         --ep cuda --cuda-arch 87
      # --base-paths src + the bundle's COLCON_IGNORE keep colcon away from the
      # ONNX Runtime source tree. The ORT source tree's mirror/ makes its CMake
      # dependency fetches local, so no FETCHCONTENT_FULLY_DISCONNECTED here (it

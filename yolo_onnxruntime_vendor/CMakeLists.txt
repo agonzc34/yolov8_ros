@@ -9,12 +9,12 @@ find_package(ament_cmake REQUIRED)
 set(ONNXRUNTIME_VERSION "1.20.0")  # version of the prebuilt download
 
 if(ONNXRUNTIME_ROOT)
-    # A locally built ONNX Runtime prefix (scripts/build_ort_aarch64.sh), in the
+    # A locally built ONNX Runtime prefix (scripts/build_ort_from_source.sh), in the
     # flat lib/ + include/ layout. Takes precedence over the prebuilt download.
     if(NOT EXISTS "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so")
         message(FATAL_ERROR
             "ONNXRUNTIME_ROOT='${ONNXRUNTIME_ROOT}' has no lib/libonnxruntime.so. "
-            "Build it with scripts/build_ort_aarch64.sh <version> first.")
+            "Build it with scripts/build_ort_from_source.sh <version> first.")
     endif()
     set(ONNXRUNTIME_INSTALL_DIR "${ONNXRUNTIME_ROOT}")
     message(STATUS "Using locally built ONNX Runtime at ${ONNXRUNTIME_INSTALL_DIR}")
