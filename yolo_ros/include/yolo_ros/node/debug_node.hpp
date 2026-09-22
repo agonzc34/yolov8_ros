@@ -124,6 +124,10 @@ private:
   /// @return The BGR color for the class.
   cv::Scalar color_for_class(const std::string &class_name);
 
+  /// @brief Compose the label string ("class [id] score") for @p detection.
+  /// @param[in] detection Detection to label.
+  /// @return The label text.
+  std::string label_text(const yolo_msgs::msg::Detection &detection) const;
   /// @brief Draw one bounding box (rotated for OBB detections).
   /// @param[in] image Image to draw on.
   /// @param[in] detection Detection to draw.
@@ -157,9 +161,11 @@ private:
   /// @param[in] background Fill color of the label background (BGR).
   /// @param[in] font_scale OpenCV Hershey font scale.
   /// @param[in] thickness Glyph stroke thickness.
-  void draw_label(const cv::Mat &image, const std::string &text,
-                  const cv::Point &anchor, const cv::Scalar &background,
-                  double font_scale = 0.5, int thickness = 1);
+  /// @return Height in pixels of the drawn label box, or 0 when it was skipped
+  /// (degenerate or fully off-frame).
+  int draw_label(const cv::Mat &image, const std::string &text,
+                 const cv::Point &anchor, const cv::Scalar &background,
+                 double font_scale = 0.5, int thickness = 1);
 
   /// @brief Build the RViz marker for a 3D bounding box.
   /// @param[in] detection Detection carrying a 3D box.

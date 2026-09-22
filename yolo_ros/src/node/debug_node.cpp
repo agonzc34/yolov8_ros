@@ -14,11 +14,17 @@
 #include <cmath>
 #include <map>
 #include <opencv2/imgproc.hpp>
+#include <sstream>
 #include <string>
+#include <vector>
 
 namespace yolo_ros::node {
 
 namespace {
+/// @brief Inset (px) between a label box and the top-left corner it is anchored
+/// to (a detection's box corner, or the frame for image-level labels).
+constexpr int kLabelInset = 2;
+
 /// @brief Map a hue (OpenCV 8-bit H, 0..179) to a fully saturated, fully bright
 /// BGR color.
 ///
@@ -152,7 +158,32 @@ void DebugNode::recieve_callback(
   // Masks are drawn onto a single overlay layer and blended once, avoiding a
   // full image.clone() per detection.
   cv::Mat overlay = image.clone();
+  // Image-level (classification) detections carry an empty bbox: draw them as
+  // one vertical list, sorted by descending score (top-1 first) so the best
+  // class sits at the top of the stack. Spatial detections (non-empty bbox)
+  // keep their per-box anchors and are drawn below.
+  std::vector<const yolo_msgs::msg::Detection *> image_level;
   for (const auto &detection : msg_detections->detections) {
+    if (detection.bbox.size.x <= 0.0 && detection.bbox.size.y <= 0.0) {
+      image_level.push_back(&detection);
+    }
+  }
+  std::sort(
+      image_level.begin(), image_level.end(),
+      [](const yolo_msgs::msg::Detection *a,
+         const yolo_msgs::msg::Detection *b) { return a->score > b->score; });
+  int image_label_y = 0;
+  for (const auto *detection : image_level) {
+    const auto color = color_for_class(detection->class_name);
+    image_label_y +=
+        draw_label(image, label_text(*detection),
+                   cv::Point(kLabelInset, kLabelInset + image_label_y), color);
+  }
+
+  for (const auto &detection : msg_detections->detections) {
+    if (detection.bbox.size.x <= 0.0 && detection.bbox.size.y <= 0.0) {
+      continue; // image-level label already drawn above
+    }
     auto color = color_for_class(detection.class_name);
     image = draw_box(image, detection, color);
     draw_mask(overlay, image, detection, color);
@@ -226,6 +257,18 @@ cv::Scalar DebugNode::color_for_class(const std::string &class_name) {
   return color_it->second;
 }
 
+std::string
+DebugNode::label_text(const yolo_msgs::msg::Detection &detection) const {
+  std::string text = detection.class_name;
+  if (detection.id != "") {
+    text += " " + detection.id;
+  }
+  std::ostringstream ss;
+  ss << std::fixed << std::setprecision(3) << detection.score;
+  text += " " + ss.str();
+  return text;
+}
+
 cv::Mat DebugNode::draw_box(const cv::Mat &image,
                             const yolo_msgs::msg::Detection &detection,
                             const cv::Scalar &color) {
@@ -235,7 +278,6 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
   // Label anchor, filled in below (top-left INSIDE the drawn box so a large
   // detection near the frame edge cannot push the label off screen).
   cv::Point label_anchor(0, 0);
-  constexpr int label_inset = 2;
 
   if (std::abs(theta) > 0.0) {
     // Oriented bounding box (OBB): the rotation angle rides in center.theta
@@ -263,32 +305,24 @@ cv::Mat DebugNode::draw_box(const cv::Mat &image,
     }
     cv::polylines(image, quad, true, color, 2, cv::LINE_AA);
     label_anchor =
-        cv::Point(cvRound(min_x) + label_inset, cvRound(min_y) + label_inset);
+        cv::Point(cvRound(min_x) + kLabelInset, cvRound(min_y) + kLabelInset);
   } else {
     cv::Rect box(center.x - detection.bbox.size.x / 2,
                  center.y - detection.bbox.size.y / 2, detection.bbox.size.x,
                  detection.bbox.size.y);
     cv::rectangle(image, box, color, 2);
-    label_anchor = cv::Point(box.x + label_inset, box.y + label_inset);
+    label_anchor = cv::Point(box.x + kLabelInset, box.y + kLabelInset);
   }
 
   // Text
-  std::string text = detection.class_name;
-  if (detection.id != "") {
-    text += " " + detection.id;
-  }
-  std::ostringstream ss;
-  ss << std::fixed << std::setprecision(3) << detection.score;
-  text += " " + ss.str();
-  draw_label(image, text, label_anchor, color);
+  draw_label(image, label_text(detection), label_anchor, color);
 
   return image;
 }
 
-void DebugNode::draw_label(const cv::Mat &image, const std::string &text,
-                           const cv::Point &anchor,
-                           const cv::Scalar &background, double font_scale,
-                           int thickness) {
+int DebugNode::draw_label(const cv::Mat &image, const std::string &text,
+                          const cv::Point &anchor, const cv::Scalar &background,
+                          double font_scale, int thickness) {
   constexpr int font = cv::FONT_HERSHEY_SIMPLEX;
   constexpr int pad = 3;
 
@@ -314,7 +348,7 @@ void DebugNode::draw_label(const cv::Mat &image, const std::string &text,
   const int x1 = std::min(image.cols - 1, x0 + label_w - 1);
   const int y1 = std::min(image.rows - 1, y0 + label_h - 1);
   if (x1 <= x0 || y1 <= y0) {
-    return; // degenerate or fully off-frame
+    return 0; // degenerate or fully off-frame
   }
 
   cv::rectangle(image, cv::Point(x0, y0), cv::Point(x1, y1), background,
@@ -340,6 +374,7 @@ void DebugNode::draw_label(const cv::Mat &image, const std::string &text,
 
   cv::putText(image, text, cv::Point(x0 + pad, y0 + pad + size.height), font,
               font_scale, text_color, thickness, cv::LINE_AA);
+  return label_h;
 }
 
 void DebugNode::draw_mask(cv::Mat &overlay, cv::Mat &image,
