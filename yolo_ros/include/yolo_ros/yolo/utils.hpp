@@ -162,14 +162,6 @@ struct YoloParams {
   /// node reads it from the ONNX metadata ("input_color") when present and
   /// otherwise uses this parameter.
   std::string input_color = "rgb";
-  /// @brief Runtime text prompts: local path to the text-encoder ONNX.
-  std::string text_encoder;
-  /// @brief Runtime text prompts: Hugging Face repo for the text encoder.
-  std::string text_encoder_repo;
-  /// @brief Runtime text prompts: file inside the Hugging Face repo.
-  std::string text_encoder_filename;
-  /// @brief Runtime text prompts: comma-separated initial class names.
-  std::string classes;
 };
 
 /// @brief Intersection over union of two boxes.

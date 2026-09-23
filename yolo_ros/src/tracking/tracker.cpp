@@ -7,6 +7,7 @@
 #include <cctype>
 #include <string>
 
+#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
 
@@ -14,23 +15,13 @@
 
 namespace yolo_ros::tracking {
 
-namespace {
-
-std::string lowercase(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  return s;
-}
-
-} // namespace
-
 std::vector<Track>
 Tracker::update(const std::vector<TrackDetection> &detections) {
   return update(detections, cv::Mat{});
 }
 
 std::unique_ptr<Tracker> create_tracker(const TrackerParams &params) {
-  const std::string type = lowercase(params.type);
+  const std::string type = yolo_ros::to_lower(params.type);
 
   // --- add new trackers here ---------------------------------------------
   // Register the key accepted by the tracking node's `tracker_type` parameter

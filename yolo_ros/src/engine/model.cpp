@@ -4,6 +4,7 @@
 #include "yolo_ros/engine/model.hpp"
 #include "onnxruntime_cxx_api.h"
 #include "yolo_ros/engine/provider.hpp"
+#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/yolo/utils.hpp"
 #include <algorithm>
 #include <ament_index_cpp/get_package_prefix.hpp>
@@ -53,9 +54,7 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
 
   // Resolve the availability-filtered provider fallback chain. "auto" prefers
   // TensorRT, then CUDA, then CPU; an explicit provider forces its own chain.
-  std::string requested = params.provider;
-  std::transform(requested.begin(), requested.end(), requested.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  std::string requested = yolo_ros::to_lower(params.provider);
   if (requested.empty()) {
     requested = "auto";
   }
@@ -184,9 +183,7 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   // Resolve the input channel order: parameter first, then the ONNX metadata
   // ("input_color") which our export tool stamps. Graphs cannot encode it.
   {
-    std::string color = params.input_color;
-    std::transform(color.begin(), color.end(), color.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    const std::string color = yolo_ros::to_lower(params.input_color);
     this->input_is_rgb_ = true; // ultralytics exports expect RGB
     if (color == "bgr") {
       this->input_is_rgb_ = false;
@@ -200,9 +197,7 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
       auto value = metadata.LookupCustomMetadataMapAllocated(
           "input_color", static_cast<OrtAllocator *>(allocator));
       if (value) {
-        std::string meta(value.get());
-        std::transform(meta.begin(), meta.end(), meta.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        const std::string meta = yolo_ros::to_lower(value.get());
         if (meta == "rgb") {
           this->input_is_rgb_ = true;
         } else if (meta == "bgr") {

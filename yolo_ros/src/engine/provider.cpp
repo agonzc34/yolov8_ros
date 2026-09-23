@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_ros/engine/provider.hpp"
+#include "yolo_ros/string_utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -16,12 +17,6 @@
 
 namespace yolo_ros::engine {
 namespace {
-
-std::string to_lower(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  return value;
-}
 
 bool contains(const std::vector<Provider> &providers, Provider provider) {
   return std::find(providers.begin(), providers.end(), provider) !=

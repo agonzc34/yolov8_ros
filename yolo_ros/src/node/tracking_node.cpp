@@ -16,22 +16,11 @@
 #endif
 
 #include "rclcpp/exceptions.hpp"
+#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
 
 namespace yolo_ros::node {
-
-namespace {
-
-// Normalized (lowercase) form of the `tracker_type` parameter, matching the
-// case-insensitive dispatch used for `model_type` elsewhere in the package.
-std::string lowercase(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  return s;
-}
-
-} // namespace
 
 TrackingNode::TrackingNode()
     : rclcpp_lifecycle::LifecycleNode("tracking_node"), image_qos_profile_(1) {
@@ -126,7 +115,7 @@ void TrackingNode::declare_params() {
   // functions, so the node only dispatches by this key.
   this->declare_parameter<std::string>("tracker_type", "bytetrack");
   const std::string tracker_type =
-      lowercase(this->get_parameter("tracker_type").as_string());
+      yolo_ros::to_lower(this->get_parameter("tracker_type").as_string());
 
   if (tracker_type == "bytetrack") {
     yolo_ros::tracking::declare_byte_track_params(*this);
@@ -140,7 +129,7 @@ void TrackingNode::load_params() {
   this->tracker_.reset();
 
   const std::string tracker_type =
-      lowercase(this->get_parameter("tracker_type").as_string());
+      yolo_ros::to_lower(this->get_parameter("tracker_type").as_string());
 
   if (tracker_type == "bytetrack") {
     try {
