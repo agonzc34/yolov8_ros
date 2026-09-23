@@ -950,6 +950,10 @@ WARN_LOGFILE =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT = README.md \
+    docs/build.md \
+    docs/docker.md \
+    docs/models.md \
+    docs/benchmark.md \
     yolo_ros/include \
     yolo_ros/src
 

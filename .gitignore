@@ -4,6 +4,8 @@ __pycache__
 compile_commands.json
 uv.lock
 .venv
-# Generated Doxygen output; only docs/media/ (README images/demos) is tracked.
+# Generated Doxygen output lives in docs/doxygen/; only docs/media/ (README
+# images/demos) and the top-level docs/*.md guides are tracked.
 docs/*
 !docs/media/
+!docs/*.md
