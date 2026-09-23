@@ -142,7 +142,9 @@ def test_classify_disables_spatial_nodes():
     forwarded = dict(_include("classify").launch_arguments)
     assert forwarded["use_tracking"] == "False"
     assert forwarded["use_3d"] == "False"
-    assert forwarded["use_debug"] == "False"
+    # The debug node stays on for classification: it draws the image-level
+    # labels (empty bbox).
+    assert forwarded["use_debug"] == "True"
 
 
 def test_base_flag_defaults():
