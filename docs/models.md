@@ -1,6 +1,6 @@
-# Models
+# Model export
 
-See the [README](../README.md#models) for the short model list. This guide covers export, the Hugging Face Hub download and licensing.
+See the [README](../README.md#models) for the model list and the licensing note. This guide covers exporting a checkpoint and downloading models from the Hugging Face Hub.
 
 The C++ pipeline runs any Ultralytics-exported **ONNX** model whose output matches one of the YOLO layouts below. The compatible model families are:
 
@@ -50,5 +50,3 @@ Instead of a local path, the node can fetch the model from the Hub at startup vi
 Or on the command line: `ros2 launch yolo_bringup yolo.launch.py model_repo:=unileon-robotics/YOLO26-ONNX model_filename:=yolo26s.onnx`. Requires the libcurl dev headers listed in the [README](../README.md#installation); only used when `model_repo`/`model_filename` are set. The node logs the model source as `[huggingface]` (with repo/filename) or `[local]` (with the path) so the two are easy to tell apart.
 
 The shipped `config/yolo*.yaml` files already default to the [`unileon-robotics/YOLO26-ONNX`](https://huggingface.co/unileon-robotics/YOLO26-ONNX) mirror — ONNX exports of the [`Ultralytics/YOLO26`](https://huggingface.co/Ultralytics/YOLO26) checkpoints (25 files: `yolo26{n,s,m,l,x}` for detect / `-seg` / `-pose` / `-obb` / `-cls`, exported with `imgsz=640 opset=12`). The first launch per model downloads it (so it needs network access) and caches it; clear `model_repo` to fall back to the local `model` path, or pass `model:=<path>` for a local file.
-
-> **License note**: Ultralytics models and pretrained weights are **not** MIT licensed. They are released under the **AGPL-3.0** license (with commercial / enterprise licensing available from Ultralytics), so the MIT license of this repository does **not** cover them. Check the terms of the specific model you use at <https://ultralytics.com/license> — especially if you ship or deploy the model.

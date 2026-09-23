@@ -100,18 +100,9 @@ The C++ pipeline runs any Ultralytics-exported **ONNX** model whose output match
 - [YOLOv12](https://docs.ultralytics.com/models/yolo12/)
 - [YOLOv26](https://docs.ultralytics.com/models/yolo26/)
 
-Models are exported for one task — **detection** (`detect`), **instance segmentation** (`segment`), **human pose** (`pose`), **oriented bounding box** (`obb`) or **image classification** (`classify`). Export a `.pt` checkpoint to ONNX with the `ultralytics` package:
+Models are exported for one task — **detection** (`detect`), **instance segmentation** (`segment`), **human pose** (`pose`), **oriented bounding box** (`obb`) or **image classification** (`classify`). See the [model export guide](docs/models.md) for how to export a `.pt` checkpoint to ONNX with the `ultralytics` package, the export notes and the Hugging Face Hub download.
 
-```shell
-# uv one-liner (fetches ultralytics + ONNX deps on the fly)
-uv run --with ultralytics --with onnx --with onnxruntime --with onnxslim \
-  yolo export model=yolo26m.pt format=onnx imgsz=640 opset=12
-
-# classic: pip install ultralytics, then
-yolo export model=yolo26m.pt format=onnx imgsz=640 opset=12
-```
-
-See the [model guide](docs/models.md) for the export notes (`model_type`, baked NMS, OBB and classification specifics), the Hugging Face Hub download and licensing.
+> **License note**: Ultralytics models and pretrained weights are **not** MIT licensed. They are released under the **AGPL-3.0** license (with commercial / enterprise licensing available from Ultralytics), so the MIT license of this repository does **not** cover them. Check the terms of the specific model you use at <https://ultralytics.com/license> — especially if you ship or deploy the model.
 
 ## Usage
 
@@ -360,7 +351,7 @@ doxygen .github/Doxyfile
 # output: docs/doxygen/index.html
 ```
 
-The guides in [`docs/`](./docs) — [build](docs/build.md), [Docker](docs/docker.md), [models](docs/models.md) and [benchmark](docs/benchmark.md) — are plain Markdown served directly by GitHub.
+The guides in [`docs/`](./docs) — [build](docs/build.md), [Docker](docs/docker.md), [model export](docs/models.md) and [benchmark](docs/benchmark.md) — are plain Markdown served directly by GitHub.
 
 ## License
 
@@ -372,4 +363,4 @@ Specifically, the repository contains independently licensed ROS 2 packages:
 
 The C++ pipeline adapts behavior from the original `yolo_ros` Python nodes; those contributions were authorized by their copyright holder for release in the MIT-licensed C++ pipeline (see `THIRD_PARTY_NOTICES.md`).
 
-Model weights and exported ONNX files are separate artifacts and remain subject to their respective licenses; the MIT license for the C++ pipeline does not relicense them. In particular, Ultralytics models are AGPL-3.0 — see the [model guide](docs/models.md) for details.
+Model weights and exported ONNX files are separate artifacts and remain subject to their respective licenses; the MIT license for the C++ pipeline does not relicense them. In particular, Ultralytics models are AGPL-3.0 — see the [Models](#models) section.
