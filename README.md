@@ -175,10 +175,11 @@ All topics are published under the launch namespace (default `yolo`):
 ### Services
 
 - **/yolo/enable**: Service to enable or disable the detection node at runtime. Accepts a boolean value (`std_srvs/SetBool`).
+- **/yolo/set_classes**: Service to restrict which classes are published, by class name (`yolo_msgs/SetClasses`). An empty list publishes every class.
 
 ### Parameters
 
-Configuration is file-driven: `yolo.launch.py` is the base launch and passes its YAML params file plus any command-line overrides as `parameters=[params_file, overrides]` (with no topic remaps). The other four launch files are thin wrappers that include the base with their own params file (`yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`, `yolo_classify.yaml`). In addition, **every parameter can be overridden from the command line**; an argument left unset keeps the YAML value:
+Configuration is file-driven: `yolo.launch.py` is the base launch and passes its YAML params file plus any command-line overrides as `parameters=[params_file, overrides]` (with no topic remaps). The other four launch files are thin wrappers generated from one factory (`yolo_bringup/pipeline_launch.py`) that include the base with their own params file (`yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`, `yolo_classify.yaml`). In addition, **every parameter can be overridden from the command line**; an argument left unset keeps the YAML value:
 
 ```bash
 ros2 launch yolo_bringup yolo.launch.py model:=/path/model.onnx threshold:=0.5 input_image_topic:=/camera/rgb/image_raw
