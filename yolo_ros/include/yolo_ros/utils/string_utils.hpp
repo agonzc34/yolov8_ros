@@ -4,14 +4,16 @@
 /// @file
 /// @brief Lowercase helper shared by the parameter/device string parsing.
 
-#ifndef YOLO_ROS__STRING_UTILS_HPP_
-#define YOLO_ROS__STRING_UTILS_HPP_
+#ifndef YOLO_ROS__UTILS__STRING_UTILS_HPP_
+#define YOLO_ROS__UTILS__STRING_UTILS_HPP_
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 
-namespace yolo_ros {
+/// @addtogroup yolo_utils
+/// @{
+namespace yolo_ros::utils {
 
 /// @brief Return @p value lowercased (ASCII).
 /// @param[in] value String to lowercase.
@@ -22,6 +24,7 @@ inline std::string to_lower(std::string value) {
   return value;
 }
 
-} // namespace yolo_ros
+} // namespace yolo_ros::utils
+/// @}
 
-#endif // YOLO_ROS__STRING_UTILS_HPP_
+#endif // YOLO_ROS__UTILS__STRING_UTILS_HPP_

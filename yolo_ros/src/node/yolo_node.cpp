@@ -5,7 +5,7 @@
 #include "yolo_ros/node/yolo_node.hpp"
 #include "huggingface_hub.h"
 #include "rclcpp/qos.hpp"
-#include "yolo_ros/string_utils.hpp"
+#include "yolo_ros/utils/string_utils.hpp"
 #include "yolo_ros/yolo/classify.hpp"
 #include "yolo_ros/yolo/detect.hpp"
 #include "yolo_ros/yolo/obb.hpp"
@@ -174,7 +174,7 @@ yolo_ros::yolo::utils::YoloParams yolo_ros::node::YoloNode::get_params() {
 
 void yolo_ros::node::YoloNode::create_yolo(
     yolo_ros::yolo::utils::YoloParams params) {
-  const std::string model_type = yolo_ros::to_lower(params.model_type);
+  const std::string model_type = yolo_ros::utils::to_lower(params.model_type);
 
   // An explicit model_type wins; "auto" (or empty) falls back to the
   // filename heuristic (path containing "pose" -> pose, "segment" ->

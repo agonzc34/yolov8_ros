@@ -16,9 +16,9 @@
 #endif
 
 #include "rclcpp/exceptions.hpp"
-#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
+#include "yolo_ros/utils/string_utils.hpp"
 
 namespace yolo_ros::node {
 
@@ -114,8 +114,8 @@ void TrackingNode::declare_params() {
   // tracker declares and loads its own parameters through its specific
   // functions, so the node only dispatches by this key.
   this->declare_parameter<std::string>("tracker_type", "bytetrack");
-  const std::string tracker_type =
-      yolo_ros::to_lower(this->get_parameter("tracker_type").as_string());
+  const std::string tracker_type = yolo_ros::utils::to_lower(
+      this->get_parameter("tracker_type").as_string());
 
   if (tracker_type == "bytetrack") {
     yolo_ros::tracking::declare_byte_track_params(*this);
@@ -128,8 +128,8 @@ void TrackingNode::declare_params() {
 void TrackingNode::load_params() {
   this->tracker_.reset();
 
-  const std::string tracker_type =
-      yolo_ros::to_lower(this->get_parameter("tracker_type").as_string());
+  const std::string tracker_type = yolo_ros::utils::to_lower(
+      this->get_parameter("tracker_type").as_string());
 
   if (tracker_type == "bytetrack") {
     try {

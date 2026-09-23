@@ -7,9 +7,9 @@
 #include <cctype>
 #include <string>
 
-#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
+#include "yolo_ros/utils/string_utils.hpp"
 
 #include <opencv2/core.hpp>
 
@@ -21,7 +21,7 @@ Tracker::update(const std::vector<TrackDetection> &detections) {
 }
 
 std::unique_ptr<Tracker> create_tracker(const TrackerParams &params) {
-  const std::string type = yolo_ros::to_lower(params.type);
+  const std::string type = yolo_ros::utils::to_lower(params.type);
 
   // --- add new trackers here ---------------------------------------------
   // Register the key accepted by the tracking node's `tracker_type` parameter

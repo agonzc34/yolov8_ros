@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_ros/engine/provider.hpp"
-#include "yolo_ros/string_utils.hpp"
+#include "yolo_ros/utils/string_utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -48,7 +48,7 @@ struct CudaOptionsDeleter {
 std::vector<Provider> available_providers() {
   std::vector<Provider> providers;
   for (const std::string &name : Ort::GetAvailableProviders()) {
-    const std::string lower = to_lower(name);
+    const std::string lower = yolo_ros::utils::to_lower(name);
     if (lower == "cudaexecutionprovider") {
       providers.push_back(Provider::Cuda);
     } else if (lower == "tensorrtexecutionprovider") {
@@ -62,7 +62,8 @@ std::vector<Provider> available_providers() {
 
 std::vector<Provider> provider_chain(const std::string &requested,
                                      const std::vector<Provider> &available) {
-  const std::string key = to_lower(requested.empty() ? "auto" : requested);
+  const std::string key =
+      yolo_ros::utils::to_lower(requested.empty() ? "auto" : requested);
   std::vector<Provider> base;
   if (key == "cpu") {
     base = {Provider::Cpu};
@@ -95,7 +96,7 @@ const char *provider_name(Provider provider) {
 }
 
 int parse_device_id(const std::string &device) {
-  const std::string value = to_lower(device);
+  const std::string value = yolo_ros::utils::to_lower(device);
   const std::size_t colon = value.rfind(':');
   const std::string ordinal =
       colon == std::string::npos ? value : value.substr(colon + 1);
@@ -110,7 +111,7 @@ int parse_device_id(const std::string &device) {
 }
 
 const char *device_provider_name(const std::string &device) {
-  const std::string value = to_lower(device);
+  const std::string value = yolo_ros::utils::to_lower(device);
   const std::size_t colon = value.find(':');
   const std::string prefix =
       colon == std::string::npos ? value : value.substr(0, colon);

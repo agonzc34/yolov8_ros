@@ -24,3 +24,7 @@
 /// @defgroup yolo_3d Depth and 3D lifting
 /// @brief Robust depth statistics and 2D to 3D conversion for bounding boxes
 /// and pose keypoints, plus rigid-transform helpers.
+
+/// @defgroup yolo_utils Shared utilities
+/// @brief Cross-cutting helpers: string lowercasing and the message_filters
+/// cross-distro compatibility shim.

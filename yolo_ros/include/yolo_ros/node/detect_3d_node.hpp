@@ -39,7 +39,7 @@
 #include "yolo_msgs/msg/key_point3_d_array.hpp"
 
 #include "yolo_ros/3d/depth_utils.hpp"
-#include "yolo_ros/message_filters_compat.hpp"
+#include "yolo_ros/utils/message_filters_compat.hpp"
 
 /// @addtogroup yolo_nodes
 /// @{
@@ -92,13 +92,13 @@ public:
 
 private:
   /// @brief Synchronized subscription to the depth image.
-  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::Image>
+  yolo_ros::utils::MessageFilterSubscriber<sensor_msgs::msg::Image>
       depth_image_subscription_;
   /// @brief Synchronized subscription to the depth CameraInfo.
-  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::CameraInfo>
+  yolo_ros::utils::MessageFilterSubscriber<sensor_msgs::msg::CameraInfo>
       depth_info_subscription_;
   /// @brief Synchronized subscription to the 2D detection topic.
-  yolo_ros::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
+  yolo_ros::utils::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
       detection_subscription_;
   /// @brief Publisher of the 3D-enriched detections.
   rclcpp::Publisher<yolo_msgs::msg::DetectionArray>::SharedPtr

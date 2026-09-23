@@ -16,7 +16,7 @@
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 #include "yolo_msgs/msg/key_point3_d.hpp"
-#include "yolo_ros/message_filters_compat.hpp"
+#include "yolo_ros/utils/message_filters_compat.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <rclcpp/context.hpp>
@@ -69,9 +69,10 @@ public:
 
 private:
   /// @brief Synchronized subscription to the input image topic.
-  yolo_ros::MessageFilterSubscriber<sensor_msgs::msg::Image> image_subscription;
+  yolo_ros::utils::MessageFilterSubscriber<sensor_msgs::msg::Image>
+      image_subscription;
   /// @brief Synchronized subscription to the 2D detection topic.
-  yolo_ros::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
+  yolo_ros::utils::MessageFilterSubscriber<yolo_msgs::msg::DetectionArray>
       detection_subscription;
   /// @brief Publisher of the annotated debug image.
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_publisher;

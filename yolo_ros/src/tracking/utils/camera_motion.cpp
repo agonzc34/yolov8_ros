@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "yolo_ros/tracking/utils/camera_motion.hpp"
-#include "yolo_ros/string_utils.hpp"
+#include "yolo_ros/utils/string_utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -42,7 +42,7 @@ KalmanAffine to_affine(const cv::Mat &warp, int downscale) {
 
 CameraMotionCompensator::CameraMotionCompensator(const std::string &method,
                                                  int downscale)
-    : method_(yolo_ros::to_lower(method)),
+    : method_(yolo_ros::utils::to_lower(method)),
       downscale_(downscale < 1 ? 1 : downscale) {
   if (method_ == "orb") {
     detector_ = cv::FastFeatureDetector::create(20);

@@ -11,8 +11,8 @@
 /// rclcpp::QoS. MessageFilterSubscriber normalises both so call sites stay
 /// identical.
 
-#ifndef YOLO_ROS__MESSAGE_FILTERS_COMPAT_HPP_
-#define YOLO_ROS__MESSAGE_FILTERS_COMPAT_HPP_
+#ifndef YOLO_ROS__UTILS__MESSAGE_FILTERS_COMPAT_HPP_
+#define YOLO_ROS__UTILS__MESSAGE_FILTERS_COMPAT_HPP_
 
 #include "rclcpp/qos.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -27,13 +27,15 @@
 #include "message_filters/synchronizer.hpp"
 #endif
 
-namespace yolo_ros {
+/// @addtogroup yolo_utils
+/// @{
+namespace yolo_ros::utils {
 
 /// @brief message_filters::Subscriber specialised for a lifecycle node.
 ///
 /// Exposes subscribe(node, topic, rclcpp::QoS) on every distro, so call sites
 /// look the same regardless of the installed message_filters API:
-///   yolo_ros::MessageFilterSubscriber<MsgType> subscription_;
+///   yolo_ros::utils::MessageFilterSubscriber<MsgType> subscription_;
 ///   subscription_.subscribe(shared_from_this(), topic, qos);
 #ifdef MESSAGE_FILTERS_OLD_API
 template <typename MessageT>
@@ -66,6 +68,7 @@ public:
 };
 #endif
 
-} // namespace yolo_ros
+} // namespace yolo_ros::utils
+/// @}
 
-#endif // YOLO_ROS__MESSAGE_FILTERS_COMPAT_HPP_
+#endif // YOLO_ROS__UTILS__MESSAGE_FILTERS_COMPAT_HPP_
