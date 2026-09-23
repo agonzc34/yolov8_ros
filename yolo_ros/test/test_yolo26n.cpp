@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 
+#include "test_helpers.hpp"
 #include "test_model_helpers.hpp"
 #include "yolo_ros/yolo/classify.hpp"
 #include "yolo_ros/yolo/detect.hpp"
@@ -98,6 +99,69 @@ TEST_F(Detect26nTest, FallsBackFromInvalidCudaDevice) {
   params.device = "cuda:999";
   auto detector = std::make_unique<ExposedDetect>(params);
   EXPECT_EQ(detector->active_provider(), "cpu");
+}
+
+// A raw segmentation tensor is [1, 4 + nc + 32, N] (channel-major). The mask
+// coefficients are per-anchor and must stay attached to the box decoded from
+// that same anchor, even after get_boxes() compacts away the anchors below the
+// confidence threshold. Regression test: reading coefficients at the compacted
+// position instead of the original anchor index blends the wrong prototypes and
+// produces masks that do not match their boxes.
+TEST(SegmentationMaskCoefficients, FollowTheirOriginalAnchor) {
+  constexpr int nc = 1;
+  constexpr int kProtos = 32;
+  constexpr size_t n = 3;
+  constexpr int rows = 4 + nc + kProtos;
+  const std::vector<int64_t> shape{1, rows, static_cast<int64_t>(n)};
+
+  // Channel-major [rows][n]: value(row, anchor) at row * n + anchor.
+  std::vector<float> data(static_cast<size_t>(rows) * n, 0.0f);
+  auto set = [&](int row, size_t anchor, float v) {
+    data[static_cast<size_t>(row) * n + anchor] = v;
+  };
+  auto set_box = [&](size_t anchor, float cx, float cy, float w, float h,
+                     float score) {
+    set(0, anchor, cx);
+    set(1, anchor, cy);
+    set(2, anchor, w);
+    set(3, anchor, h);
+    set(4, anchor, score); // single class
+  };
+
+  // Anchor 0: background (below threshold). Its coefficients are a sentinel
+  // that must never leak into a real detection.
+  set_box(0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  set(4 + nc + 0, 0, 100.0f);
+  // Anchor 1: kept, prototype 1.
+  set_box(1, 50.0f, 50.0f, 20.0f, 20.0f, 0.9f);
+  set(4 + nc + 1, 1, 1.0f);
+  // Anchor 2: kept, prototype 2.
+  set_box(2, 200.0f, 200.0f, 20.0f, 20.0f, 0.8f);
+  set(4 + nc + 2, 2, 1.0f);
+
+  yolo_ros::test::Tensor tensor(shape, data);
+  std::vector<Ort::Value> preds;
+  preds.push_back(std::move(tensor.value()));
+
+  // Same original/resized size => identity scaling, boxes stay as decoded.
+  const auto boxes = get_segmentation_with_nms(
+      preds, cv::Size(300, 300), cv::Size(300, 300), nc, 0.5f, 0.25f);
+  ASSERT_EQ(boxes.size(), 2u);
+
+  for (const auto &box : boxes) {
+    ASSERT_EQ(box.mask_coeffs.size(), static_cast<size_t>(kProtos));
+    if (box.score > 0.85f) {
+      // Anchor 1 must carry prototype 1, not the background anchor's sentinel.
+      EXPECT_FLOAT_EQ(box.mask_coeffs[1], 1.0f);
+      EXPECT_FLOAT_EQ(box.mask_coeffs[0], 0.0f);
+      EXPECT_FLOAT_EQ(box.mask_coeffs[2], 0.0f);
+    } else {
+      // Anchor 2 must carry prototype 2.
+      EXPECT_FLOAT_EQ(box.mask_coeffs[2], 1.0f);
+      EXPECT_FLOAT_EQ(box.mask_coeffs[1], 0.0f);
+      EXPECT_FLOAT_EQ(box.mask_coeffs[0], 0.0f);
+    }
+  }
 }
 
 class Segment26nTest : public ::testing::Test {

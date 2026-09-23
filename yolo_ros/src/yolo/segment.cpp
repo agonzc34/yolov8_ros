@@ -159,8 +159,13 @@ std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
     }
     yolo_ros::yolo::utils::BoxWithMask box_with_mask(boxes[i]);
     std::vector<float> mask_coeffs(32);
+    // get_boxes() returns a *compacted* list (anchors below the confidence
+    // threshold are dropped), so the coefficient column must be addressed by
+    // the box's original anchor index, not by its position in this vector.
+    const size_t anchor = static_cast<size_t>(boxes[i].index);
     for (size_t m = 0; m < 32; ++m) {
-      mask_coeffs[m] = raw_output[(num_classes + 4 + m) * num_detections + i];
+      mask_coeffs[m] =
+          raw_output[(num_classes + 4 + m) * num_detections + anchor];
     }
     box_with_mask.mask_coeffs = mask_coeffs;
     boxes_with_mask.push_back(box_with_mask);
