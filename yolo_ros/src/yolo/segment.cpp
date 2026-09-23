@@ -16,8 +16,8 @@ namespace {
 /// Prototype masks emitted by the segmentation head.
 constexpr int kProtos = 32;
 /// Threshold applied to the sigmoid'd prototype blend to binarise an instance
-/// mask.
-constexpr double kMaskThreshold = 0.7;
+/// mask (matches the Ultralytics post-process).
+constexpr double kMaskThreshold = 0.5;
 
 /// Blend the prototype masks for every masked box, extract the instance
 /// boundary and fill the Detection messages.
@@ -61,24 +61,26 @@ std::vector<yolo_msgs::msg::Detection> masks_to_detections(
     cv::exp(-seg_mask, seg_mask);
     seg_mask = 1.0 / (1.0 + seg_mask);
 
-    // Apply threshold to get binary mask (Filter some noise)
+    // Resize the *probability* mask to the original image, then binarise it.
+    // Interpolating the float field before thresholding follows the true
+    // iso-contour; upscaling an already-binary 160x160 mask instead leaves a
+    // stair-stepped boundary (and inflates it, since findContours treats any
+    // interpolated non-zero as foreground).
+    cv::Mat resized_mask = yolo_ros::yolo::utils::inverse_letterbox(
+        seg_mask, original_image_size, resized_image_size);
     cv::Mat filtered_seg_mask;
-    cv::threshold(seg_mask, filtered_seg_mask, kMaskThreshold, 255.0,
+    cv::threshold(resized_mask, filtered_seg_mask, kMaskThreshold, 255.0,
                   cv::THRESH_BINARY);
     filtered_seg_mask.convertTo(filtered_seg_mask, CV_8U);
-
-    // Rescale the mask to the original image size
-    cv::Mat resized_mask = yolo_ros::yolo::utils::inverse_letterbox(
-        filtered_seg_mask, original_image_size, resized_image_size);
 
     // Crop to bounding box
     cv::Rect roi(bbox_array[i].x1, bbox_array[i].y1,
                  bbox_array[i].x2 - bbox_array[i].x1,
                  bbox_array[i].y2 - bbox_array[i].y1);
-    roi &= cv::Rect(0, 0, resized_mask.cols, resized_mask.rows);
-    cv::Mat cropped_mask = cv::Mat::zeros(resized_mask.size(), CV_8U);
+    roi &= cv::Rect(0, 0, filtered_seg_mask.cols, filtered_seg_mask.rows);
+    cv::Mat cropped_mask = cv::Mat::zeros(filtered_seg_mask.size(), CV_8U);
     if (roi.area() > 0) {
-      resized_mask(roi).copyTo(cropped_mask(roi));
+      filtered_seg_mask(roi).copyTo(cropped_mask(roi));
     }
 
     // Find contours in the cropped mask
