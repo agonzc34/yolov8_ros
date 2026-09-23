@@ -13,10 +13,14 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <mutex>
+#include <set>
+#include <string>
 
 #include "sensor_msgs/msg/image.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
+#include "yolo_msgs/srv/set_classes.hpp"
 #include "yolo_ros/engine/model.hpp"
 #include "yolo_ros/yolo/utils.hpp"
 
@@ -29,7 +33,8 @@ namespace yolo_ros::node {
 ///
 /// The task (detect/segment/pose/OBB/classify) is selected by the `model_type`
 /// parameter. Inference can be enabled/disabled at runtime through the
-/// `enable` SetBool service, and the publish rate is capped by `max_fps`.
+/// `enable` SetBool service, the published classes can be restricted through
+/// the `set_classes` service, and the publish rate is capped by `max_fps`.
 class YoloNode : public rclcpp_lifecycle::LifecycleNode {
 public:
   /// @brief Construct the node and declare the parameters.
@@ -89,6 +94,14 @@ protected:
   /// @brief Runtime inference gate, toggled by the enable service.
   std::atomic<bool> enable_inference_{true};
 
+  // Published-class filter, set through the set_classes service. Empty means
+  // every class is published. Guarded because the service and the image
+  // callback may run on different executor threads.
+  /// @brief Class names to publish; empty publishes every class.
+  std::set<std::string> allowed_classes_;
+  /// @brief Guards allowed_classes_.
+  std::mutex classes_mutex_;
+
   // Timestamp of the last processed frame, used by the max_fps frequency cap
   // to decide whether the current frame should be dropped.
   /// @brief Timestamp of the last processed frame (max_fps cap).
@@ -112,6 +125,16 @@ private:
       std::shared_ptr<std_srvs::srv::SetBool::Response> response);
   /// @brief Service toggling the inference gate.
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
+
+  /// @brief Restrict the published classes to the requested names (empty
+  /// publishes every class).
+  /// @param[in] request Request with the class names to keep.
+  /// @param[out] response Response reporting success.
+  void set_classes_callback(
+      const std::shared_ptr<yolo_msgs::srv::SetClasses::Request> request,
+      std::shared_ptr<yolo_msgs::srv::SetClasses::Response> response);
+  /// @brief Service restricting the published classes.
+  rclcpp::Service<yolo_msgs::srv::SetClasses>::SharedPtr set_classes_service_;
 };
 } // namespace yolo_ros::node
 /// @}

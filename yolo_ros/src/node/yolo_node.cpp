@@ -5,6 +5,7 @@
 #include "yolo_ros/node/yolo_node.hpp"
 #include "huggingface_hub.h"
 #include "rclcpp/qos.hpp"
+#include "yolo_ros/string_utils.hpp"
 #include "yolo_ros/yolo/classify.hpp"
 #include "yolo_ros/yolo/detect.hpp"
 #include "yolo_ros/yolo/obb.hpp"
@@ -57,6 +58,11 @@ YoloNode::on_activate(const rclcpp_lifecycle::State &) {
       "enable", std::bind(&YoloNode::enable_service_callback, this,
                           std::placeholders::_1, std::placeholders::_2));
 
+  // Runtime class filter: restrict which classes are published.
+  this->set_classes_service_ = this->create_service<yolo_msgs::srv::SetClasses>(
+      "set_classes", std::bind(&YoloNode::set_classes_callback, this,
+                               std::placeholders::_1, std::placeholders::_2));
+
   this->create_yolo(this->yolo_params);
   RCLCPP_INFO(get_logger(), "[%s] Activated", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
@@ -67,6 +73,7 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 YoloNode::on_deactivate(const rclcpp_lifecycle::State &) {
   this->destroy_yolo();
   this->enable_service_.reset();
+  this->set_classes_service_.reset();
   this->detection_publisher.reset();
   this->image_subscription.reset();
   RCLCPP_INFO(get_logger(), "[%s] Deactivated", this->get_name());
@@ -167,9 +174,7 @@ yolo_ros::yolo::utils::YoloParams yolo_ros::node::YoloNode::get_params() {
 
 void yolo_ros::node::YoloNode::create_yolo(
     yolo_ros::yolo::utils::YoloParams params) {
-  std::string model_type = params.model_type;
-  std::transform(model_type.begin(), model_type.end(), model_type.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  const std::string model_type = yolo_ros::to_lower(params.model_type);
 
   // An explicit model_type wins; "auto" (or empty) falls back to the
   // filename heuristic (path containing "pose" -> pose, "segment" ->
@@ -231,6 +236,28 @@ void YoloNode::enable_service_callback(
               request->data ? "enabled" : "disabled");
 }
 
+void YoloNode::set_classes_callback(
+    const std::shared_ptr<yolo_msgs::srv::SetClasses::Request> request,
+    std::shared_ptr<yolo_msgs::srv::SetClasses::Response> response) {
+  std::set<std::string> classes;
+  for (const auto &name : request->classes) {
+    if (!name.empty()) {
+      classes.insert(name);
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(this->classes_mutex_);
+    this->allowed_classes_ = classes;
+  }
+  response->success = true;
+  response->message =
+      classes.empty()
+          ? "publishing all classes"
+          : "publishing " + std::to_string(classes.size()) + " class(es)";
+  RCLCPP_INFO(get_logger(), "[%s] set_classes: %s", this->get_name(),
+              response->message.c_str());
+}
+
 void YoloNode::recieve_image_callback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
   // Optional frequency cap (max_fps > 0): drop frames so inference and
@@ -260,6 +287,21 @@ void YoloNode::recieve_image_callback(
       return;
     }
     auto detections = this->yolo_model->detect(image);
+
+    // Class filter (set_classes service): drop detections whose class name is
+    // not in the allowed set. An empty set publishes every class.
+    {
+      std::lock_guard<std::mutex> lock(this->classes_mutex_);
+      if (!this->allowed_classes_.empty()) {
+        detections.erase(
+            std::remove_if(detections.begin(), detections.end(),
+                           [this](const yolo_msgs::msg::Detection &detection) {
+                             return this->allowed_classes_.count(
+                                        detection.class_name) == 0;
+                           }),
+            detections.end());
+      }
+    }
 
     // Cap published detections to max_det (post-NMS output is already
     // sorted by confidence, so this keeps the strongest max_det).
