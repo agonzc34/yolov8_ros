@@ -22,6 +22,156 @@ size_t weighted_searchsorted(const std::vector<double> &cum_weights, double f) {
   return static_cast<size_t>(it - cum_weights.begin());
 }
 
+// Weighted order statistics over a sample: indices sorted by ascending value
+// and the matching normalized cumulative weights.
+struct WeightedOrder {
+  std::vector<size_t> idx;
+  std::vector<double> cum;
+};
+
+WeightedOrder weighted_order(const std::vector<double> &values,
+                             const std::vector<double> &weights) {
+  WeightedOrder order;
+  const size_t n = values.size();
+  order.idx.resize(n);
+  std::iota(order.idx.begin(), order.idx.end(), 0);
+  std::sort(order.idx.begin(), order.idx.end(),
+            [&](size_t a, size_t b) { return values[a] < values[b]; });
+  order.cum.assign(n, 0.0);
+  double acc = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    acc += weights[order.idx[i]];
+    order.cum[i] = acc;
+  }
+  if (order.cum.back() > 0.0) {
+    for (double &c : order.cum) c /= order.cum.back();
+  }
+  return order;
+}
+
+// Weighted trimmed-mean center plus weighted-percentile [min, max]. Shared by
+// compute_depth_bounds_weighted (trim 2/98, percentiles 1/99, weighted-mean
+// fallback) and compute_axis_bounds (trim 5/95, percentiles 3/97, median
+// fallback), matching the upstream Python statistics.
+struct TrimmedBounds {
+  double center;
+  double min;
+  double max;
+};
+
+TrimmedBounds weighted_trimmed_bounds(const std::vector<double> &values,
+                                      const std::vector<double> &weights,
+                                      double trim_lo, double trim_hi,
+                                      double pct_lo, double pct_hi,
+                                      bool weighted_mean_center) {
+  const WeightedOrder order = weighted_order(values, weights);
+  const std::vector<double> &cum = order.cum;
+
+  const auto fallback = [&]() {
+    return weighted_mean_center ? weighted_mean(values, weights)
+                                : median(values);
+  };
+
+  double center = median(values);
+  if (!cum.empty() && cum.back() > 0.0) {
+    const size_t lo = weighted_searchsorted(cum, trim_lo);
+    const size_t hi = weighted_searchsorted(cum, trim_hi);
+    if (hi > lo) {
+      double sw = 0.0;
+      double zc = 0.0;
+      for (size_t i = lo; i < hi; ++i) {
+        zc += values[order.idx[i]] * weights[order.idx[i]];
+        sw += weights[order.idx[i]];
+      }
+      center = (sw > 0.0) ? zc / sw : fallback();
+    } else {
+      center = fallback();
+    }
+  }
+
+  double vmin, vmax;
+  if (!cum.empty() && cum.back() > 0.0) {
+    vmin = values[order.idx[weighted_searchsorted(cum, pct_lo)]];
+    vmax = values[order.idx[weighted_searchsorted(cum, pct_hi)]];
+  } else {
+    const auto mm = std::minmax_element(values.begin(), values.end());
+    vmin = *mm.first;
+    vmax = *mm.second;
+  }
+  return {center, vmin, vmax};
+}
+
+// Valid-depth pixels of a detection. When the detection carries a segmentation
+// mask the mask polygon is rasterized (cropped to its bounding rect) and
+// sampled; otherwise the 2D bounding box is sampled. Only pixels with finite
+// depth > 0 are returned, with their absolute image coordinates.
+struct RegionPixels {
+  std::vector<int> xs;
+  std::vector<int> ys;
+  std::vector<double> depths;
+};
+
+RegionPixels collect_region(const cv::Mat &depth_image,
+                            const yolo_msgs::msg::Detection &detection,
+                            int depth_units_divisor, int stride) {
+  RegionPixels pixels;
+  const auto push = [&](int v, int u) {
+    const double d = depth_at_pixel(depth_image, v, u, depth_units_divisor);
+    if (std::isfinite(d) && d > 0.0) {
+      pixels.depths.push_back(d);
+      pixels.xs.push_back(u);
+      pixels.ys.push_back(v);
+    }
+  };
+
+  if (!detection.mask.data.empty()) {
+    std::vector<cv::Point> poly;
+    poly.reserve(detection.mask.data.size());
+    for (const auto &p : detection.mask.data) {
+      poly.emplace_back(cvRound(p.x), cvRound(p.y));
+    }
+    cv::Rect roi = cv::boundingRect(poly);
+    roi &= cv::Rect(0, 0, depth_image.cols, depth_image.rows);
+    if (roi.width <= 0 || roi.height <= 0) {
+      return pixels;
+    }
+    std::vector<std::vector<cv::Point>> local(1);
+    local[0].reserve(poly.size());
+    for (const auto &p : poly) {
+      local[0].push_back(p - roi.tl());
+    }
+    cv::Mat mask = cv::Mat::zeros(roi.size(), CV_8UC1);
+    cv::fillPoly(mask, local, cv::Scalar(255));
+    for (int v = 0; v < mask.rows; v += stride) {
+      const uchar *row = mask.ptr<uchar>(v);
+      for (int u = 0; u < mask.cols; u += stride) {
+        if (row[u]) {
+          push(v + roi.y, u + roi.x);
+        }
+      }
+    }
+    return pixels;
+  }
+
+  const int center_x = static_cast<int>(detection.bbox.center.position.x);
+  const int center_y = static_cast<int>(detection.bbox.center.position.y);
+  const int size_x = static_cast<int>(detection.bbox.size.x);
+  const int size_y = static_cast<int>(detection.bbox.size.y);
+  const int u_min = std::max(center_x - size_x / 2, 0);
+  const int u_max = std::min(center_x + size_x / 2, depth_image.cols - 1);
+  const int v_min = std::max(center_y - size_y / 2, 0);
+  const int v_max = std::min(center_y + size_y / 2, depth_image.rows - 1);
+  if (u_max <= u_min || v_max <= v_min) {
+    return pixels;
+  }
+  for (int v = v_min; v < v_max; v += stride) {
+    for (int u = u_min; u < u_max; u += stride) {
+      push(v, u);
+    }
+  }
+  return pixels;
+}
+
 double dot3(const Point3 &a, const Point3 &b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
@@ -153,79 +303,15 @@ std::optional<std::vector<Point3>> sample_points_3d(
     return std::nullopt;
   }
 
-  const int center_x = static_cast<int>(detection.bbox.center.position.x);
-  const int center_y = static_cast<int>(detection.bbox.center.position.y);
-  const int size_x = static_cast<int>(detection.bbox.size.x);
-  const int size_y = static_cast<int>(detection.bbox.size.y);
-  const int w_img = depth_image.cols, h_img = depth_image.rows;
-
-  const int u_min = std::max(center_x - size_x / 2, 0);
-  const int u_max = std::min(center_x + size_x / 2, w_img);
-  const int v_min = std::max(center_y - size_y / 2, 0);
-  const int v_max = std::min(center_y + size_y / 2, h_img);
-  if (u_max <= u_min || v_max <= v_min) {
+  const RegionPixels region =
+      collect_region(depth_image, detection, depth_units_divisor, stride);
+  if (region.depths.empty() ||
+      static_cast<int>(region.depths.size()) < min_seg_points) {
     return std::nullopt;
   }
-  const cv::Mat roi =
-      depth_image(cv::Rect(u_min, v_min, u_max - u_min, v_max - v_min));
-  if (roi.empty()) {
-    return std::nullopt;
-  }
-
-  std::vector<int> sxs, sys;
-  if (!detection.mask.data.empty()) {
-    std::vector<cv::Point> poly;
-    poly.reserve(detection.mask.data.size());
-    for (const auto &p : detection.mask.data) {
-      const int x = std::clamp(cvRound(p.x) - u_min, 0, roi.cols - 1);
-      const int y = std::clamp(cvRound(p.y) - v_min, 0, roi.rows - 1);
-      poly.emplace_back(x, y);
-    }
-    cv::Mat mask = cv::Mat::zeros(roi.size(), CV_8UC1);
-    std::vector<std::vector<cv::Point>> contours{poly};
-    cv::fillPoly(mask, contours, cv::Scalar(255));
-    for (int v = 0; v < mask.rows; v += stride) {
-      const uchar *row = mask.ptr<uchar>(v);
-      for (int u = 0; u < mask.cols; u += stride) {
-        if (row[u]) {
-          sys.push_back(v);
-          sxs.push_back(u);
-        }
-      }
-    }
-  } else {
-    for (int v = 0; v < roi.rows; v += stride) {
-      for (int u = 0; u < roi.cols; u += stride) {
-        sys.push_back(v);
-        sxs.push_back(u);
-      }
-    }
-  }
-  if (sys.empty()) {
-    return std::nullopt;
-  }
-
-  std::vector<double> z(sys.size()), xs_img(sys.size()), ys_img(sys.size());
-  size_t cnt = 0;
-  for (size_t i = 0; i < sys.size(); ++i) {
-    const double d = depth_at_pixel(roi, sys[i], sxs[i], depth_units_divisor);
-    if (std::isfinite(d) && d > 0.0) {
-      z[cnt] = d;
-      xs_img[cnt] = sxs[i] + u_min;
-      ys_img[cnt] = sys[i] + v_min;
-      ++cnt;
-    }
-  }
-  if (cnt == 0) {
-    return std::nullopt;
-  }
-  z.resize(cnt);
-  xs_img.resize(cnt);
-  ys_img.resize(cnt);
-
-  if (static_cast<int>(z.size()) < min_seg_points) {
-    return std::nullopt;
-  }
+  const std::vector<double> &z = region.depths;
+  const std::vector<int> &xs_img = region.xs;
+  const std::vector<int> &ys_img = region.ys;
 
   // Local orientation-only depth cleanup around the median (replaces the old
   // maximum_detection_threshold guard; no parameter needed).
@@ -531,20 +617,10 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
       std::max<size_t>(6, static_cast<size_t>(d.size() * 0.15));
   if (obj_d.size() < min_points) {
     // Fallback: weighted 2nd..85th percentile range.
-    std::vector<size_t> idx(d.size());
-    std::iota(idx.begin(), idx.end(), 0);
-    std::sort(idx.begin(), idx.end(),
-              [&](size_t a, size_t b) { return d[a] < d[b]; });
-    std::vector<double> cum_weights(d.size());
-    double acc = 0.0;
-    for (size_t i = 0; i < d.size(); ++i) {
-      acc += w[idx[i]];
-      cum_weights[i] = acc;
-    }
-    if (cum_weights.back() > 0.0) {
-      for (auto &c : cum_weights) c /= cum_weights.back();
-      const double p2v = d[idx[weighted_searchsorted(cum_weights, 0.02)]];
-      const double p85v = d[idx[weighted_searchsorted(cum_weights, 0.85)]];
+    const WeightedOrder order = weighted_order(d, w);
+    if (order.cum.back() > 0.0) {
+      const double p2v = d[order.idx[weighted_searchsorted(order.cum, 0.02)]];
+      const double p85v = d[order.idx[weighted_searchsorted(order.cum, 0.85)]];
       obj_d.clear();
       obj_w.clear();
       for (size_t i = 0; i < d.size(); ++i) {
@@ -560,52 +636,11 @@ DepthBounds compute_depth_bounds_weighted(std::vector<double> depth,
     obj_w = w;
   }
 
-  // Sort the depth samples once and build the weighted cumulative array once;
-  // both the 2%-trimmed center and the 1st/99th weighted percentiles read from
-  // the same arrays (previously each block re-sorted identically).
-  std::vector<size_t> idx(obj_d.size());
-  std::iota(idx.begin(), idx.end(), 0);
-  std::sort(idx.begin(), idx.end(),
-            [&](size_t a, size_t b) { return obj_d[a] < obj_d[b]; });
-  std::vector<double> cum_weights(obj_d.size());
-  {
-    double acc = 0.0;
-    for (size_t i = 0; i < obj_d.size(); ++i) {
-      acc += obj_w[idx[i]];
-      cum_weights[i] = acc;
-    }
-    if (cum_weights.back() > 0.0) {
-      for (auto &c : cum_weights) c /= cum_weights.back();
-    }
-  }
-
-  double z_center;
-  if (cum_weights.back() > 0.0) {
-    const size_t lo = weighted_searchsorted(cum_weights, 0.02);
-    const size_t hi = weighted_searchsorted(cum_weights, 0.98);
-    if (hi > lo) {
-      double sw = 0.0;
-      double zc = 0.0;
-      for (size_t i = lo; i < hi; ++i) {
-        zc += obj_d[idx[i]] * obj_w[idx[i]];
-        sw += obj_w[idx[i]];
-      }
-      z_center = (sw > 0.0) ? zc / sw : median(obj_d);
-    } else {
-      z_center = weighted_mean(obj_d, obj_w);
-    }
-  } else {
-    z_center = median(obj_d);
-  }
-
-  double z_min, z_max;
-  if (cum_weights.back() > 0.0) {
-    z_min = obj_d[idx[weighted_searchsorted(cum_weights, 0.01)]];
-    z_max = obj_d[idx[weighted_searchsorted(cum_weights, 0.99)]];
-  } else {
-    z_min = *std::min_element(obj_d.begin(), obj_d.end());
-    z_max = *std::max_element(obj_d.begin(), obj_d.end());
-  }
+  const TrimmedBounds bounds =
+      weighted_trimmed_bounds(obj_d, obj_w, 0.02, 0.98, 0.01, 0.99, true);
+  double z_center = bounds.center;
+  double z_min = bounds.min;
+  double z_max = bounds.max;
   if (z_center < z_min || z_center > z_max) {
     const double ext = std::max(z_max - z_min, 0.02);
     z_min = z_center - ext / 2.0;
@@ -667,52 +702,11 @@ AxisBounds compute_axis_bounds(const std::vector<double> &val3,
     fw = w;
   }
 
-  // One weighted sort serves both the 5%-trimmed center and the 3rd/97th
-  // weighted percentiles (previously each block re-sorted identically).
-  const size_t m = fv.size();
-  std::vector<size_t> i2(m);
-  std::iota(i2.begin(), i2.end(), 0);
-  std::sort(i2.begin(), i2.end(),
-            [&](size_t a, size_t b) { return fv[a] < fv[b]; });
-  std::vector<double> c2(m, 0.0);
-  {
-    double acc = 0.0;
-    for (size_t i = 0; i < m; ++i) {
-      acc += fw[i2[i]];
-      c2[i] = acc;
-    }
-    if (c2.back() > 0.0) {
-      for (auto &c : c2) c /= c2.back();
-    }
-  }
-
-  double center_val;
-  if (c2.back() > 0.0) {
-    const size_t lo = weighted_searchsorted(c2, 0.05);
-    const size_t hi = weighted_searchsorted(c2, 0.95);
-    if (hi > lo) {
-      double sw = 0.0;
-      double zc = 0.0;
-      for (size_t i = lo; i < hi; ++i) {
-        zc += fv[i2[i]] * fw[i2[i]];
-        sw += fw[i2[i]];
-      }
-      center_val = (sw > 0.0) ? zc / sw : median(fv);
-    } else {
-      center_val = median(fv);
-    }
-  } else {
-    center_val = median(fv);
-  }
-
-  double vmin, vmax;
-  if (c2.back() > 0.0) {
-    vmin = fv[i2[weighted_searchsorted(c2, 0.03)]];
-    vmax = fv[i2[weighted_searchsorted(c2, 0.97)]];
-  } else {
-    vmin = *std::min_element(fv.begin(), fv.end());
-    vmax = *std::max_element(fv.begin(), fv.end());
-  }
+  const TrimmedBounds bounds =
+      weighted_trimmed_bounds(fv, fw, 0.05, 0.95, 0.03, 0.97, false);
+  double center_val = bounds.center;
+  double vmin = bounds.min;
+  double vmax = bounds.max;
   const double min_size = 0.02;
   if (vmax - vmin < min_size) {
     vmin = center_val - min_size / 2.0;
@@ -749,20 +743,6 @@ std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
   const int size_x = static_cast<int>(detection.bbox.size.x);
   const int size_y = static_cast<int>(detection.bbox.size.y);
 
-  // Gather the valid depth pixels (depth > 0 and finite) of the detection
-  // together with their image coordinates, cropped either by the segmentation
-  // mask polygon or by the 2D bounding box.
-  std::vector<double> depths;
-  std::vector<int> xs, ys;
-  auto collect = [&](int v, int u) {
-    const double d = depth_at_pixel(depth_image, v, u, depth_units_divisor);
-    if (std::isfinite(d) && d > 0.0) {
-      depths.push_back(d);
-      xs.push_back(u);
-      ys.push_back(v);
-    }
-  };
-
   // Sample the detection region with an adaptive stride: large patches
   // (>=200 px per side, e.g. a person close to the camera) use step 2 so the
   // robust depth statistics see a representative 1/4 subset of the pixels.
@@ -770,50 +750,14 @@ std::optional<yolo_msgs::msg::BoundingBox3D> convert_bb_to_3d(
   // the same distribution, so this keeps the output statistics materially
   // unchanged while cutting the sample count (and every sort below) by 4x.
   const int step = (size_x * size_y >= 40000) ? 2 : 1;
-
-  if (!detection.mask.data.empty()) {
-    // Rasterize only the polygon's bounding rect, not the whole image.
-    std::vector<std::vector<cv::Point>> contours(1);
-    contours[0].reserve(detection.mask.data.size());
-    for (const auto &p : detection.mask.data) {
-      contours[0].emplace_back(cvRound(p.x), cvRound(p.y));
-    }
-    cv::Rect roi = cv::boundingRect(contours[0]);
-    roi &= cv::Rect(0, 0, depth_image.cols, depth_image.rows);
-    if (roi.width <= 0 || roi.height <= 0) {
-      return std::nullopt;
-    }
-    std::vector<std::vector<cv::Point>> local_contours(1);
-    for (const auto &p : contours[0]) {
-      local_contours[0].push_back(p - roi.tl());
-    }
-    cv::Mat mask = cv::Mat::zeros(roi.size(), CV_8UC1);
-    cv::fillPoly(mask, local_contours, cv::Scalar(255));
-    const int s = (roi.width * roi.height >= 40000) ? 2 : 1;
-    for (int v = 0; v < mask.rows; v += s) {
-      for (int u = 0; u < mask.cols; u += s) {
-        if (mask.at<uchar>(v, u)) {
-          collect(v + roi.y, u + roi.x);
-        }
-      }
-    }
-  } else {
-    const int u_min = std::max(center_x - size_x / 2, 0);
-    const int u_max = std::min(center_x + size_x / 2, depth_image.cols - 1);
-    const int v_min = std::max(center_y - size_y / 2, 0);
-    const int v_max = std::min(center_y + size_y / 2, depth_image.rows - 1);
-    if (u_max <= u_min || v_max <= v_min) {
-      return std::nullopt;
-    }
-    for (int v = v_min; v < v_max; v += step) {
-      for (int u = u_min; u < u_max; u += step) {
-        collect(v, u);
-      }
-    }
-  }
-  if (depths.empty()) {
+  const RegionPixels region =
+      collect_region(depth_image, detection, depth_units_divisor, step);
+  if (region.depths.empty()) {
     return std::nullopt;
   }
+  const std::vector<double> &depths = region.depths;
+  const std::vector<int> &xs = region.xs;
+  const std::vector<int> &ys = region.ys;
 
   // Weight the samples by their distance from the bbox centre so that
   // background/occluding pixels at the edges weigh less.
