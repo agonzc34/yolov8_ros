@@ -16,7 +16,7 @@ namespace {
 /// Prototype masks emitted by the segmentation head.
 constexpr int kProtos = 32;
 /// Threshold applied to the sigmoid'd prototype blend to binarise an instance
-/// mask (matches the Ultralytics post-process).
+/// mask.
 constexpr double kMaskThreshold = 0.5;
 
 /// Blend the prototype masks for every masked box, extract the instance
