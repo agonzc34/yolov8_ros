@@ -4,37 +4,38 @@
 #include "yolo_ros/yolo/segment.hpp"
 #include "yolo_msgs/msg/point2_d.hpp"
 #include "yolo_ros/yolo/utils.hpp"
+#include <iostream>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace yolo_ros::yolo {
 
-YoloSegment::YoloSegment(yolo_ros::yolo::utils::YoloParams params)
-    : yolo_ros::engine::Model(params) {}
+namespace {
 
-YoloSegment::~YoloSegment() {}
+/// Prototype masks emitted by the segmentation head.
+constexpr int kProtos = 32;
+/// Threshold applied to the sigmoid'd prototype blend to binarise an instance
+/// mask.
+constexpr double kMaskThreshold = 0.7;
 
-std::vector<yolo_msgs::msg::Detection>
-YoloSegment::postprocess(const cv::Size &original_image_size,
-                         const cv::Size &resized_image_size,
-                         const std::vector<Ort::Value> &preds) {
+/// Blend the prototype masks for every masked box, extract the instance
+/// boundary and fill the Detection messages.
+/// @param[in] bbox_array NMS-filtered boxes carrying their mask coefficients.
+/// @param[in] preds Raw output tensors (preds[1] holds the prototypes).
+/// @param[in] original_image_size Size of the original camera image.
+/// @param[in] resized_image_size Size of the letterboxed network input.
+/// @param[in] class_names Class vocabulary indexed by class id.
+/// @return One Detection per box, each carrying its mask contour.
+std::vector<yolo_msgs::msg::Detection> masks_to_detections(
+    const std::vector<yolo_ros::yolo::utils::BoxWithMask> &bbox_array,
+    const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
+    const cv::Size &resized_image_size,
+    const std::vector<std::string> &class_names) {
   std::vector<yolo_msgs::msg::Detection> detection_array;
-  std::vector<yolo_ros::yolo::utils::BoxWithMask> bbox_array;
 
-  std::vector<int64_t> box_shape =
-      preds[0].GetTensorTypeAndShapeInfo().GetShape();
-  // Process predictions applying NMS
-  const size_t num_features = box_shape[1];
-  const int num_classes = static_cast<int>(num_features) - 4 - 32;
-
-  bbox_array = get_segmentation_with_nms(
-      preds, original_image_size, resized_image_size, num_classes,
-      this->iou_threshold, this->conf_threshold);
-
-  std::vector<int64_t> mask_shape =
+  const std::vector<int64_t> mask_shape =
       preds[1].GetTensorTypeAndShapeInfo().GetShape(); // [1, 32, maskH, maskW]
-
   const int mask_h = static_cast<int>(mask_shape[2]);
   const int mask_w = static_cast<int>(mask_shape[3]);
 
@@ -48,11 +49,11 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
 
   std::vector<std::vector<cv::Point>> masks;
   for (size_t i = 0; i < bbox_array.size(); ++i) {
-    const auto mask_coeffs = bbox_array[i].mask_coeffs;
+    const auto &mask_coeffs = bbox_array[i].mask_coeffs;
     cv::Mat seg_mask = cv::Mat::zeros(mask_h, mask_w, CV_32F);
 
     // Linear combination of prototype masks
-    for (int m = 0; m < 32; ++m) {
+    for (int m = 0; m < kProtos; ++m) {
       seg_mask += mask_coeffs[m] * mask_protos[m];
     }
 
@@ -62,11 +63,12 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
 
     // Apply threshold to get binary mask (Filter some noise)
     cv::Mat filtered_seg_mask;
-    cv::threshold(seg_mask, filtered_seg_mask, 0.7, 255.0, cv::THRESH_BINARY);
+    cv::threshold(seg_mask, filtered_seg_mask, kMaskThreshold, 255.0,
+                  cv::THRESH_BINARY);
     filtered_seg_mask.convertTo(filtered_seg_mask, CV_8U);
 
     // Rescale the mask to the original image size
-    auto resized_mask = yolo_ros::yolo::utils::inverse_letterbox(
+    cv::Mat resized_mask = yolo_ros::yolo::utils::inverse_letterbox(
         filtered_seg_mask, original_image_size, resized_image_size);
 
     // Crop to bounding box
@@ -91,12 +93,11 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
       double area = cv::contourArea(contours[j]);
       if (area > max_area) {
         max_area = area;
-        max_contour_index = j;
+        max_contour_index = static_cast<int>(j);
       }
     }
     if (max_contour_index != -1) {
-      std::vector<cv::Point> largest_contour = contours[max_contour_index];
-      masks.push_back(largest_contour);
+      masks.push_back(contours[max_contour_index]);
     } else {
       masks.push_back(std::vector<cv::Point>());
     }
@@ -122,8 +123,8 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
     detection.score = bbox_array[i].score;
     detection.class_id = bbox_array[i].class_id;
     detection.id = "0";
-    if (bbox_array[i].class_id < static_cast<int>(this->class_names.size())) {
-      detection.class_name = this->class_names[bbox_array[i].class_id];
+    if (bbox_array[i].class_id < static_cast<int>(class_names.size())) {
+      detection.class_name = class_names[bbox_array[i].class_id];
     } else {
       detection.class_name = "unknown";
     }
@@ -131,6 +132,95 @@ YoloSegment::postprocess(const cv::Size &original_image_size,
   }
 
   return detection_array;
+}
+
+} // namespace
+
+YoloSegment::YoloSegment(yolo_ros::yolo::utils::YoloParams params)
+    : yolo_ros::engine::Model(params) {}
+
+YoloSegment::~YoloSegment() {}
+
+std::vector<yolo_msgs::msg::Detection>
+YoloSegment::postprocess(const cv::Size &original_image_size,
+                         const cv::Size &resized_image_size,
+                         const std::vector<Ort::Value> &preds) {
+  const std::vector<int64_t> shape =
+      preds[0].GetTensorTypeAndShapeInfo().GetShape();
+
+  // Two exported layouts are supported, mirroring the detect/pose nodes:
+  //  - End-to-end/baked-head segment models (yolo26 family exported with the
+  //    post-process in-graph) output [*, K, 6 + n_protos]: each row is
+  //    [x1, y1, x2, y2, score, class_id, coeffs...] and NMS is already applied.
+  //  - Classic exports (yolov8/v11, and yolo26 with end2end=False) output
+  //    [1, 4 + nc + n_protos, D]: one column per anchor, NMS done here.
+  const bool baked_head = shape.size() >= 2 && shape.back() == 4 + 2 + kProtos;
+
+  std::vector<yolo_ros::yolo::utils::BoxWithMask> bbox_array;
+  if (baked_head) {
+    bbox_array = get_segmentation_baked_head(
+        preds, original_image_size, resized_image_size, this->conf_threshold);
+  } else {
+    const size_t num_features = static_cast<size_t>(shape[1]);
+    const int num_classes = static_cast<int>(num_features) - 4 - kProtos;
+    if (num_classes < 1) {
+      std::cerr << "YoloSegment: unexpected output feature count "
+                << num_features << "; expected 4 + nc + " << kProtos
+                << std::endl;
+      return {};
+    }
+
+    bbox_array = get_segmentation_with_nms(
+        preds, original_image_size, resized_image_size, num_classes,
+        this->iou_threshold, this->conf_threshold);
+  }
+
+  return masks_to_detections(bbox_array, preds, original_image_size,
+                             resized_image_size, this->class_names);
+}
+
+std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_baked_head(
+    const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
+    const cv::Size &resized_image_size, const float conf_threshold) {
+  std::vector<yolo_ros::yolo::utils::BoxWithMask> boxes;
+
+  const std::vector<int64_t> shape =
+      preds[0].GetTensorTypeAndShapeInfo().GetShape();
+  const float *raw = preds[0].GetTensorData<float>();
+
+  // [1, K, 6 + n_protos] (or [K, 6 + n_protos]): rows are detections and the
+  // last dimension holds the features.
+  const size_t num_rows = shape.size() >= 3
+                              ? static_cast<size_t>(shape[shape.size() - 2])
+                              : static_cast<size_t>(shape[0]);
+  const size_t stride = static_cast<size_t>(shape.back());
+
+  for (size_t i = 0; i < num_rows; ++i) {
+    const float *row = raw + i * stride;
+    if (row[4] < conf_threshold) {
+      continue;
+    }
+
+    yolo_ros::yolo::utils::Box box;
+    box.x1 = row[0];
+    box.y1 = row[1];
+    box.x2 = row[2];
+    box.y2 = row[3];
+    box.score = row[4];
+    box.class_id = static_cast<int>(row[5]);
+    box.index = static_cast<int>(i);
+    box = yolo_ros::yolo::utils::scale_box(box, original_image_size,
+                                           resized_image_size);
+
+    std::vector<float> mask_coeffs(static_cast<size_t>(kProtos));
+    for (int m = 0; m < kProtos; ++m) {
+      mask_coeffs[static_cast<size_t>(m)] = row[6 + m];
+    }
+
+    boxes.emplace_back(box, std::move(mask_coeffs));
+  }
+
+  return boxes;
 }
 
 std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
@@ -158,13 +248,13 @@ std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
       continue;
     }
     yolo_ros::yolo::utils::BoxWithMask box_with_mask(boxes[i]);
-    std::vector<float> mask_coeffs(32);
+    std::vector<float> mask_coeffs(kProtos);
     // get_boxes() returns a *compacted* list (anchors below the confidence
     // threshold are dropped), so the coefficient column must be addressed by
     // the box's original anchor index, not by its position in this vector.
     const size_t anchor = static_cast<size_t>(boxes[i].index);
-    for (size_t m = 0; m < 32; ++m) {
-      mask_coeffs[m] =
+    for (int m = 0; m < kProtos; ++m) {
+      mask_coeffs[static_cast<size_t>(m)] =
           raw_output[(num_classes + 4 + m) * num_detections + anchor];
     }
     box_with_mask.mask_coeffs = mask_coeffs;

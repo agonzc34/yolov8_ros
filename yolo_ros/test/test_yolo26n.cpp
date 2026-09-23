@@ -164,6 +164,61 @@ TEST(SegmentationMaskCoefficients, FollowTheirOriginalAnchor) {
   }
 }
 
+// The end-to-end/baked-head segment layout is [1, K, 6 + n_protos]: rows are
+// [x1, y1, x2, y2, score, class_id, coeffs...] already NMS-sorted, with no
+// per-class scores to argmax over. Decoding it as the raw layout produces
+// garbage, so lock the row decoder down.
+TEST(SegmentationBakedHead, DecodesRowsAndCoefficients) {
+  constexpr int kProtos = 32;
+  constexpr size_t kRows = 3;
+  constexpr size_t kStride = 6 + kProtos;
+  const std::vector<int64_t> shape{1, static_cast<int64_t>(kRows),
+                                   static_cast<int64_t>(kStride)};
+
+  std::vector<float> data(kRows * kStride, 0.0f);
+  auto set_row = [&](size_t row, float x1, float y1, float x2, float y2,
+                     float score, float cls, int proto, float coeff) {
+    float *r = data.data() + row * kStride;
+    r[0] = x1;
+    r[1] = y1;
+    r[2] = x2;
+    r[3] = y2;
+    r[4] = score;
+    r[5] = cls;
+    r[6 + proto] = coeff;
+  };
+  set_row(0, 10.0f, 20.0f, 30.0f, 40.0f, 0.9f, 2.0f, 0, 1.0f);
+  set_row(1, 100.0f, 100.0f, 120.0f, 140.0f, 0.8f, 5.0f, 1, 2.0f);
+  // Below threshold: must be dropped.
+  set_row(2, 0.0f, 0.0f, 5.0f, 5.0f, 0.1f, 0.0f, 2, 99.0f);
+
+  yolo_ros::test::Tensor tensor(shape, data);
+  std::vector<Ort::Value> preds;
+  preds.push_back(std::move(tensor.value()));
+
+  // Identity scaling: original and resized sizes match.
+  const auto boxes = get_segmentation_baked_head(preds, cv::Size(200, 200),
+                                                 cv::Size(200, 200), 0.25f);
+  ASSERT_EQ(boxes.size(), 2u);
+
+  EXPECT_FLOAT_EQ(boxes[0].x1, 10.0f);
+  EXPECT_FLOAT_EQ(boxes[0].y1, 20.0f);
+  EXPECT_FLOAT_EQ(boxes[0].x2, 30.0f);
+  EXPECT_FLOAT_EQ(boxes[0].y2, 40.0f);
+  EXPECT_FLOAT_EQ(boxes[0].score, 0.9f);
+  EXPECT_EQ(boxes[0].class_id, 2);
+  ASSERT_EQ(boxes[0].mask_coeffs.size(), static_cast<size_t>(kProtos));
+  EXPECT_FLOAT_EQ(boxes[0].mask_coeffs[0], 1.0f);
+
+  EXPECT_FLOAT_EQ(boxes[1].score, 0.8f);
+  EXPECT_EQ(boxes[1].class_id, 5);
+  EXPECT_FLOAT_EQ(boxes[1].mask_coeffs[1], 2.0f);
+  // The dropped row's sentinel coefficient must not leak into a kept box.
+  for (const auto &box : boxes) {
+    EXPECT_FLOAT_EQ(box.mask_coeffs[2], 0.0f);
+  }
+}
+
 class Segment26nTest : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -185,11 +240,30 @@ TEST_F(Segment26nTest, MasksMatchImageSize) {
   ASSERT_FALSE(dets.empty());
   bool any_nonempty = false;
   for (const auto &d : dets) {
+    // A mis-decoded layout (e.g. an end-to-end export read as the raw one)
+    // yields garbage class ids and "unknown" names; guard against that.
+    EXPECT_GE(d.class_id, 0);
+    EXPECT_LT(d.class_id, 80);
+    EXPECT_FALSE(d.class_name.empty());
+    EXPECT_NE(d.class_name, "unknown");
+    EXPECT_GT(d.score, 0.0f);
+    EXPECT_LE(d.score, 1.0f);
     EXPECT_EQ(d.mask.width, static_cast<int32_t>(image_.cols));
     EXPECT_EQ(d.mask.height, static_cast<int32_t>(image_.rows));
     if (!d.mask.data.empty()) {
       any_nonempty = true;
       EXPECT_GE(d.mask.data.size(), 3u);
+      // The contour must not be the whole (rectangular) bounding box: that is
+      // the signature of a saturated/blended-wrong prototype mask.
+      std::vector<cv::Point> contour;
+      contour.reserve(d.mask.data.size());
+      for (const auto &p : d.mask.data) {
+        contour.emplace_back(static_cast<int>(p.x), static_cast<int>(p.y));
+      }
+      const double bbox_area = d.bbox.size.x * d.bbox.size.y;
+      if (bbox_area > 0.0) {
+        EXPECT_LT(cv::contourArea(contour), bbox_area);
+      }
     }
     for (const auto &p : d.mask.data) {
       EXPECT_GE(p.x, 0);

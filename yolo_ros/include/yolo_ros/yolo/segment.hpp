@@ -30,6 +30,22 @@ std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_with_nms(
     const cv::Size &resized_image_size, const int num_classes,
     float iou_threshold, float conf_threshold);
 
+/// @brief Decode an end-to-end (baked-head) segmentation tensor into boxes with
+/// mask coefficients.
+///
+/// The exported graph emits `[*, K, 6 + n_protos]` rows already NMS-sorted by
+/// descending confidence, each holding `[x1, y1, x2, y2, score, class_id,
+/// mask_coeffs...]` in the letterboxed frame. Rows below @p conf_threshold are
+/// dropped.
+/// @param[in] preds Raw output tensors from the model.
+/// @param[in] original_image_size Size of the original camera image.
+/// @param[in] resized_image_size Size of the letterboxed network input.
+/// @param[in] conf_threshold Minimum score to keep a box.
+/// @return Masked boxes in original-image coordinates.
+std::vector<yolo_ros::yolo::utils::BoxWithMask> get_segmentation_baked_head(
+    const std::vector<Ort::Value> &preds, const cv::Size &original_image_size,
+    const cv::Size &resized_image_size, float conf_threshold);
+
 /// @brief YOLO instance segmentation model.
 ///
 /// The exported graph emits a detection tensor plus prototype masks; the mask
