@@ -55,8 +55,10 @@ BoT-SORT paper and reference implementation:
 
 The XYWH Kalman filter, the camera-motion compensator and the association
 pipeline are ported from the reference `tracker/kalman_filter.py`,
-`tracker/gmc.py` and `tracker/bot_sort.py`. The ReID/appearance branch
-(FastReID) is not included. The reference is itself based on the MIT-licensed
+`tracker/gmc.py` and `tracker/bot_sort.py`. The ReID/appearance branch IS
+included as the opt-in `with_reid` appearance association, using embeddings from
+a pluggable ONNX encoder (see the torchreid/OSNet and FastReID sections below).
+The reference is itself based on the MIT-licensed
 ByteTrack reference (see above).
 
 MIT License
