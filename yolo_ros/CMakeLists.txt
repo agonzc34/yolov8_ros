@@ -302,6 +302,13 @@ if(BUILD_TESTING)
     CURL::libcurl
     JPEG::JPEG
   )
+
+  ament_add_gtest(test_batch_scheduler
+    test/test_batch_scheduler.cpp
+  )
+  target_include_directories(test_batch_scheduler PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
 endif()
 
 ament_package()
