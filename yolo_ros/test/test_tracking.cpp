@@ -603,17 +603,26 @@ TEST(Matching, EmbeddingDistanceMissingFeatureIsMax) {
   EXPECT_NEAR(utils::embedding_distance({track}, {det})[0][0], 2.0, 1e-9);
   // Detection has no feature (non-person box).
   EXPECT_NEAR(utils::embedding_distance({det}, {track})[0][0], 2.0, 1e-9);
+
+  auto det3 =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 2);
+  det3->update_features({1.0f, 0.0f, 0.0f});
+  // Dimension mismatch (2-D vs 3-D) also yields the sentinel.
+  EXPECT_NEAR(utils::embedding_distance({det}, {det3})[0][0], 2.0, 1e-9);
 }
 
 TEST(Matching, FuseAppearanceGatesAndTakesMinimum) {
-  const std::vector<std::vector<double>> iou = {{0.4, 0.4, 0.4}};
-  // /2 -> {0.1, 0.3, 1.0}; 0.3 > appearance_thresh so col1 caps to 1.0.
-  const std::vector<std::vector<double>> emb = {{0.2, 0.6, 2.0}};
-  const std::vector<std::vector<bool>> mask = {{false, false, true}};
+  const std::vector<std::vector<double>> iou = {{0.4, 0.4, 0.4, 0.4}};
+  // /2 -> {0.1, 0.3, 1.0, 0.1}; col1 exceeds appearance_thresh (caps to 1.0),
+  // col2 caps too, col3 is <= thresh but masked.
+  const std::vector<std::vector<double>> emb = {{0.2, 0.6, 2.0, 0.2}};
+  const std::vector<std::vector<bool>> mask = {{false, false, false, true}};
   const auto d = utils::fuse_appearance(iou, emb, mask, 0.25);
   EXPECT_NEAR(d[0][0], 0.1, 1e-9); // min(0.4, 0.1)
   EXPECT_NEAR(d[0][1], 0.4, 1e-9); // capped to 1.0, min(0.4, 1.0)
-  EXPECT_NEAR(d[0][2], 0.4, 1e-9); // masked to 1.0, min(0.4, 1.0)
+  EXPECT_NEAR(d[0][2], 0.4, 1e-9); // capped to 1.0, min(0.4, 1.0)
+  // emb/2 = 0.1 <= thresh, so only the mask can force 1.0 here: min(0.4, 1.0).
+  EXPECT_NEAR(d[0][3], 0.4, 1e-9);
 }
 
 TEST(Matching, FuseAppearanceEmptyPassesThrough) {
