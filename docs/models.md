@@ -35,6 +35,33 @@ Notes:
 - OBB models have no baked-NMS export (rotated NMS cannot be exported into the graph), so the C++ postprocessor performs its own per-class rotated NMS and `iou` re-tunes it. The rotation angle is published in `BoundingBox2D.center.theta` (radians) with `size` holding the rotated `w`/`h`.
 - Classification exports bake the softmax into the graph (`output0` is `[1, N]` probabilities), so the postprocessor does **not** re-apply it. Top-`top_k` classes are published as detections with an **empty** bbox (image-level labels have no spatial extent).
 
+## Dynamic-batch export (multi-camera pipelines)
+
+Ultralytics' ONNX exporter is batch-1 by default. For the multi-camera
+`yolo_batch_node`, re-export with `dynamic=True`:
+
+```bash
+cp yolo26n.pt /tmp/yolo26n-dyn.pt
+uv run --with ultralytics --with onnx --with onnxruntime --with onnxslim \
+  yolo export model=/tmp/yolo26n-dyn.pt format=onnx dynamic=True
+mv /tmp/yolo26n-dyn.onnx /home/agonzc34/models/
+```
+
+`dynamic=True` makes the input `['batch', 3, 'height', 'width']` — the batch
+**and** H/W axes. `yolo_ros` pins 640×640 for dynamic graphs (all shipped
+models train at that size). If you need a batch-only-dynamic graph (so
+`input_image_shape` is read from the file), zero the H/W dims first:
+
+```python
+import onnx
+m = onnx.load("/tmp/yolo26n-dyn.onnx")
+for inp in m.graph.input:
+    for d in (2, 3):
+        inp.type.tensor_type.shape.dim[d].ClearField("dim_param")
+        inp.type.tensor_type.shape.dim[d].dim_value = 640
+onnx.save(m, "/home/agonzc34/models/yolo26n-batch.onnx")
+```
+
 ## Download a model from the Hugging Face Hub
 
 Instead of a local path, the node can fetch the model from the Hub at startup via the `yolo_hfhub_vendor` package. Set `model_repo` + `model_filename` in the matching `config/yolo*.yaml` section (or on the command line); the `model` path is then ignored. The file is cached under `~/.cache/huggingface/hub` by default (override with the optional `cache_dir` param) and reused unless `force_download: true`:

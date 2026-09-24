@@ -15,6 +15,7 @@
 #else
 #include <cv_bridge/cv_bridge.hpp>
 #endif
+#include <cstddef>
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/opencv.hpp>
 #include <string>
@@ -45,6 +46,13 @@ public:
   /// @return One detection per kept object, in original-image coordinates.
   std::vector<yolo_msgs::msg::Detection> detect(const cv::Mat &image);
 
+  /// @brief Run the full pipeline on a batch of images with one session run.
+  /// @param images BGR images in original (un-letterboxed) coordinates; they
+  /// may have different original sizes.
+  /// @return One detection vector per input image, in input order.
+  std::vector<std::vector<yolo_msgs::msg::Detection>>
+  detect_batch(const std::vector<cv::Mat> &images);
+
   /// @brief Name of the execution provider that initialized the session.
   /// @return "cpu", "cuda" or "tensorrt".
   const std::string &active_provider() const { return active_provider_; }
@@ -61,12 +69,21 @@ protected:
       class_names; // Vector of class names loaded from file
 
 private:
-  /// @brief Letterbox @p image into the model input size and fill the
-  /// persistent CHW input buffer.
+  /// @brief Fixed batch size read from the graph; 0 when the axis is dynamic.
+  int64_t fixed_batch_ = 0;
+  /// @brief Letterbox @p image into slice @p index of the reused batch buffer.
   /// @param[in] image BGR image to preprocess.
-  /// @param[out] input_tensor_shape Shape of the produced input tensor.
-  void preprocess(const cv::Mat &image,
-                  std::vector<int64_t> &input_tensor_shape);
+  /// @param[in] input_tensor_shape Batch shape to write into.
+  /// @param[in] index Batch slot to write.
+  void preprocess_into(const cv::Mat &image,
+                       const std::vector<int64_t> &input_tensor_shape,
+                       std::size_t index);
+  /// @brief Run exactly `images.size()` images as one session call.
+  /// @param[in] images Images forming the batch (all same size after
+  /// letterboxing, possibly different original sizes).
+  /// @return One detection vector per image, in order.
+  std::vector<std::vector<yolo_msgs::msg::Detection>>
+  run_batch(const std::vector<cv::Mat> &images);
   /// @brief Run the ONNX Runtime session on the preprocessed input buffer.
   /// @param[in] input_tensor_shape Shape of the input tensor.
   /// @return The raw output tensors produced by the model.
@@ -123,6 +140,20 @@ private:
   /// @brief Memory information for ONNX Runtime tensor creation.
   Ort::MemoryInfo memory_info; // Memory information for ONNX Runtime
 };
+
+/// @brief Slice one batch element out of a batched output tensor set.
+///
+/// The returned values are non-owning views into @p preds; they must not
+/// outlive it. This lets the per-image postprocessors run unchanged on a
+/// `{1, ...}` shape.
+/// @param[in] preds Output tensors with a leading batch axis.
+/// @param[in] batch_index Element to extract.
+/// @param[in] memory_info Allocator description used to build the views.
+/// @return One view per output tensor, shaped `{1, ...}`.
+std::vector<Ort::Value>
+slice_batch_outputs(const std::vector<Ort::Value> &preds,
+                    std::size_t batch_index,
+                    const Ort::MemoryInfo &memory_info);
 } // namespace yolo_ros::engine
 /// @}
 

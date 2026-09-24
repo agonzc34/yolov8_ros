@@ -135,6 +135,9 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   std::cout << "Using execution provider: " << this->active_provider_
             << std::endl;
 
+  // Report the batch capability so a batch-1 model is not mistaken for a
+  // batching one.
+
   Ort::AllocatorWithDefaultOptions allocator;
 
   // Get input and output node information
@@ -161,11 +164,18 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
       input_type_info.GetTensorTypeAndShapeInfo().GetShape();
 
   if (input_tensor_shape_vec.size() >= 4) {
+    this->fixed_batch_ =
+        input_tensor_shape_vec[0] > 0 ? input_tensor_shape_vec[0] : 0;
     this->input_image_shape =
         cv::Size(static_cast<int>(input_tensor_shape_vec[3]),
                  static_cast<int>(input_tensor_shape_vec[2]));
-    if (input_tensor_shape_vec[2] == -1 && input_tensor_shape_vec[3] == -1) {
-      this->input_image_shape = cv::Size(640, 480); // Default size
+    if (input_tensor_shape_vec[2] <= 0 || input_tensor_shape_vec[3] <= 0) {
+      // `dynamic=True` exports carry dynamic H/W as well as batch, so the
+      // graph cannot tell us the input size. All shipped models train at 640.
+      this->input_image_shape = cv::Size(640, 640);
+      std::cerr << "Warning: dynamic input size in the ONNX graph; pinning "
+                   "640x640 (export with a static imgsz if this is wrong)."
+                << std::endl;
     }
   } else {
     throw std::runtime_error("Invalid input tensor shape.");
@@ -218,7 +228,10 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
 
   std::cout << "Model " << model_path << " has been successfully loaded"
             << " (input " << this->input_image_shape.width << "x"
-            << this->input_image_shape.height << ", FP32)." << std::endl;
+            << this->input_image_shape.height << ", FP32, batch "
+            << (this->fixed_batch_ > 0 ? std::to_string(this->fixed_batch_)
+                                       : std::string("dynamic"))
+            << ")." << std::endl;
 }
 
 Model::~Model() {}
@@ -290,35 +303,84 @@ void yolo_ros::engine::Model::load_class_names() {
 
 std::vector<yolo_msgs::msg::Detection>
 yolo_ros::engine::Model::detect(const cv::Mat &image) {
-  std::vector<int64_t> input_tensor_shape = {
-      1, 3, this->input_image_shape.height, this->input_image_shape.width};
-  preprocess(image, input_tensor_shape);
-  auto preds = inference(input_tensor_shape);
-  return postprocess(cv::Size(image.cols, image.rows), this->input_image_shape,
-                     preds);
+  auto batched = this->detect_batch({image});
+  if (batched.empty()) {
+    return {};
+  }
+  return std::move(batched.front());
 }
 
-void yolo_ros::engine::Model::preprocess(
-    const cv::Mat &image, std::vector<int64_t> &input_tensor_shape) {
-  cv::Mat resized_image = yolo_ros::yolo::utils::letterbox(
-      image, cv::Size(input_tensor_shape[3], input_tensor_shape[2]),
-      cv::Scalar(114, 114, 114));
+std::vector<std::vector<yolo_msgs::msg::Detection>>
+yolo_ros::engine::Model::detect_batch(const std::vector<cv::Mat> &images) {
+  std::vector<std::vector<yolo_msgs::msg::Detection>> results;
+  const std::size_t count = images.size();
+  if (count == 0) {
+    return results;
+  }
+  // A dynamic batch axis accepts any count; a fixed axis forces the chunk
+  // size. A partial final chunk is padded by repeating its last image and the
+  // padded results are dropped, so a stock batch-1 model keeps working.
+  const std::size_t chunk = this->fixed_batch_ > 0
+                                ? static_cast<std::size_t>(this->fixed_batch_)
+                                : count;
+  results.reserve(count);
+  for (std::size_t start = 0; start < count; start += chunk) {
+    const std::size_t valid = std::min(chunk, count - start);
+    std::vector<cv::Mat> group(images.begin() + start,
+                               images.begin() + start + valid);
+    while (group.size() < chunk) {
+      group.push_back(group.back());
+    }
+    auto group_results = this->run_batch(group);
+    for (std::size_t i = 0; i < valid; ++i) {
+      results.push_back(std::move(group_results[i]));
+    }
+  }
+  return results;
+}
 
+std::vector<std::vector<yolo_msgs::msg::Detection>>
+yolo_ros::engine::Model::run_batch(const std::vector<cv::Mat> &images) {
+  const std::size_t count = images.size();
+  std::vector<int64_t> input_tensor_shape = {static_cast<int64_t>(count), 3,
+                                             this->input_image_shape.height,
+                                             this->input_image_shape.width};
+  const std::size_t per_image = static_cast<std::size_t>(
+      this->input_image_shape.height * this->input_image_shape.width * 3);
+  this->input_buffer_.resize(per_image * count);
+  for (std::size_t i = 0; i < count; ++i) {
+    this->preprocess_into(images[i], input_tensor_shape, i);
+  }
+  auto preds = this->inference(input_tensor_shape);
+  std::vector<std::vector<yolo_msgs::msg::Detection>> results;
+  results.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    auto sliced = slice_batch_outputs(preds, i, this->memory_info);
+    results.push_back(
+        this->postprocess(cv::Size(images[i].cols, images[i].rows),
+                          this->input_image_shape, sliced));
+  }
+  return results;
+}
+
+void yolo_ros::engine::Model::preprocess_into(
+    const cv::Mat &image, const std::vector<int64_t> &input_tensor_shape,
+    std::size_t index) {
+  const int H = static_cast<int>(input_tensor_shape[2]);
+  const int W = static_cast<int>(input_tensor_shape[3]);
+  cv::Mat resized_image = yolo_ros::yolo::utils::letterbox(
+      image, cv::Size(W, H), cv::Scalar(114, 114, 114));
   if (this->input_is_rgb_) {
     resized_image = yolo_ros::yolo::utils::bgr_to_rgb(resized_image);
   }
-
-  // Normalize to float (OpenCV-optimized), then split channels straight into
-  // the persistent buffer. This keeps the fast SIMD convertTo+split path while
-  // reusing the buffer (no per-frame new[]/copy as in the original).
   resized_image.convertTo(resized_image, CV_32FC3, 1.0 / 255.0);
-  const int H = static_cast<int>(input_tensor_shape[2]);
-  const int W = static_cast<int>(input_tensor_shape[3]);
   std::vector<cv::Mat> chw(resized_image.channels());
-  for (int i = 0; i < resized_image.channels(); ++i) {
-    chw[i] = cv::Mat(H, W, CV_32FC1, input_buffer_.data() + i * H * W);
+  for (int c = 0; c < resized_image.channels(); ++c) {
+    chw[c] = cv::Mat(H, W, CV_32FC1,
+                     this->input_buffer_.data() +
+                         (static_cast<std::ptrdiff_t>(index) * 3 + c) * H * W);
   }
-  cv::split(resized_image, chw); // Split channels into the persistent blob
+  cv::split(resized_image, chw);
 }
 
 std::vector<Ort::Value>
@@ -350,3 +412,31 @@ Model::postprocess(const cv::Size &original_image_size,
 }
 
 } // namespace yolo_ros::engine
+
+std::vector<Ort::Value>
+yolo_ros::engine::slice_batch_outputs(const std::vector<Ort::Value> &preds,
+                                      std::size_t batch_index,
+                                      const Ort::MemoryInfo &memory_info) {
+  std::vector<Ort::Value> sliced;
+  sliced.reserve(preds.size());
+  for (const auto &pred : preds) {
+    const std::vector<int64_t> shape =
+        pred.GetTensorTypeAndShapeInfo().GetShape();
+    const std::size_t total = std::accumulate(
+        shape.begin(), shape.end(), std::size_t{1}, std::multiplies<int64_t>());
+    const std::size_t batch =
+        shape.empty() ? 1 : static_cast<std::size_t>(shape[0]);
+    const std::size_t per_batch = batch > 0 ? total / batch : total;
+    float *data = const_cast<float *>(pred.GetTensorData<float>()) +
+                  batch_index * per_batch;
+    std::vector<int64_t> slice_shape;
+    slice_shape.reserve(shape.size());
+    slice_shape.push_back(1);
+    for (std::size_t d = 1; d < shape.size(); ++d) {
+      slice_shape.push_back(shape[d]);
+    }
+    sliced.push_back(Ort::Value::CreateTensor<float>(
+        memory_info, data, per_batch, slice_shape.data(), slice_shape.size()));
+  }
+  return sliced;
+}

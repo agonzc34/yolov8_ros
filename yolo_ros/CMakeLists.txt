@@ -277,6 +277,31 @@ if(BUILD_TESTING)
     CURL::libcurl
     JPEG::JPEG
   )
+
+  ament_add_gtest(test_batch
+    test/test_batch.cpp
+    src/yolo/detect.cpp
+    src/yolo/utils.cpp
+    src/engine/model.cpp
+    src/engine/provider.cpp
+  )
+  target_include_directories(test_batch PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
+    ${OpenCV_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_batch
+    rclcpp::rclcpp
+    ${sensor_msgs_TARGETS}
+    cv_bridge::cv_bridge
+    ament_index_cpp::ament_index_cpp
+    ${yolo_msgs_TARGETS}
+    ${yolo_onnxruntime_vendor_LIBRARIES}
+    ${yolo_hfhub_vendor_TARGETS}
+    ${OpenCV_LIBS}
+    CURL::libcurl
+    JPEG::JPEG
+  )
 endif()
 
 ament_package()
