@@ -38,6 +38,31 @@ std::vector<std::vector<double>> &
 fuse_score(std::vector<std::vector<double>> &cost_matrix,
            const std::vector<std::shared_ptr<STrack>> &detections);
 
+/// @brief Cosine distance between each (track.smooth_feat, detection.curr_feat)
+/// pair, clamped to >= 0. A missing feature on either side yields 2.0, so the
+/// caller's `/2.0` produces the maximum cost of 1.0 (no appearance help).
+/// @param[in] atracks Tracks supplying smooth_feat().
+/// @param[in] btracks Detections supplying curr_feat().
+/// @return The (atracks.size() x btracks.size()) cosine cost matrix.
+std::vector<std::vector<double>>
+embedding_distance(const std::vector<std::shared_ptr<STrack>> &atracks,
+                   const std::vector<std::shared_ptr<STrack>> &btracks);
+
+/// @brief Fuse the gated appearance distance into an IoU cost, as in the
+/// BoT-SORT reference: `emb/2`, cap at @p appearance_thresh (to 1.0), force to
+/// 1.0 where @p iou_mask is true, then element-wise `min` with @p iou_dists.
+/// @param[in] iou_dists IoU cost (already score-fused if fuse_score is on).
+/// @param[in] emb_dists Raw embedding_distance() output (divided by 2 here).
+/// @param[in] iou_mask True where the pair's raw IoU cost exceeded
+/// proximity_thresh.
+/// @param[in] appearance_thresh Maximum accepted embedding distance.
+/// @return The fused cost matrix.
+std::vector<std::vector<double>>
+fuse_appearance(const std::vector<std::vector<double>> &iou_dists,
+                const std::vector<std::vector<double>> &emb_dists,
+                const std::vector<std::vector<bool>> &iou_mask,
+                double appearance_thresh);
+
 /// @brief Hungarian (lapjv, extend_cost + cost_limit) linear assignment on the
 /// cost matrix.
 ///

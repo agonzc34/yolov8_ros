@@ -63,6 +63,53 @@ fuse_score(std::vector<std::vector<double>> &cost_matrix,
   return cost_matrix;
 }
 
+std::vector<std::vector<double>>
+embedding_distance(const std::vector<std::shared_ptr<STrack>> &atracks,
+                   const std::vector<std::shared_ptr<STrack>> &btracks) {
+  const std::size_t rows = atracks.size();
+  const std::size_t cols = btracks.size();
+  std::vector<std::vector<double>> cost(rows, std::vector<double>(cols, 2.0));
+  for (std::size_t i = 0; i < rows; ++i) {
+    const std::vector<float> &a = atracks[i]->smooth_feat();
+    if (a.empty()) {
+      continue;
+    }
+    for (std::size_t j = 0; j < cols; ++j) {
+      const std::vector<float> &b = btracks[j]->curr_feat();
+      if (b.empty() || b.size() != a.size()) {
+        continue;
+      }
+      double dot = 0.0;
+      for (std::size_t k = 0; k < a.size(); ++k) {
+        dot += static_cast<double>(a[k]) * b[k];
+      }
+      cost[i][j] = std::max(0.0, 1.0 - dot);
+    }
+  }
+  return cost;
+}
+
+std::vector<std::vector<double>>
+fuse_appearance(const std::vector<std::vector<double>> &iou_dists,
+                const std::vector<std::vector<double>> &emb_dists,
+                const std::vector<std::vector<bool>> &iou_mask,
+                double appearance_thresh) {
+  std::vector<std::vector<double>> dists = iou_dists;
+  for (std::size_t i = 0; i < dists.size(); ++i) {
+    for (std::size_t j = 0; j < dists[i].size(); ++j) {
+      double emb = emb_dists[i][j] / 2.0;
+      if (emb > appearance_thresh) {
+        emb = 1.0;
+      }
+      if (iou_mask[i][j]) {
+        emb = 1.0;
+      }
+      dists[i][j] = std::min(dists[i][j], emb);
+    }
+  }
+  return dists;
+}
+
 void linear_assignment(std::size_t n_rows, std::size_t n_cols,
                        const std::vector<std::vector<double>> &cost_matrix,
                        double thresh, std::vector<std::pair<int, int>> &matches,

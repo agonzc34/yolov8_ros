@@ -569,5 +569,58 @@ TEST(STrack, UpdatePropagatesDetectionFeature) {
   EXPECT_NEAR(track.curr_feat()[0], 1.0f, 1e-6);
 }
 
+TEST(Matching, EmbeddingDistanceCosine) {
+  auto a =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 0);
+  auto b =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 1);
+  a->update_features({1.0f, 0.0f});
+  b->update_features({1.0f, 0.0f});
+  auto d = utils::embedding_distance({a}, {b});
+  ASSERT_EQ(d.size(), 1u);
+  EXPECT_NEAR(d[0][0], 0.0, 1e-6);
+
+  auto orthogonal =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 2);
+  orthogonal->update_features({0.0f, 1.0f});
+  d = utils::embedding_distance({a}, {orthogonal});
+  EXPECT_NEAR(d[0][0], 1.0, 1e-6);
+
+  auto opposite =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 3);
+  opposite->update_features({-1.0f, 0.0f});
+  d = utils::embedding_distance({a}, {opposite});
+  EXPECT_NEAR(d[0][0], 2.0, 1e-6);
+}
+
+TEST(Matching, EmbeddingDistanceMissingFeatureIsMax) {
+  auto track =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 0);
+  auto det =
+      std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 1);
+  det->update_features({1.0f, 0.0f});
+  // Track has no feature.
+  EXPECT_NEAR(utils::embedding_distance({track}, {det})[0][0], 2.0, 1e-9);
+  // Detection has no feature (non-person box).
+  EXPECT_NEAR(utils::embedding_distance({det}, {track})[0][0], 2.0, 1e-9);
+}
+
+TEST(Matching, FuseAppearanceGatesAndTakesMinimum) {
+  const std::vector<std::vector<double>> iou = {{0.4, 0.4, 0.4}};
+  // /2 -> {0.1, 0.3, 1.0}; 0.3 > appearance_thresh so col1 caps to 1.0.
+  const std::vector<std::vector<double>> emb = {{0.2, 0.6, 2.0}};
+  const std::vector<std::vector<bool>> mask = {{false, false, true}};
+  const auto d = utils::fuse_appearance(iou, emb, mask, 0.25);
+  EXPECT_NEAR(d[0][0], 0.1, 1e-9); // min(0.4, 0.1)
+  EXPECT_NEAR(d[0][1], 0.4, 1e-9); // capped to 1.0, min(0.4, 1.0)
+  EXPECT_NEAR(d[0][2], 0.4, 1e-9); // masked to 1.0, min(0.4, 1.0)
+}
+
+TEST(Matching, FuseAppearanceEmptyPassesThrough) {
+  const std::vector<std::vector<double>> empty;
+  const std::vector<std::vector<bool>> empty_mask;
+  EXPECT_TRUE(utils::fuse_appearance(empty, empty, empty_mask, 0.25).empty());
+}
+
 } // namespace
 } // namespace yolo_ros::tracking
