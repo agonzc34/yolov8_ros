@@ -116,6 +116,9 @@ add_executable(tracking_node
   src/tracking/utils/camera_motion.cpp
   src/tracking/utils/lapjv.cpp
   src/tracking/utils/matching.cpp
+
+  src/engine/reid_encoder.cpp
+  src/engine/provider.cpp
 )
 
 target_include_directories(tracking_node PUBLIC
@@ -130,6 +133,7 @@ target_link_libraries(tracking_node
   cv_bridge::cv_bridge
   message_filters::message_filters
   ${yolo_msgs_TARGETS}
+  ${yolo_onnxruntime_vendor_LIBRARIES}
   ${OpenCV_LIBS}
 )
 
@@ -214,12 +218,16 @@ if(BUILD_TESTING)
     src/tracking/utils/camera_motion.cpp
     src/tracking/utils/lapjv.cpp
     src/tracking/utils/matching.cpp
+
+    src/engine/reid_encoder.cpp
+    src/engine/provider.cpp
   )
   target_include_directories(test_tracking PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
   )
   target_link_libraries(test_tracking
+    ${yolo_onnxruntime_vendor_LIBRARIES}
     ${OpenCV_LIBS}
   )
 

@@ -14,6 +14,7 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "yolo_ros/engine/reid_encoder.hpp"
 #include "yolo_ros/tracking/bot_sort.hpp"
 #include "yolo_ros/tracking/byte_tracker.hpp"
 #include "yolo_ros/tracking/strack.hpp"
@@ -629,6 +630,36 @@ TEST(Matching, FuseAppearanceEmptyPassesThrough) {
   const std::vector<std::vector<double>> empty;
   const std::vector<std::vector<bool>> empty_mask;
   EXPECT_TRUE(utils::fuse_appearance(empty, empty, empty_mask, 0.25).empty());
+}
+
+TEST(ReIDEncoder, MakeBatchIsNchwRgbZeroTo255) {
+  cv::Mat frame(8, 8, CV_8UC3, cv::Scalar(10, 20, 30)); // BGR
+  const std::vector<std::array<float, 4>> boxes = {{0, 0, 8, 8}};
+  std::vector<float> out;
+  engine::ReIDEncoder::make_batch(frame, boxes, 4, 2, out);
+  ASSERT_EQ(out.size(), 1u * 3u * 2u * 4u);
+  // RGB order on a constant patch: R=30, G=20, B=10, stride H*W=8.
+  EXPECT_NEAR(out[0], 30.0f, 1e-3);
+  EXPECT_NEAR(out[8], 20.0f, 1e-3);
+  EXPECT_NEAR(out[16], 10.0f, 1e-3);
+}
+
+TEST(ReIDEncoder, MakeBatchHandlesDegenerateAndOutOfFrameBoxes) {
+  cv::Mat frame(8, 8, CV_8UC3, cv::Scalar(10, 20, 30));
+  const std::vector<std::array<float, 4>> boxes = {{-5, -5, 4, 4},
+                                                   {100, 100, 200, 200}};
+  std::vector<float> out;
+  ASSERT_NO_THROW(engine::ReIDEncoder::make_batch(frame, boxes, 4, 2, out));
+  ASSERT_EQ(out.size(), 2u * 3u * 2u * 4u);
+  for (const float value : out) {
+    EXPECT_TRUE(std::isfinite(value));
+  }
+}
+
+TEST(ReIDEncoder, MissingModelThrows) {
+  EXPECT_THROW(
+      engine::ReIDEncoder("/nonexistent/reid-model.onnx", "cpu", "cpu"),
+      std::runtime_error);
 }
 
 } // namespace
