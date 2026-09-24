@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -84,11 +83,18 @@ ReIDEncoder::ReIDEncoder(const std::string &model_path,
   input_height_ = static_cast<int>(input_shape[2]);
   input_width_ = static_cast<int>(input_shape[3]);
 
+  const std::vector<int64_t> output_shape =
+      session_.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+  const int64_t static_batch = output_shape.empty() ? 1 : output_shape[0];
+  if (static_batch > 1) {
+    throw std::runtime_error("ReID model must use a dynamic or batch-1 output; "
+                             "got a fixed batch of " +
+                             std::to_string(static_batch) + ".");
+  }
   feature_dim_ = 1;
-  for (const int64_t dim :
-       session_.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape()) {
-    if (dim > 0) {
-      feature_dim_ *= static_cast<int>(dim);
+  for (std::size_t i = 1; i < output_shape.size(); ++i) {
+    if (output_shape[i] > 0) {
+      feature_dim_ *= static_cast<int>(output_shape[i]);
     }
   }
   if (feature_dim_ <= 0) {
@@ -108,22 +114,21 @@ ReIDEncoder::~ReIDEncoder() {}
 void ReIDEncoder::make_batch(const cv::Mat &frame,
                              const std::vector<std::array<float, 4>> &boxes,
                              int width, int height, std::vector<float> &out) {
-  const std::size_t per_box = static_cast<std::size_t>(width) * height * 3;
-  out.assign(per_box * boxes.size(), 0.0f);
   if (frame.empty() || width <= 0 || height <= 0) {
+    out.clear();
     return;
   }
+  const std::size_t per_box = static_cast<std::size_t>(width) * height * 3;
+  out.assign(per_box * boxes.size(), 0.0f);
   for (std::size_t b = 0; b < boxes.size(); ++b) {
-    const int x1 = std::clamp(static_cast<int>(std::lround(boxes[b][0])), 0,
-                              std::max(0, frame.cols - 1));
-    const int y1 = std::clamp(static_cast<int>(std::lround(boxes[b][1])), 0,
-                              std::max(0, frame.rows - 1));
+    const int x1 = std::max(0, static_cast<int>(std::lround(boxes[b][0])));
+    const int y1 = std::max(0, static_cast<int>(std::lround(boxes[b][1])));
     const int x2 =
-        std::clamp(static_cast<int>(std::lround(boxes[b][2])), 0, frame.cols);
+        std::min(frame.cols, static_cast<int>(std::lround(boxes[b][2])));
     const int y2 =
-        std::clamp(static_cast<int>(std::lround(boxes[b][3])), 0, frame.rows);
+        std::min(frame.rows, static_cast<int>(std::lround(boxes[b][3])));
     if (x2 <= x1 || y2 <= y1) {
-      continue; // degenerate box: leave the zero patch
+      continue; // degenerate or fully out of frame: leave the zero patch
     }
     cv::Mat patch = frame(cv::Rect(x1, y1, x2 - x1, y2 - y1));
     cv::Mat resized;

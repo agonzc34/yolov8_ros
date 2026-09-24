@@ -98,8 +98,12 @@ std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
           detections[box_index[k]]->update_features(features[k]);
         }
       } catch (const std::exception &e) {
-        std::cerr << "ReID inference failed (" << e.what()
-                  << "); continuing without appearance features." << std::endl;
+        if (!reid_warned_) {
+          std::cerr << "ReID inference failed (" << e.what()
+                    << "); continuing without appearance features."
+                    << std::endl;
+          reid_warned_ = true;
+        }
       }
     }
   }
@@ -321,6 +325,7 @@ void BotSort::reset() {
   frame_id_ = 0;
   kalman_filter_ = KalmanFilterXYWH();
   cmc_.reset();
+  reid_warned_ = false;
   STrack::reset_id();
 }
 

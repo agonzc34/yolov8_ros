@@ -570,6 +570,24 @@ TEST(STrack, UpdatePropagatesDetectionFeature) {
   EXPECT_NEAR(track.curr_feat()[0], 1.0f, 1e-6);
 }
 
+TEST(STrack, ReActivatePropagatesDetectionFeature) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  STrack track({50, 50, 20, 20}, 0.9f, 0, 0);
+  track.activate(&kf, 1);
+  STrack det({52, 50, 20, 20}, 0.9f, 0, 1);
+  det.update_features({2.0f, 0.0f});
+  track.re_activate(det, 2, false);
+  ASSERT_TRUE(track.has_feature());
+  EXPECT_NEAR(track.curr_feat()[0], 1.0f, 1e-6);
+}
+
+TEST(STrack, ZeroNormFeatureLeavesHasFeatureFalse) {
+  STrack s({50, 50, 20, 20}, 0.9f, 0, 0);
+  s.update_features({0.0f, 0.0f});
+  EXPECT_FALSE(s.has_feature());
+}
+
 TEST(Matching, EmbeddingDistanceCosine) {
   auto a =
       std::make_shared<STrack>(std::array<float, 4>{0, 0, 10, 10}, 0.9f, 0, 0);
@@ -653,6 +671,11 @@ TEST(ReIDEncoder, MakeBatchHandlesDegenerateAndOutOfFrameBoxes) {
   ASSERT_EQ(out.size(), 2u * 3u * 2u * 4u);
   for (const float value : out) {
     EXPECT_TRUE(std::isfinite(value));
+  }
+  // Box 1 lies entirely outside the frame: its whole 3*H*W slice stays zero
+  // (3 channels * 2 * 4 = 24 floats per box, so [24, 48)).
+  for (std::size_t i = 24; i < 48; ++i) {
+    EXPECT_FLOAT_EQ(out[i], 0.0f);
   }
 }
 

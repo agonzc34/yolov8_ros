@@ -60,8 +60,8 @@ that turns a person crop into an appearance embedding. The C++ encoder
 - **Input:** `[N, 3, H, W]`, RGB, float32 in **[0, 255]** (no `/255`, no
   mean/std in C++).
 - **Output:** one embedding per box (`[N, D]` or `[N, D, 1, 1]`).
-- Normalization and L2 normalization must be **baked into the graph**; the C++
-  side only resizes crops to `HxW`, converts BGR→RGB, and re-normalizes.
+- Normalization and L2 normalization should be **baked into the graph**; the
+  C++ side only resizes crops to `HxW`, converts BGR→RGB, and re-normalizes.
 
 Input `HxW` is read from the graph, so any size works.
 
@@ -100,5 +100,37 @@ Weights: `kaiyangzhou/osnet` on the Hugging Face Hub (MIT). Then set
 Export FastReID's `Baseline` model directly — its `preprocess_image` already
 normalizes RGB `[0, 255]` input (`PIXEL_MEAN`/`PIXEL_STD` are scaled by 255),
 matching the C++ contract. Wrap the forward with `F.normalize` and export at
-256×128. Use the weights BoT-SORT releases (`mot17_sbs_S50.pth`, MIT), not
-FastReID's own model zoo (no explicit weight license).
+256×128:
+
+```python
+import torch, torch.nn.functional as F
+from fastreid.config import get_cfg
+from fastreid.modeling.meta_arch import build_model
+
+cfg = get_cfg()
+cfg.merge_from_file("configs/MOT17/sbs_S50.yml")
+cfg.MODEL.WEIGHTS = "mot17_sbs_S50.pth"
+net = build_model(cfg)
+net.load_params(cfg.MODEL.WEIGHTS)
+net.eval()
+
+class Export(torch.nn.Module):
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+
+    def forward(self, x):  # x: RGB float32 in [0, 255]
+        return F.normalize(self.net(x)["features"])
+
+torch.onnx.export(
+    Export(net), torch.zeros(1, 3, 256, 128), "sbs_S50_reid.onnx",
+    input_names=["input"], output_names=["output"],
+    dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+    opset_version=12)
+```
+
+The `dynamic_axes` entry is **required**: a static batch-1 export makes
+`session.Run` throw as soon as 2+ boxes are batched, which the tracker catches
+and silently degrades to motion-only. Use the weights BoT-SORT releases
+(`mot17_sbs_S50.pth`, MIT), not FastReID's own model zoo (no explicit weight
+license).

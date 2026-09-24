@@ -5,7 +5,8 @@
 
 /// @file
 /// @brief BoT-SORT tracker (XYWH Kalman filter + camera-motion compensation,
-/// no ReID): parameters, ROS parameter bridge and the tracker implementation.
+/// plus an optional ReID appearance branch): parameters, ROS parameter bridge
+/// and the tracker implementation.
 
 #ifndef YOLO_ROS__TRACKING__BOT_SORT_HPP_
 #define YOLO_ROS__TRACKING__BOT_SORT_HPP_
@@ -31,7 +32,8 @@ class ReIDEncoder;
 /// @{
 namespace yolo_ros::tracking {
 
-/// @brief BoT-SORT configuration (ReID-free variant).
+/// @brief BoT-SORT configuration (optional ReID appearance branch selected by
+/// `with_reid`).
 ///
 /// `type` is set to "botsort", the key used by the tracking node's
 /// `tracker_type` parameter and by create_tracker(). The association knobs
@@ -121,7 +123,8 @@ BotSortParams load_bot_sort_params(const NodeT &node) {
 }
 
 /// @brief BoT-SORT implementation based on the reference BoT-SORT tracker
-/// (MIT). See THIRD_PARTY_NOTICES.md. ReID-free: motion association only.
+/// (MIT). See THIRD_PARTY_NOTICES.md. Optional ReID appearance branch
+/// selected by `with_reid`; otherwise motion association only.
 class BotSort : public Tracker {
 public:
   /// @brief Bring the one-argument Tracker::update overload into scope.
@@ -158,6 +161,8 @@ private:
   BotSortParams params_;
   /// @brief Optional ONNX ReID encoder (null when appearance is disabled).
   std::unique_ptr<engine::ReIDEncoder> reid_;
+  /// @brief Whether the ReID inference-failure warning was already emitted.
+  bool reid_warned_ = false;
   /// @brief Kalman filter with the XYWH state.
   utils::KalmanFilterXYWH kalman_filter_;
   /// @brief Camera-motion estimator.

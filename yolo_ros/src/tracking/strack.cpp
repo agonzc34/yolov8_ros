@@ -44,12 +44,13 @@ void STrack::update_features(const std::vector<float> &feat) {
     norm += static_cast<double>(value) * value;
   }
   norm = std::sqrt(norm);
+  if (norm <= 1e-12) {
+    return; // a zero-norm feature is not a usable appearance descriptor
+  }
 
   curr_feat_.assign(feat.size(), 0.0f);
-  if (norm > 1e-12) {
-    for (std::size_t i = 0; i < feat.size(); ++i) {
-      curr_feat_[i] = static_cast<float>(feat[i] / norm);
-    }
+  for (std::size_t i = 0; i < feat.size(); ++i) {
+    curr_feat_[i] = static_cast<float>(feat[i] / norm);
   }
 
   // First observation (or a dimension change): smooth starts equal to curr.

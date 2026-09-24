@@ -217,7 +217,8 @@ void TrackingNode::recieve_callback(
     } catch (const cv_bridge::Exception &e) {
       RCLCPP_WARN_ONCE(this->get_logger(),
                        "[%s] Image conversion failed (%s); running the tracker "
-                       "without camera-motion compensation",
+                       "without camera-motion compensation or appearance "
+                       "features",
                        this->get_name(), e.what());
     }
   }
