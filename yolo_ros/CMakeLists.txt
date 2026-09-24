@@ -163,8 +163,44 @@ target_link_libraries(detect_3d_node
   ${OpenCV_LIBS}
 )
 
+# Install multi-camera batched inference node
+add_executable(yolo_batch_node
+  src/node/batch_node.cpp
+  src/batch_main.cpp
+
+  src/yolo/model_factory.cpp
+  src/yolo/model_task.cpp
+  src/yolo/segment.cpp
+  src/yolo/detect.cpp
+  src/yolo/pose.cpp
+  src/yolo/classify.cpp
+  src/yolo/obb.cpp
+  src/yolo/utils.cpp
+
+  src/engine/model.cpp
+  src/engine/provider.cpp
+)
+
+target_include_directories(yolo_batch_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(yolo_batch_node
+  rclcpp::rclcpp
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${sensor_msgs_TARGETS}
+  ${std_srvs_TARGETS}
+  cv_bridge::cv_bridge
+  ament_index_cpp::ament_index_cpp
+  ${yolo_msgs_TARGETS}
+  ${yolo_onnxruntime_vendor_LIBRARIES}
+  ${yolo_hfhub_vendor_TARGETS}
+  ${OpenCV_LIBS}
+)
+
 install(TARGETS
-  yolo_node debug_node tracking_node detect_3d_node
+  yolo_node debug_node tracking_node detect_3d_node yolo_batch_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
