@@ -100,6 +100,31 @@ NODE_PARAMS = {
         ParamSpec("markers_topic", str),
         ParamSpec("marker_lifetime", float),
     ),
+    "yolo_batch_node": (
+        ParamSpec("model_type", str),
+        ParamSpec("model", str),
+        ParamSpec("model_repo", str),
+        ParamSpec("model_filename", str),
+        ParamSpec("cache_dir", str),
+        ParamSpec("force_download", bool),
+        ParamSpec("device", str),
+        ParamSpec("provider", str),
+        ParamSpec("trt_fp16_enable", bool),
+        ParamSpec("trt_engine_cache_enable", bool),
+        ParamSpec("trt_engine_cache_path", str),
+        ParamSpec("threshold", float),
+        ParamSpec("iou", float),
+        ParamSpec("max_det", int),
+        ParamSpec("enable", bool),
+        ParamSpec("image_reliability", int),
+        ParamSpec("n_threads", int),
+        ParamSpec("max_fps", int),
+        ParamSpec("top_k", int),
+        # Array params are provided by the pipeline file, never a CLI argument.
+        ParamSpec("camera_names", str),
+        ParamSpec("image_topics", str),
+        ParamSpec("max_batch_size", int),
+    ),
 }
 
 _TRUE = {"1", "true", "yes", "on"}
@@ -224,6 +249,24 @@ def tracker_params_file(tracker: str) -> str:
             "(or pass a path to a params file)"
         )
     return path
+
+
+def load_params_mapping(path: str) -> dict:
+    """Return the first ``ros__parameters`` mapping in a ROS params file.
+
+    Per-tracker files wrap their values under a fully-qualified node name
+    (``/yolo/tracking_node: ros__parameters: ...``). The multi-camera launch
+    re-keys them per camera, so it needs the inner mapping without the node
+    name. Returns ``{}`` for a missing file or a file without such a block.
+    """
+    if not path or not os.path.isfile(path):
+        return {}
+    with open(path) as handle:
+        data = yaml.safe_load(handle) or {}
+    for block in data.values():
+        if isinstance(block, dict) and isinstance(block.get("ros__parameters"), dict):
+            return dict(block["ros__parameters"])
+    return {}
 
 
 def node_parameters(params_file, context, node_name: str, extra_files=()) -> list:

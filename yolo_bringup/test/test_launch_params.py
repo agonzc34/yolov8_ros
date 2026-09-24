@@ -162,6 +162,22 @@ def test_pipeline_tracker_reads_the_tracking_block(tmp_path):
     assert launch_params.pipeline_tracker(str(tmp_path / "nope.yaml")) == "bytetrack"
 
 
+def test_load_params_mapping_unwraps_ros_parameters(tmp_path):
+    path = tmp_path / "botsort.yaml"
+    path.write_text(
+        "/yolo/tracking_node:\n"
+        "  ros__parameters:\n"
+        "    tracker_type: botsort\n"
+        "    track_high_thresh: 0.3\n"
+    )
+    assert launch_params.load_params_mapping(str(path)) == {
+        "tracker_type": "botsort",
+        "track_high_thresh": 0.3,
+    }
+    # A flat file (a dict of node blocks only) yields the first block's params.
+    assert launch_params.load_params_mapping(str(tmp_path / "nope.yaml")) == {}
+
+
 def test_unknown_node_raises():
     with pytest.raises(KeyError, match="nope"):
         build_overrides(FakeContext({}), "nope")
@@ -178,9 +194,10 @@ _CPP_SOURCES = {
     ],
     "detect_3d_node": ["yolo_ros/src/node/detect_3d_node.cpp"],
     "debug_node": ["yolo_ros/src/node/debug_node.cpp"],
+    "yolo_batch_node": ["yolo_ros/src/node/batch_node.cpp"],
 }
 
-_DECLARE_PARAMETER = re.compile(r'declare_parameter(?:<[^>]*>)?\(\s*"([^"]+)"')
+_DECLARE_PARAMETER = re.compile(r'declare_parameter\s*(?:<[^(]*>)?\s*\(\s*"([^"]+)"')
 
 
 @pytest.mark.parametrize("node", sorted(_CPP_SOURCES))

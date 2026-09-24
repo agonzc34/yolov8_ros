@@ -14,6 +14,7 @@ from launch.substitutions import LaunchConfiguration
 LAUNCH_DIR = os.path.join(os.path.dirname(__file__), "..", "launch")
 LAUNCH_FILES = {
     "yolo": "yolo.launch.py",
+    "pipelines": "yolo_pipelines.launch.py",
 }
 
 
@@ -63,7 +64,7 @@ def test_launch_description_builds(name):
     assert isinstance(_description(name), LaunchDescription)
 
 
-@pytest.mark.parametrize("name", sorted(LAUNCH_FILES))
+@pytest.mark.parametrize("name", ["yolo"])
 def test_catalogue_args_are_declared(name):
     assert {
         "model",
@@ -77,7 +78,7 @@ def test_catalogue_args_are_declared(name):
     } <= _declared(name)
 
 
-@pytest.mark.parametrize("name", sorted(LAUNCH_FILES))
+@pytest.mark.parametrize("name", ["yolo"])
 def test_base_flags_are_declared(name):
     assert {
         "params_file",
@@ -195,3 +196,76 @@ def test_launch_setup_tracker_arg_overrides_params_file(tmp_path):
     assert str(_unsub(params[1].param_file[0])).endswith(
         os.path.join("config", "trackers", "botsort.yaml")
     )
+
+
+def test_pipelines_declares_pipeline_file():
+    assert "pipeline_file" in _declared("pipelines")
+
+
+def test_pipelines_setup_generates_per_camera_nodes(tmp_path, monkeypatch):
+    import ament_index_python.packages as ament
+
+    bringup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    monkeypatch.setattr(ament, "get_package_share_directory", lambda _: bringup_dir)
+
+    pipeline = tmp_path / "pipelines.yaml"
+    pipeline.write_text(
+        "namespace: yolo\n"
+        "tracker: bytetrack\n"
+        "model:\n"
+        "  model: /tmp/x.onnx\n"
+        "  threshold: 0.5\n"
+        "  max_batch_size: 4\n"
+        "  image_reliability: 2\n"
+        "cameras:\n"
+        "  - name: front\n"
+        "    image_topic: /front/image_raw\n"
+        "    tracker: botsort\n"
+        "    tracking: true\n"
+        "    debug: true\n"
+        "    depth:\n"
+        "      image_topic: /front/depth/image_raw\n"
+        "      info_topic: /front/depth/camera_info\n"
+        "      target_frame: front_link\n"
+        "  - name: back\n"
+        "    image_topic: /back/image_raw\n"
+        "    tracking: false\n"
+        "    debug: true\n"
+    )
+
+    nodes = _load("pipelines")._launch_setup(None, str(pipeline))
+    keyed = {(node._Node__node_namespace, node._Node__node_name): node for node in nodes}
+    assert ("yolo", "yolo_batch_node") in keyed
+    assert ("yolo/front", "tracking_node") in keyed
+    assert ("yolo/front", "detect_3d_node") in keyed
+    assert ("yolo/front", "debug_node") in keyed
+    assert ("yolo/back", "tracking_node") not in keyed
+    assert ("yolo/back", "detect_3d_node") not in keyed
+    assert ("yolo/back", "debug_node") in keyed
+
+    def params(node):
+        raw = node._Node__parameters[0]
+        return {
+            k: yaml.safe_load(v) if isinstance(v, str) else v
+            for k, v in _unsub(raw).items()
+        }
+
+    assert params(keyed[("yolo/front", "tracking_node")])["tracker_type"] == "botsort"
+    front_3d = params(keyed[("yolo/front", "detect_3d_node")])
+    assert front_3d["detections_topic"] == "tracking"
+    assert front_3d["depth_image_topic"] == "/front/depth/image_raw"
+    assert front_3d["target_frame"] == "front_link"
+    assert params(keyed[("yolo/back", "debug_node")])["detections_topic"] == "detections"
+
+
+def test_pipelines_rejects_duplicate_camera_names(tmp_path):
+    pipeline = tmp_path / "pipelines.yaml"
+    pipeline.write_text(
+        "cameras:\n"
+        "  - name: cam\n"
+        "    image_topic: /a\n"
+        "  - name: cam\n"
+        "    image_topic: /b\n"
+    )
+    with pytest.raises(RuntimeError, match="unique"):
+        _load("pipelines")._launch_setup(None, str(pipeline))
