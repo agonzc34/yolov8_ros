@@ -17,9 +17,11 @@ Argument names mirror the upstream Python launch where one existed
 ``tracker``); every other argument has the same name as its parameter.
 """
 
+import os
 from dataclasses import dataclass
 from typing import Optional
 
+import yaml
 from launch.actions import DeclareLaunchArgument
 
 
@@ -64,7 +66,7 @@ NODE_PARAMS = {
     "tracking_node": (
         ParamSpec("image_reliability", int),
         ParamSpec("image_topic", str, "input_image_topic"),
-        ParamSpec("tracker_type", str, "tracker"),
+        ParamSpec("tracker_type", str),
         ParamSpec("track_high_thresh", float),
         ParamSpec("track_low_thresh", float),
         ParamSpec("new_track_thresh", float),
@@ -168,6 +170,66 @@ def build_overrides(context, node_name: str) -> dict:
     return overrides
 
 
-def node_parameters(params_file, context, node_name: str) -> list:
-    """Parameters list for a Node: the YAML file plus the CLI overrides."""
-    return [params_file, build_overrides(context, node_name)]
+def pipeline_tracker(params_file, namespace: str = "yolo") -> str:
+    """Read the ``tracker`` selector from a pipeline params file.
+
+    Looks up ``/<namespace>/tracking_node`` -> ``ros__parameters`` -> ``tracker``
+    so the launch can pick ``config/trackers/<tracker>.yaml`` without a CLI
+    argument. Returns ``"bytetrack"`` when the file or key is absent.
+    """
+    if not params_file or not os.path.isfile(params_file):
+        return "bytetrack"
+    with open(params_file) as handle:
+        data = yaml.safe_load(handle) or {}
+    block = data.get(f"/{namespace}/tracking_node", {})
+    parameters = block.get("ros__parameters", {}) if isinstance(block, dict) else {}
+    return str(parameters.get("tracker", "bytetrack"))
+
+
+def tracker_params_file(tracker: str) -> str:
+    """Path to the tracker config file selected by the ``tracker`` argument.
+
+    Accepts a tracker config name (resolved to ``config/trackers/<name>.yaml``,
+    e.g. ``bytetrack``/``botsort``/``botsort_reid``) or a path/filename to any
+    ROS params file. Empty -> the ``bytetrack`` default. Each config file then
+    sets the real ``tracker_type`` (the C++ implementation) it runs.
+    """
+    from ament_index_python.packages import get_package_share_directory
+
+    config_dir = os.path.join(get_package_share_directory("yolo_bringup"), "config")
+    trackers_dir = os.path.join(config_dir, "trackers")
+    value = (tracker or "bytetrack").strip()
+    if os.sep in value or value.endswith((".yaml", ".yml")):
+        candidates = (
+            [value]
+            if os.path.isabs(value)
+            else [
+                value,
+                os.path.join(config_dir, value),
+                os.path.join(trackers_dir, value),
+            ]
+        )
+        path = next((c for c in candidates if os.path.isfile(c)), candidates[0])
+    else:
+        path = os.path.join(trackers_dir, f"{value}.yaml")
+    if not os.path.isfile(path):
+        available = sorted(
+            entry[:-5]
+            for entry in os.listdir(trackers_dir)
+            if entry.endswith(".yaml")
+            and os.path.isfile(os.path.join(trackers_dir, entry))
+        )
+        raise RuntimeError(
+            f"unknown tracker '{value}'; available trackers: {', '.join(available)} "
+            "(or pass a path to a params file)"
+        )
+    return path
+
+
+def node_parameters(params_file, context, node_name: str, extra_files=()) -> list:
+    """Parameters list for a Node: the YAML file(s) plus the CLI overrides.
+
+    ``extra_files`` are layered between the pipeline config and the CLI
+    overrides (the per-tracker file for the tracking node), so later values win.
+    """
+    return [params_file, *extra_files, build_overrides(context, node_name)]

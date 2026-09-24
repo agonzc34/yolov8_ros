@@ -44,17 +44,13 @@
 
 /yolo/tracking_node:
   ros__parameters:
-    # Tracker selection + ByteTrack tuning, mirroring the ultralytics
-    # bytetrack.yaml defaults (tracker_type keys: see yolo_ros tracking/)
-    tracker_type: bytetrack # tracker implementation key (bytetrack | botsort)
+    # `tracker` selects the config/trackers/<tracker>.yaml file that yolo.launch.py
+    # layers over this one (bytetrack | botsort | botsort_reid). That file defines
+    # the real `tracker_type` (the C++ implementation). Override from the CLI with
+    # `tracker:=<name|path>`.
+    tracker: bytetrack
     image_reliability: 2 # 0=SystemDefault, 1=Reliable, 2=BestEffort
     image_topic: /camera/rgb/image_raw
-    track_high_thresh: 0.25 # first-stage association threshold
-    track_low_thresh: 0.1 # second-stage threshold for low-score matches
-    new_track_thresh: 0.25 # start a new track above this score
-    track_buffer: 30 # frames to keep lost tracks alive
-    match_thresh: 0.8 # association similarity threshold (IoU/cost)
-    fuse_score: true # fuse detection score with IoU cost for matching
 
 /yolo/detect_3d_node:
   ros__parameters:

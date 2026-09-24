@@ -74,13 +74,11 @@ def test_invalid_bool_raises_with_arg_name():
 def test_aliases_map_to_param_names():
     context = FakeContext(
         {
-            "tracker": "bytetrack",
             "input_image_topic": "/cam",
             "input_depth_topic": "/depth",
             "input_depth_info_topic": "/depth_info",
         }
     )
-    assert build_overrides(context, "tracking_node")["tracker_type"] == "bytetrack"
     assert build_overrides(context, "tracking_node")["image_topic"] == "/cam"
     assert build_overrides(context, "detect_3d_node")["depth_image_topic"] == "/depth"
     assert build_overrides(context, "detect_3d_node")["depth_info_topic"] == "/depth_info"
@@ -114,6 +112,54 @@ def test_node_parameters_layers_over_file():
     result = node_parameters(params_file, context, "yolo_node")
     assert result[0] is params_file
     assert result[1] == {"threshold": 0.5}
+
+
+def test_node_parameters_layers_extra_files_before_overrides():
+    params_file = LaunchConfiguration("params_file")
+    context = FakeContext({"with_reid": "true"})
+    result = node_parameters(params_file, context, "tracking_node", ["/t.yaml"])
+    assert result[0] is params_file
+    assert result[1] == "/t.yaml"
+    assert result[2] == {"with_reid": True}
+
+
+def test_tracker_params_file_resolves_and_validates(tmp_path, monkeypatch):
+    import ament_index_python.packages as ament
+
+    trackers = tmp_path / "config" / "trackers"
+    trackers.mkdir(parents=True)
+    for name in ("bytetrack", "botsort", "botsort_reid"):
+        (trackers / f"{name}.yaml").write_text("")
+    reid = trackers / "botsort_reid.yaml"
+
+    monkeypatch.setattr(ament, "get_package_share_directory", lambda _: str(tmp_path))
+
+    assert launch_params.tracker_params_file("botsort").endswith(
+        os.path.join("config", "trackers", "botsort.yaml")
+    )
+    # empty selects the bytetrack default (matching the tracking node)
+    assert launch_params.tracker_params_file("").endswith(
+        os.path.join("config", "trackers", "bytetrack.yaml")
+    )
+    # a name resolves to its file; a filename or absolute path also works
+    assert launch_params.tracker_params_file("botsort_reid") == str(reid)
+    assert launch_params.tracker_params_file("botsort_reid.yaml") == str(reid)
+    assert launch_params.tracker_params_file(str(reid)) == str(reid)
+    with pytest.raises(RuntimeError, match="unknown tracker 'nope'"):
+        launch_params.tracker_params_file("nope")
+
+
+def test_pipeline_tracker_reads_the_tracking_block(tmp_path):
+    path = tmp_path / "yolo.yaml"
+    path.write_text(
+        "/yolo/tracking_node:\n  ros__parameters:\n    tracker: botsort_reid\n"
+    )
+    assert launch_params.pipeline_tracker(str(path)) == "botsort_reid"
+    # namespace-aware: another namespace has no block -> bytetrack default
+    assert launch_params.pipeline_tracker(str(path), "other") == "bytetrack"
+    # missing file / no value -> the bytetrack default
+    assert launch_params.pipeline_tracker("") == "bytetrack"
+    assert launch_params.pipeline_tracker(str(tmp_path / "nope.yaml")) == "bytetrack"
 
 
 def test_unknown_node_raises():

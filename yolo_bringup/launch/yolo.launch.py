@@ -11,12 +11,32 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from yolo_bringup.launch_params import declare_param_arguments, node_parameters
+from yolo_bringup.launch_params import (
+    declare_param_arguments,
+    node_parameters,
+    pipeline_tracker,
+    tracker_params_file,
+)
 
 NODES = ("yolo_node", "tracking_node", "detect_3d_node", "debug_node")
 
 
 def _launch_setup(context, params_file, namespace, use_tracking, use_3d, use_debug):
+    # Per-tracker knobs live in config/trackers/<name>.yaml and are layered
+    # over the pipeline config for the tracking node only. The pipeline YAML's
+    # `tracker` selector picks the file; the `tracker` argument overrides it (by
+    # name or path). Each config file sets the real `tracker_type` it runs.
+    tracker_override = context.launch_configurations.get("tracker", "")
+    if tracker_override:
+        tracker_file = tracker_params_file(tracker_override)
+    else:
+        tracker_file = tracker_params_file(
+            pipeline_tracker(
+                context.launch_configurations.get("params_file", ""),
+                context.launch_configurations.get("namespace", "yolo"),
+            )
+        )
+
     # C++ inference node (ONNX Runtime). Every parameter comes from the YAML
     # params file, optionally overridden by the matching launch argument.
     yolo_node_cmd = Node(
@@ -33,7 +53,7 @@ def _launch_setup(context, params_file, namespace, use_tracking, use_3d, use_deb
         executable="tracking_node",
         name="tracking_node",
         namespace=namespace,
-        parameters=node_parameters(params_file, context, "tracking_node"),
+        parameters=node_parameters(params_file, context, "tracking_node", [tracker_file]),
         condition=IfCondition(use_tracking),
     )
 
@@ -105,6 +125,14 @@ def generate_launch_description():
         description="Namespace for the nodes",
     )
 
+    tracker_cmd = DeclareLaunchArgument(
+        "tracker",
+        default_value="",
+        description="Override the tracker file selected by the pipeline YAML's "
+        "tracker_type: a name (config/trackers/<name>.yaml, e.g. botsort) or a "
+        "path to a params file. Empty keeps the YAML's tracker_type.",
+    )
+
     return LaunchDescription(
         [
             use_tracking_cmd,
@@ -112,6 +140,7 @@ def generate_launch_description():
             use_debug_cmd,
             params_file_cmd,
             namespace_cmd,
+            tracker_cmd,
             *declare_param_arguments(NODES),
             OpaqueFunction(
                 function=_launch_setup,
