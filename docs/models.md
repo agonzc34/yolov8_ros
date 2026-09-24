@@ -50,3 +50,55 @@ Instead of a local path, the node can fetch the model from the Hub at startup vi
 Or on the command line: `ros2 launch yolo_bringup yolo.launch.py model_repo:=unileon-robotics/YOLO26-ONNX model_filename:=yolo26s.onnx`. Requires the libcurl dev headers listed in the [README](../README.md#installation); only used when `model_repo`/`model_filename` are set. The node logs the model source as `[huggingface]` (with repo/filename) or `[local]` (with the path) so the two are easy to tell apart.
 
 The shipped `config/yolo*.yaml` files already default to the [`unileon-robotics/YOLO26-ONNX`](https://huggingface.co/unileon-robotics/YOLO26-ONNX) mirror — ONNX exports of the [`Ultralytics/YOLO26`](https://huggingface.co/Ultralytics/YOLO26) checkpoints (25 files: `yolo26{n,s,m,l,x}` for detect / `-seg` / `-pose` / `-obb` / `-cls`, exported with `imgsz=640 opset=12`). The first launch per model downloads it (so it needs network access) and caches it; clear `model_repo` to fall back to the local `model` path, or pass `model:=<path>` for a local file.
+
+## ReID encoder for BoT-SORT-ReID
+
+The BoT-SORT-ReID config (`config/botsort_reid.yaml`) needs a second ONNX model
+that turns a person crop into an appearance embedding. The C++ encoder
+(`engine::ReIDEncoder`) is model-agnostic; it only requires this contract:
+
+- **Input:** `[N, 3, H, W]`, RGB, float32 in **[0, 255]** (no `/255`, no
+  mean/std in C++).
+- **Output:** one embedding per box (`[N, D]` or `[N, D, 1, 1]`).
+- Normalization and L2 normalization must be **baked into the graph**; the C++
+  side only resizes crops to `HxW`, converts BGR→RGB, and re-normalizes.
+
+Input `HxW` is read from the graph, so any size works.
+
+### OSNet (default suggestion, MIT)
+
+```python
+import torch, torch.nn.functional as F
+from torchreid.models import build_model
+from torchreid.utils import load_pretrained_weights
+
+class Export(torch.nn.Module):
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1) * 255)
+        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1) * 255)
+
+    def forward(self, x):  # x: RGB float32 in [0, 255]
+        f = self.net((x - self.mean) / self.std)
+        return F.normalize(f)
+
+net = build_model("osnet_x0_25", num_classes=1000, pretrained=False)
+load_pretrained_weights(net, "<msmt17_combineall osnet_x0_25 .pth>")
+model = Export(net).eval()
+torch.onnx.export(
+    model, torch.zeros(1, 3, 256, 128), "osnet_x0_25_reid.onnx",
+    input_names=["input"], output_names=["output"],
+    dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}}, opset_version=12)
+```
+
+Weights: `kaiyangzhou/osnet` on the Hugging Face Hub (MIT). Then set
+`reid_model` in `config/botsort_reid.yaml`.
+
+### FastReID SBS-S50 (Apache-2.0 code, MIT weights via BoT-SORT)
+
+Export FastReID's `Baseline` model directly — its `preprocess_image` already
+normalizes RGB `[0, 255]` input (`PIXEL_MEAN`/`PIXEL_STD` are scaled by 255),
+matching the C++ contract. Wrap the forward with `F.normalize` and export at
+256×128. Use the weights BoT-SORT releases (`mot17_sbs_S50.pth`, MIT), not
+FastReID's own model zoo (no explicit weight license).

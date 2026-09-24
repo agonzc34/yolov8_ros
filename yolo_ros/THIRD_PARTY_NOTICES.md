@@ -136,3 +136,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The C++ ROS node implementations adapt behavior from the original `yolo_ros`
 Python nodes. Miguel Ángel González Santamarta, the copyright holder of those
 contributions, authorized their release in the MIT-licensed C++ pipeline.
+
+## torchreid / deep-person-reid (OSNet ReID backbone)
+
+The optional BoT-SORT-ReID appearance branch
+(`src/engine/reid_encoder.cpp`, the feature code in `src/tracking/strack.cpp`
+and the appearance fusion in `src/tracking/bot_sort.cpp`) supports a ReID
+embedding model exported from torchreid's OSNet:
+
+- Project: <https://github.com/KaiyangZhou/deep-person-reid>
+- Paper: <https://arxiv.org/abs/1905.00953>
+- License: MIT (OSNet architecture, code and the model-zoo weights)
+
+The C++ code does not embed torchreid source; it only defines the ONNX input
+contract documented in `docs/models.md`.
+
+## FastReID (alternative ReID backbone)
+
+The same appearance branch also supports FastReID's SBS-S50 model, optionally
+using the ReID weights released by BoT-SORT (MIT, see the BoT-SORT notice):
+
+- Project: <https://github.com/JDAI-CV/fast-reid>
+- Paper: <https://arxiv.org/abs/2006.02631>
+- License: Apache-2.0 (code)
+
+No FastReID source is bundled; only the exported ONNX model is consumed.
