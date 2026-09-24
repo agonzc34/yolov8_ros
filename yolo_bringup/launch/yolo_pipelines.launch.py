@@ -35,7 +35,14 @@ def _read_pipeline(path):
 
 
 def _launch_setup(context, pipeline_file):
-    data = _read_pipeline(str(pipeline_file))
+    # OpaqueFunction passes `args` through raw, so `pipeline_file` arrives as a
+    # LaunchConfiguration that must be resolved against the launch context.
+    # Tests may hand a plain path string instead.
+    if isinstance(pipeline_file, str):
+        path = pipeline_file
+    else:
+        path = context.launch_configurations.get("pipeline_file", "")
+    data = _read_pipeline(path)
     namespace = str(data.get("namespace", "yolo"))
     model = dict(data.get("model") or {})
     cameras = data["cameras"]

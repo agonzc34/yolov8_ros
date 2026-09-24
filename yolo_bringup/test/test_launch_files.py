@@ -258,6 +258,28 @@ def test_pipelines_setup_generates_per_camera_nodes(tmp_path, monkeypatch):
     assert params(keyed[("yolo/back", "debug_node")])["detections_topic"] == "detections"
 
 
+def test_pipelines_resolves_pipeline_file_from_context(tmp_path, monkeypatch):
+    """Regression: OpaqueFunction hands _launch_setup the raw
+    LaunchConfiguration, which must be resolved through the launch context
+    rather than stringified."""
+    import ament_index_python.packages as ament
+
+    bringup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    monkeypatch.setattr(ament, "get_package_share_directory", lambda _: bringup_dir)
+
+    pipeline = tmp_path / "pipelines.yaml"
+    pipeline.write_text(
+        "cameras:\n" "  - name: front\n" "    image_topic: /front/image_raw\n"
+    )
+    context = _FakeContext({"pipeline_file": str(pipeline)})
+    nodes = _load("pipelines")._launch_setup(
+        context, LaunchConfiguration("pipeline_file")
+    )
+    keyed = {(node._Node__node_namespace, node._Node__node_name): node for node in nodes}
+    assert ("yolo", "yolo_batch_node") in keyed
+    assert ("yolo/front", "debug_node") in keyed
+
+
 def test_pipelines_rejects_duplicate_camera_names(tmp_path):
     pipeline = tmp_path / "pipelines.yaml"
     pipeline.write_text(
