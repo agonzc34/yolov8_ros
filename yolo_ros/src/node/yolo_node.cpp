@@ -177,8 +177,9 @@ void yolo_ros::node::YoloNode::create_yolo(
   const std::string model_type = yolo_ros::utils::to_lower(params.model_type);
 
   // An explicit model_type wins; "auto" (or empty) falls back to the
-  // filename heuristic (path containing "pose" -> pose, "segment" ->
-  // segmentation, "cls"/"classify" -> classification, otherwise detection).
+  // filename heuristic (path containing "pose" -> pose, "segment"/"-seg" ->
+  // segmentation, "obb" -> OBB, "cls"/"classify" -> classification,
+  // otherwise detection).
   const bool explicit_pose =
       !model_type.empty() && model_type != "auto" &&
       (model_type.find("pose") != std::string::npos ||
@@ -198,8 +199,12 @@ void yolo_ros::node::YoloNode::create_yolo(
       params.model_path.find("pose") != std::string::npos;
   const bool by_filename_obb =
       params.model_path.find("obb") != std::string::npos;
+  // Ultralytics exports segmentation models as `*-seg.onnx` (no "segment"
+  // substring), so the filename heuristic accepts the `-seg`/`_seg` suffix too.
   const bool by_filename =
-      params.model_path.find("segment") != std::string::npos;
+      params.model_path.find("segment") != std::string::npos ||
+      params.model_path.find("-seg") != std::string::npos ||
+      params.model_path.find("_seg") != std::string::npos;
   const bool by_filename_classify =
       params.model_path.find("cls") != std::string::npos ||
       params.model_path.find("classify") != std::string::npos;
