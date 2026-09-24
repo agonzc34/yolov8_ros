@@ -100,21 +100,28 @@ Weights: `kaiyangzhou/osnet` on the Hugging Face Hub (MIT). Then set
 
 ### FastReID SBS-S50 (Apache-2.0 code, MIT weights via BoT-SORT)
 
-Export FastReID's `Baseline` model directly — its `preprocess_image` already
-normalizes RGB `[0, 255]` input (`PIXEL_MEAN`/`PIXEL_STD` are scaled by 255),
-matching the C++ contract. Wrap the forward with `F.normalize` and export at
-256×128:
+FastReID's `preprocess_image` already normalizes RGB `[0, 255]` input
+(`PIXEL_MEAN`/`PIXEL_STD` are scaled by 255), matching the C++ contract. Use the
+fork vendored by [BoT-SORT](https://github.com/NirAharon/BoT-SORT) (`fast_reid/`)
+— it ships the MOT17 config, which the upstream JDAI repo does not — with the
+`mot17_sbs_S50.pth` weights. Export at the model's own `INPUT.SIZE_TEST`:
+**384×128** for MOT17 sbs_S50 (not 256×128):
 
 ```python
+import sys; sys.path.insert(0, "<BoT-SORT>")  # so `fast_reid.fastreid` imports
 import torch, torch.nn.functional as F
-from fastreid.config import get_cfg
-from fastreid.modeling.meta_arch import build_model
+from fast_reid.fastreid.config import get_cfg
+from fast_reid.fastreid.modeling.meta_arch import build_model
+from fast_reid.fastreid.utils.checkpoint import Checkpointer
 
 cfg = get_cfg()
-cfg.merge_from_file("configs/MOT17/sbs_S50.yml")
+cfg.merge_from_file("<BoT-SORT>/fast_reid/configs/MOT17/sbs_S50.yml")
 cfg.MODEL.WEIGHTS = "mot17_sbs_S50.pth"
+cfg.MODEL.BACKBONE.PRETRAIN = False  # don't fetch the ImageNet backbone
+cfg.MODEL.DEVICE = "cpu"
+cfg.freeze()
 net = build_model(cfg)
-net.load_params(cfg.MODEL.WEIGHTS)
+Checkpointer(net).load(cfg.MODEL.WEIGHTS)
 net.eval()
 
 class Export(torch.nn.Module):
@@ -123,10 +130,14 @@ class Export(torch.nn.Module):
         self.net = net
 
     def forward(self, x):  # x: RGB float32 in [0, 255]
-        return F.normalize(self.net(x)["features"])
+        out = self.net(x)
+        if isinstance(out, dict):  # some forks return {"features": ...}
+            out = out["features"]
+        return F.normalize(out)
 
+h, w = cfg.INPUT.SIZE_TEST
 torch.onnx.export(
-    Export(net), torch.zeros(1, 3, 256, 128), "sbs_S50_reid.onnx",
+    Export(net), torch.zeros(1, 3, h, w), "sbs_S50_reid.onnx",
     input_names=["input"], output_names=["output"],
     dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     opset_version=12)
