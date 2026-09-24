@@ -106,11 +106,17 @@ Models are exported for one task — **detection** (`detect`), **instance segmen
 
 ## Usage
 
-Run from the workspace root (so the workspace is sourced as an overlay). Each pipeline has its own launch file and namespace; the launch passes its `config/yolo*.yaml` file to the nodes (plus any command-line overrides) and makes no topic remaps.
+Run from the workspace root (so the workspace is sourced as an overlay). There is a single launch file, `yolo.launch.py`, for every task — the task is selected by the **model**, not by a separate launch. The launch passes its `config/yolo.yaml` params file to the nodes (plus any command-line overrides) and makes no topic remaps.
+
+Pick the model with `model_filename:=` (a file in the Hugging Face mirror set by `model_repo`) or `model:=` (a local path). The task is inferred from the file name (`model_type: auto`): `-seg`/`segment` → segmentation, `-pose`/`pose` → pose, `-obb`/`obb` → OBB, `-cls`/`classify` → classification, anything else detection. Each task also ships a preset params file (`config/yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`, `yolo_classify.yaml`) that pins `model_type` and task-specific tuning — pass it with `params_file:=`:
+
+```shell
+ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_segment.yaml
+```
 
 ### Object Detection
 
-Standard detection, with tracking enabled by default (namespace `yolo`):
+Detection is the default, with tracking enabled (namespace `yolo`):
 
 ```shell
 ros2 launch yolo_bringup yolo.launch.py
@@ -118,34 +124,34 @@ ros2 launch yolo_bringup yolo.launch.py
 
 ### Instance Segmentation
 
-Namespace `yolo`; `model_type: Segment` is forced in `config/yolo_segment.yaml`:
+Segmentation is inferred from the `-seg` model file name:
 
 ```shell
-ros2 launch yolo_bringup yolo_segment.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26l-seg.onnx
 ```
 
 ### Human Pose
 
-Namespace `yolo`; `model_type: Pose` is forced in `config/yolo_pose.yaml`:
+Pose is inferred from the `-pose` model file name:
 
 ```shell
-ros2 launch yolo_bringup yolo_pose.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-pose.onnx
 ```
 
 ### Oriented Bounding Box (OBB)
 
-Namespace `yolo`; `model_type: OBB` is forced in `config/yolo_obb.yaml`. This launch also starts the tracking and debug nodes:
+OBB is inferred from the `-obb` model file name; tracking and debug run as usual:
 
 ```shell
-ros2 launch yolo_bringup yolo_obb.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-obb.onnx
 ```
 
 ### Image Classification
 
-Namespace `yolo`; `model_type: Classify` is forced in `config/yolo_classify.yaml`. The default model is downloaded from the Hugging Face Hub at configure time. No tracking/3D/debug nodes are started:
+Classification is inferred from the `-cls` model file name. Image-level labels have no spatial extent, so turn tracking off; the `yolo_classify.yaml` preset wires the debug node to the raw `detections` stream (add `model_filename:=` to swap the classifier):
 
 ```shell
-ros2 launch yolo_bringup yolo_classify.launch.py
+ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_classify.yaml use_tracking:=False
 ```
 
 <p align="center">
@@ -154,7 +160,7 @@ ros2 launch yolo_bringup yolo_classify.launch.py
 
 ### 3D Detection
 
-Add `use_3d:=True` to the detection, segmentation, pose or OBB launch to also start the C++ 3D detection node, which subscribes to the depth image + `CameraInfo` and publishes `detections_3d`:
+Add `use_3d:=True` to the launch to also start the C++ 3D detection node, which subscribes to the depth image + `CameraInfo` and publishes `detections_3d`:
 
 ```shell
 ros2 launch yolo_bringup yolo.launch.py use_3d:=True
@@ -179,14 +185,14 @@ All topics are published under the launch namespace (default `yolo`):
 
 ### Parameters
 
-Configuration is file-driven: `yolo.launch.py` is the base launch and passes its YAML params file plus any command-line overrides as `parameters=[params_file, overrides]` (with no topic remaps). The other four launch files are thin wrappers generated from one factory (`yolo_bringup/pipeline_launch.py`) that include the base with their own params file (`yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`, `yolo_classify.yaml`). In addition, **every parameter can be overridden from the command line**; an argument left unset keeps the YAML value:
+Configuration is file-driven: `yolo.launch.py` is the only launch and passes its YAML params file plus any command-line overrides as `parameters=[params_file, overrides]` (with no topic remaps). The default is `config/yolo.yaml`; the per-task presets (`config/yolo_segment.yaml`, `yolo_pose.yaml`, `yolo_obb.yaml`, `yolo_classify.yaml`) are selected with `params_file:=`. The tracking node additionally layers a per-tracker config file, `config/trackers/<tracker>.yaml`, chosen by the pipeline YAML's `tracker` selector (override with `tracker:=<name|path>`); each config file sets the real `tracker_type`. In addition, **every parameter can be overridden from the command line**; an argument left unset keeps the YAML value:
 
 ```bash
 ros2 launch yolo_bringup yolo.launch.py model:=/path/model.onnx threshold:=0.5 input_image_topic:=/camera/rgb/image_raw
-ros2 launch yolo_bringup yolo_segment.launch.py threshold:=0.6
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26l-seg.onnx threshold:=0.6
 ```
 
-Override arguments use the upstream Python launch names where one existed: `input_image_topic` → `image_topic`, `input_depth_topic` → `depth_image_topic`, `input_depth_info_topic` → `depth_info_topic`, `tracker` → `tracker_type`. Every other argument matches its parameter name. Because an empty value means "not provided", a non-empty YAML string cannot be overridden to empty from the CLI. Run `ros2 launch yolo_bringup <launch>.launch.py --show-args` for the full list.
+Override arguments use the upstream Python launch names where one existed: `input_image_topic` → `image_topic`, `input_depth_topic` → `depth_image_topic`, `input_depth_info_topic` → `depth_info_topic`. `tracker` selects the per-tracker file (`config/trackers/<name>.yaml`), which owns `tracker_type`. Every other argument matches its parameter name. Because an empty value means "not provided", a non-empty YAML string cannot be overridden to empty from the CLI. Run `ros2 launch yolo_bringup yolo.launch.py --show-args` for the full list.
 
 Sections are keyed by the node's fully qualified name, so the key must include the launch namespace (default `yolo`):
 
@@ -200,7 +206,7 @@ If you change `namespace:=`, update the matching config block names for any valu
 
 #### Inference node (`yolo_node`)
 
-- **model_type**: Pipeline to run: `YOLO`/`Detect`, `Segment`, `Pose`, `OBB`, `Classify` or `auto` (default: `auto`).
+- **model_type**: Pipeline to run: `YOLO`/`Detect`, `Segment`, `Pose`, `OBB`, `Classify` or `auto` (default: `auto`, which infers the task from the model file name: `-seg`/`segment`, `-pose`/`pose`, `-obb`/`obb`, `-cls`/`classify`).
 - **model**: Path to the ONNX model (default: machine-specific).
 - **model_repo** / **model_filename** / **force_download** / **cache_dir**: Hugging Face Hub download (used instead of `model` when set). The shipped configs default to the `unileon-robotics/YOLO26-ONNX` mirror; clear `model_repo` to fall back to the local `model` path.
 - **provider**: Execution provider: `auto` (TensorRT → CUDA → CPU fallback chain), or force `tensorrt`/`trt`, `cuda`, `cpu` (default: `auto`).
@@ -220,7 +226,7 @@ If you change `namespace:=`, update the matching config block names for any valu
 
 #### Tracking node (`tracking_node`)
 
-- **tracker_type**: Tracker implementation key: `bytetrack` (default) or `botsort`. BoT-SORT uses an XYWH Kalman filter and camera-motion compensation (no ReID).
+- **tracker**: Selects the config file `config/trackers/<tracker>.yaml` layered over this one: `bytetrack` (default), `botsort` (XYWH Kalman filter + camera-motion compensation), or `botsort_reid` (BoT-SORT + ReID appearance; needs `reid_model`). Override from the CLI with `tracker:=<name|path>`. Each config file defines the actual **tracker_type** (the C++ implementation: `bytetrack` or `botsort`).
 - **image_topic** / **image_reliability**: Tracker image input and QoS.
 - **track_high_thresh**: First-stage association threshold (default: `0.25`).
 - **track_low_thresh**: Second-stage threshold for low-score matches (default: `0.1`).
@@ -265,7 +271,7 @@ ros2 launch yolo_bringup yolo.launch.py
 Instance masks are the borders of the detected objects, not all the pixels inside the masks.
 
 ```shell
-ros2 launch yolo_bringup yolo_segment.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26l-seg.onnx
 ```
 
 [![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1dwArjDLSNkuOGIB0nSzZR6ABIOCJhAFq)](https://drive.google.com/file/d/1dwArjDLSNkuOGIB0nSzZR6ABIOCJhAFq/view?usp=sharing)
@@ -275,7 +281,7 @@ ros2 launch yolo_bringup yolo_segment.launch.py
 Visible persons are detected along with their skeleton keypoints.
 
 ```shell
-ros2 launch yolo_bringup yolo_pose.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-pose.onnx
 ```
 
 [![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1pRy9lLSXiFEVFpcbesMCzmTMEoUXGWgr)](https://drive.google.com/file/d/1pRy9lLSXiFEVFpcbesMCzmTMEoUXGWgr/view?usp=sharing)
@@ -285,7 +291,7 @@ ros2 launch yolo_bringup yolo_pose.launch.py
 Rotated boxes are estimated for oriented objects.
 
 ```shell
-ros2 launch yolo_bringup yolo_obb.launch.py
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-obb.onnx
 ```
 
 <!-- Demo recording pending: add ./docs/media/demo_obb.gif to display it here.
@@ -299,7 +305,7 @@ ros2 launch yolo_bringup yolo_obb.launch.py
 Image-level ImageNet-1k labels are published as detections with an empty bbox.
 
 ```shell
-ros2 launch yolo_bringup yolo_classify.launch.py
+ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_classify.yaml use_tracking:=False
 ```
 
 <!-- Demo recording pending: add ./docs/media/demo_classify.gif to display it here.
@@ -323,7 +329,7 @@ ros2 launch yolo_bringup yolo.launch.py use_3d:=True
 The depth image data is filtered using the instance mask polygon. Only objects with a 3D bounding box are visualized in the 2D image.
 
 ```shell
-ros2 launch yolo_bringup yolo_segment.launch.py use_3d:=True
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26l-seg.onnx use_3d:=True
 ```
 
 [![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1wVZgi5GLkAYxv3GmTxX5z-vB8RQdwqLP)](https://drive.google.com/file/d/1wVZgi5GLkAYxv3GmTxX5z-vB8RQdwqLP/view?usp=sharing)
@@ -333,7 +339,7 @@ ros2 launch yolo_bringup yolo_segment.launch.py use_3d:=True
 Each keypoint is back-projected to 3D using the depth image. Only objects with a 3D bounding box are visualized in the 2D image.
 
 ```shell
-ros2 launch yolo_bringup yolo_pose.launch.py use_3d:=True
+ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-pose.onnx use_3d:=True
 ```
 
 [![](https://drive.google.com/thumbnail?authuser=0&sz=w1280&id=1j4VjCAsOCx_mtM2KFPOLkpJogM0t227r)](https://drive.google.com/file/d/1j4VjCAsOCx_mtM2KFPOLkpJogM0t227r/view?usp=sharing)

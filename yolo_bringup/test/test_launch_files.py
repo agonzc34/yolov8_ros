@@ -7,19 +7,14 @@ import os
 import pytest
 import yaml
 from launch import LaunchContext, LaunchDescription, Substitution
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 
 LAUNCH_DIR = os.path.join(os.path.dirname(__file__), "..", "launch")
 LAUNCH_FILES = {
     "yolo": "yolo.launch.py",
-    "segment": "yolo_segment.launch.py",
-    "pose": "yolo_pose.launch.py",
-    "obb": "yolo_obb.launch.py",
-    "classify": "yolo_classify.launch.py",
 }
-WRAPPERS = ["segment", "pose", "obb", "classify"]
 
 
 def _load(name):
@@ -63,21 +58,6 @@ def _declared(name):
     }
 
 
-def _wrapper_defaults(name):
-    return {
-        entity.name: entity.default_value
-        for entity in _description(name).entities
-        if isinstance(entity, DeclareLaunchArgument)
-    }
-
-
-def _include(name):
-    for entity in _description(name).entities:
-        if isinstance(entity, IncludeLaunchDescription):
-            return entity
-    raise AssertionError(f"{name} has no IncludeLaunchDescription")
-
-
 @pytest.mark.parametrize("name", sorted(LAUNCH_FILES))
 def test_launch_description_builds(name):
     assert isinstance(_description(name), LaunchDescription)
@@ -87,6 +67,7 @@ def test_launch_description_builds(name):
 def test_catalogue_args_are_declared(name):
     assert {
         "model",
+        "model_type",
         "threshold",
         "input_image_topic",
         "image_reliability",
@@ -105,46 +86,6 @@ def test_base_flags_are_declared(name):
         "use_3d",
         "use_debug",
     } <= _declared(name)
-
-
-@pytest.mark.parametrize("name", WRAPPERS)
-def test_wrappers_include_the_base(name):
-    assert any(
-        isinstance(entity, IncludeLaunchDescription)
-        for entity in _description(name).entities
-    )
-
-
-@pytest.mark.parametrize("name", WRAPPERS)
-def test_wrapper_params_file_default_matches_pipeline(name):
-    expected = f"yolo_{name}.yaml"
-    default = _unsub(_wrapper_defaults(name)["params_file"])
-    assert expected in str(default)
-
-
-@pytest.mark.parametrize("name", WRAPPERS)
-def test_wrapper_forwards_launch_arguments(name):
-    forwarded = {key: value for key, value in _include(name).launch_arguments}
-    assert set(forwarded) >= {
-        "params_file",
-        "namespace",
-        "use_tracking",
-        "use_3d",
-        "use_debug",
-    }
-    # params_file/namespace must be the wrapper's LaunchConfiguration so that
-    # command-line overrides on the wrapper reach the base.
-    assert type(forwarded["params_file"]).__name__ == "LaunchConfiguration"
-    assert type(forwarded["namespace"]).__name__ == "LaunchConfiguration"
-
-
-def test_classify_disables_spatial_nodes():
-    forwarded = dict(_include("classify").launch_arguments)
-    assert forwarded["use_tracking"] == "False"
-    assert forwarded["use_3d"] == "False"
-    # The debug node stays on for classification: it draws the image-level
-    # labels (empty bbox).
-    assert forwarded["use_debug"] == "True"
 
 
 def test_base_flag_defaults():
@@ -195,3 +136,62 @@ def test_launch_setup_layers_overrides_for_yolo_node():
     assert by_name["yolo_node"].condition is None
     for name in ("tracking_node", "detect_3d_node", "debug_node"):
         assert isinstance(by_name[name].condition, IfCondition)
+
+
+def test_launch_setup_selects_tracker_from_params_file(tmp_path):
+    pipeline = tmp_path / "yolo.yaml"
+    pipeline.write_text(
+        "/yolo/tracking_node:\n  ros__parameters:\n    tracker: botsort_reid\n"
+    )
+    module = _load("yolo")
+    context = _FakeContext(
+        {"params_file": str(pipeline), "namespace": "yolo", "with_reid": "true"}
+    )
+    params_file = LaunchConfiguration("params_file")
+    nodes = module._launch_setup(
+        context,
+        params_file,
+        LaunchConfiguration("namespace"),
+        LaunchConfiguration("use_tracking"),
+        LaunchConfiguration("use_3d"),
+        LaunchConfiguration("use_debug"),
+    )
+    params = {node._Node__node_name: node for node in nodes}[
+        "tracking_node"
+    ]._Node__parameters
+    # pipeline config -> per-tracker file -> CLI overrides
+    assert len(params) == 3
+    assert params[0].param_file[0] is params_file
+    assert str(_unsub(params[1].param_file[0])).endswith(
+        os.path.join("config", "trackers", "botsort_reid.yaml")
+    )
+    overrides = {
+        key: yaml.safe_load(value) if isinstance(value, str) else value
+        for key, value in _unsub(params[2]).items()
+    }
+    assert overrides == {"with_reid": True}
+
+
+def test_launch_setup_tracker_arg_overrides_params_file(tmp_path):
+    pipeline = tmp_path / "yolo.yaml"
+    pipeline.write_text(
+        "/yolo/tracking_node:\n  ros__parameters:\n    tracker: bytetrack\n"
+    )
+    module = _load("yolo")
+    context = _FakeContext(
+        {"params_file": str(pipeline), "namespace": "yolo", "tracker": "botsort"}
+    )
+    nodes = module._launch_setup(
+        context,
+        LaunchConfiguration("params_file"),
+        LaunchConfiguration("namespace"),
+        LaunchConfiguration("use_tracking"),
+        LaunchConfiguration("use_3d"),
+        LaunchConfiguration("use_debug"),
+    )
+    params = {node._Node__node_name: node for node in nodes}[
+        "tracking_node"
+    ]._Node__parameters
+    assert str(_unsub(params[1].param_file[0])).endswith(
+        os.path.join("config", "trackers", "botsort.yaml")
+    )
