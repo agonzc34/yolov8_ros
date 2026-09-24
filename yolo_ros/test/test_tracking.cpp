@@ -662,5 +662,30 @@ TEST(ReIDEncoder, MissingModelThrows) {
       std::runtime_error);
 }
 
+TEST(BotSort, WithReidEmptyModelIsMotionOnly) {
+  BotSortParams params;
+  params.with_reid = true; // reid_model stays empty
+  BotSort tracker(params);
+  EXPECT_FALSE(tracker.needs_frame()); // no encoder and no CMC
+  std::vector<TrackDetection> dets(1);
+  dets[0] = {50, 50, 20, 20, 0.9f, 0, 0};
+  EXPECT_EQ(tracker.update(dets).size(), 1u);
+}
+
+TEST(BotSort, WithReidAndGmcNeedsFrame) {
+  BotSortParams params;
+  params.with_reid = true;
+  params.gmc_method = "sparseOptFlow";
+  BotSort tracker(params);
+  EXPECT_TRUE(tracker.needs_frame());
+}
+
+TEST(TrackerFactory, CreatesBotSortWithReidParams) {
+  BotSortParams params;
+  params.with_reid = true;
+  params.reid_model = "";
+  EXPECT_NE(create_tracker(params), nullptr);
+}
+
 } // namespace
 } // namespace yolo_ros::tracking

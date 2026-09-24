@@ -7,10 +7,14 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <exception>
+#include <iostream>
+#include <memory>
 #include <numeric>
 #include <utility>
 #include <vector>
 
+#include "yolo_ros/engine/reid_encoder.hpp"
 #include "yolo_ros/tracking/utils/matching.hpp"
 
 namespace yolo_ros::tracking {
@@ -18,9 +22,30 @@ namespace yolo_ros::tracking {
 using namespace utils;
 
 BotSort::BotSort(const BotSortParams &params)
-    : params_(params), cmc_(params.gmc_method, params.gmc_downscale) {}
+    : params_(params), cmc_(params.gmc_method, params.gmc_downscale) {
+  if (!params_.with_reid) {
+    return;
+  }
+  if (params_.reid_model.empty()) {
+    std::cerr << "with_reid is set but reid_model is empty; running the "
+                 "tracker without appearance association."
+              << std::endl;
+    return;
+  }
+  try {
+    reid_ = std::make_unique<engine::ReIDEncoder>(
+        params_.reid_model, params_.provider, params_.device);
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to initialize the ReID encoder (" << e.what()
+              << "); running the tracker without appearance association."
+              << std::endl;
+    reid_.reset();
+  }
+}
 
-bool BotSort::needs_frame() const { return cmc_.enabled(); }
+BotSort::~BotSort() = default;
+
+bool BotSort::needs_frame() const { return cmc_.enabled() || reid_ != nullptr; }
 
 std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
                                    const cv::Mat &frame) {
@@ -46,6 +71,36 @@ std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
     } else if (d.score > params_.track_low_thresh &&
                d.score < params_.track_high_thresh) {
       detections_second.push_back(detection);
+    }
+  }
+
+  // --- Step 1b: appearance embeddings for the high-score person detections.
+  // Only the high-score pool is embedded (reference behavior), and only the
+  // COCO person class (class_id 0) is embedded because the encoder is a
+  // person-ReID model.
+  if (reid_ != nullptr && !frame.empty() && !detections.empty()) {
+    std::vector<std::array<float, 4>> boxes;
+    std::vector<std::size_t> box_index;
+    boxes.reserve(detections.size());
+    box_index.reserve(detections.size());
+    for (std::size_t i = 0; i < detections.size(); ++i) {
+      if (detections[i]->class_id() != 0) {
+        continue;
+      }
+      boxes.push_back(detections[i]->xyxy());
+      box_index.push_back(i);
+    }
+    if (!boxes.empty()) {
+      try {
+        const auto features = reid_->inference(frame, boxes);
+        for (std::size_t k = 0; k < features.size() && k < box_index.size();
+             ++k) {
+          detections[box_index[k]]->update_features(features[k]);
+        }
+      } catch (const std::exception &e) {
+        std::cerr << "ReID inference failed (" << e.what()
+                  << "); continuing without appearance features." << std::endl;
+      }
     }
   }
 
@@ -77,9 +132,26 @@ std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
   std::vector<int> u_track;
   std::vector<int> u_detection;
   {
-    auto dists = iou_distance(strack_pool, detections);
+    std::vector<std::vector<double>> dists =
+        iou_distance(strack_pool, detections);
+    std::vector<std::vector<bool>> iou_mask;
+    if (reid_ != nullptr) {
+      iou_mask.assign(
+          dists.size(),
+          std::vector<bool>(dists.empty() ? 0 : dists[0].size(), false));
+      for (std::size_t i = 0; i < dists.size(); ++i) {
+        for (std::size_t j = 0; j < dists[i].size(); ++j) {
+          iou_mask[i][j] = dists[i][j] > params_.proximity_thresh;
+        }
+      }
+    }
     if (params_.fuse_score) {
       fuse_score(dists, detections);
+    }
+    if (reid_ != nullptr && !strack_pool.empty() && !detections.empty()) {
+      dists =
+          fuse_appearance(dists, embedding_distance(strack_pool, detections),
+                          iou_mask, params_.appearance_thresh);
     }
     linear_assignment(strack_pool.size(), detections.size(), dists,
                       params_.match_thresh, matches, u_track, u_detection);
@@ -142,9 +214,26 @@ std::vector<Track> BotSort::update(const std::vector<TrackDetection> &dets,
   if (!unconfirmed.empty()) {
     matches.clear();
     std::vector<int> u_unconfirmed;
-    auto dists = iou_distance(unconfirmed, detections_left);
+    std::vector<std::vector<double>> dists =
+        iou_distance(unconfirmed, detections_left);
+    std::vector<std::vector<bool>> iou_mask;
+    if (reid_ != nullptr) {
+      iou_mask.assign(
+          dists.size(),
+          std::vector<bool>(dists.empty() ? 0 : dists[0].size(), false));
+      for (std::size_t i = 0; i < dists.size(); ++i) {
+        for (std::size_t j = 0; j < dists[i].size(); ++j) {
+          iou_mask[i][j] = dists[i][j] > params_.proximity_thresh;
+        }
+      }
+    }
     if (params_.fuse_score) {
       fuse_score(dists, detections_left);
+    }
+    if (reid_ != nullptr && !unconfirmed.empty() && !detections_left.empty()) {
+      dists = fuse_appearance(dists,
+                              embedding_distance(unconfirmed, detections_left),
+                              iou_mask, params_.appearance_thresh);
     }
     linear_assignment(unconfirmed.size(), detections_left.size(), dists, 0.7,
                       matches, u_unconfirmed, u_detection_left);

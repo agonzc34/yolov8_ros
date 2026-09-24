@@ -21,6 +21,12 @@
 #include "yolo_ros/tracking/utils/camera_motion.hpp"
 #include "yolo_ros/tracking/utils/kalman_filter.hpp"
 
+/// @brief Forward declaration: BotSort owns an ONNX encoder but this header
+/// stays free of ONNX Runtime includes.
+namespace yolo_ros::engine {
+class ReIDEncoder;
+} // namespace yolo_ros::engine
+
 /// @addtogroup yolo_tracking
 /// @{
 namespace yolo_ros::tracking {
@@ -50,6 +56,19 @@ struct BotSortParams : public TrackerParams {
   std::string gmc_method = "none";
   /// @brief Camera-motion downscale factor (>= 1).
   int gmc_downscale = 2;
+  /// @brief Enable the ReID appearance association branch.
+  bool with_reid = false;
+  /// @brief IoU distance above which appearance is ignored during matching.
+  double proximity_thresh = 0.5;
+  /// @brief Cap on the embedding distance accepted as a match.
+  double appearance_thresh = 0.25;
+  /// @brief ONNX ReID encoder path (empty disables appearance even when
+  /// with_reid is set).
+  std::string reid_model = "";
+  /// @brief Execution provider for the ReID encoder.
+  std::string provider = "auto";
+  /// @brief Device ordinal for the ReID encoder.
+  std::string device = "cuda:0";
 };
 
 // --- ROS parameter bridge (tracker-specific) ------------------------------
@@ -69,6 +88,12 @@ template <typename NodeT> void declare_bot_sort_params(NodeT &node) {
   node.template declare_parameter<bool>("fuse_score", true);
   node.template declare_parameter<std::string>("gmc_method", "none");
   node.template declare_parameter<int>("gmc_downscale", 2);
+  node.template declare_parameter<bool>("with_reid", false);
+  node.template declare_parameter<std::string>("reid_model", "");
+  node.template declare_parameter<double>("proximity_thresh", 0.5);
+  node.template declare_parameter<double>("appearance_thresh", 0.25);
+  node.template declare_parameter<std::string>("provider", "auto");
+  node.template declare_parameter<std::string>("device", "cuda:0");
 }
 
 /// @brief Read the already-declared BoT-SORT parameters from @p node.
@@ -86,6 +111,12 @@ BotSortParams load_bot_sort_params(const NodeT &node) {
   node.get_parameter("fuse_score", params.fuse_score);
   node.get_parameter("gmc_method", params.gmc_method);
   node.get_parameter("gmc_downscale", params.gmc_downscale);
+  node.get_parameter("with_reid", params.with_reid);
+  node.get_parameter("reid_model", params.reid_model);
+  node.get_parameter("proximity_thresh", params.proximity_thresh);
+  node.get_parameter("appearance_thresh", params.appearance_thresh);
+  node.get_parameter("provider", params.provider);
+  node.get_parameter("device", params.device);
   return params;
 }
 
@@ -99,8 +130,9 @@ public:
   /// @brief Create the tracker from @p params.
   /// @param params BoT-SORT tuning parameters.
   explicit BotSort(const BotSortParams &params);
-  /// @brief Destroy the tracker.
-  ~BotSort() override = default;
+  /// @brief Destroy the tracker (encoder is an incomplete type here, so the
+  /// destructor is defined in the .cpp).
+  ~BotSort() override;
 
   /// @brief Advance the tracker one frame.
   /// @param[in] detections NMS-filtered detections for the current frame.
@@ -124,6 +156,8 @@ public:
 private:
   /// @brief Configuration copied at construction.
   BotSortParams params_;
+  /// @brief Optional ONNX ReID encoder (null when appearance is disabled).
+  std::unique_ptr<engine::ReIDEncoder> reid_;
   /// @brief Kalman filter with the XYWH state.
   utils::KalmanFilterXYWH kalman_filter_;
   /// @brief Camera-motion estimator.

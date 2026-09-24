@@ -73,6 +73,12 @@ NODE_PARAMS = {
         ParamSpec("fuse_score", bool),
         ParamSpec("gmc_method", str),
         ParamSpec("gmc_downscale", int),
+        ParamSpec("with_reid", bool),
+        ParamSpec("reid_model", str),
+        ParamSpec("proximity_thresh", float),
+        ParamSpec("appearance_thresh", float),
+        ParamSpec("provider", str),
+        ParamSpec("device", str),
     ),
     "detect_3d_node": (
         ParamSpec("target_frame", str),
