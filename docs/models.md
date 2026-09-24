@@ -63,12 +63,14 @@ that turns a person crop into an appearance embedding. The C++ encoder
 - Normalization and L2 normalization should be **baked into the graph**; the
   C++ side only resizes crops to `HxW`, converts BGR→RGB, and re-normalizes.
 
-Input `HxW` is read from the graph, so any size works.
+Input `HxW` is read from the graph, so any size works. The embedding dimension
+is read from the **runtime** output tensor, so a symbolic output dim is
+tolerated; the input `HxW` must still be static.
 
 ### OSNet (default suggestion, MIT)
 
 ```python
-import torch, torch.nn.functional as F
+import torch
 from torchreid.models import build_model
 from torchreid.utils import load_pretrained_weights
 
@@ -80,8 +82,9 @@ class Export(torch.nn.Module):
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1) * 255)
 
     def forward(self, x):  # x: RGB float32 in [0, 255]
-        f = self.net((x - self.mean) / self.std)
-        return F.normalize(f)
+        # No F.normalize tail: some exporters turn it into a symbolic output
+        # dim; the C++ side L2-normalizes the embeddings anyway.
+        return self.net((x - self.mean) / self.std)
 
 net = build_model("osnet_x0_25", num_classes=1000, pretrained=False)
 load_pretrained_weights(net, "<msmt17_combineall osnet_x0_25 .pth>")

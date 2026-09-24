@@ -91,22 +91,17 @@ ReIDEncoder::ReIDEncoder(const std::string &model_path,
                              "got a fixed batch of " +
                              std::to_string(static_batch) + ".");
   }
-  feature_dim_ = 1;
-  for (std::size_t i = 1; i < output_shape.size(); ++i) {
-    if (output_shape[i] > 0) {
-      feature_dim_ *= static_cast<int>(output_shape[i]);
-    }
-  }
-  if (feature_dim_ <= 0) {
-    throw std::runtime_error("Could not determine the ReID feature dimension.");
-  }
+  // The graph's declared feature dim is not trusted: exporters can leave it
+  // symbolic (a TorchScript F.normalize tail emits e.g. "Divoutput_dim_1"),
+  // which reads back as -1. The dimension is resolved from the runtime output
+  // tensor in inference() instead.
 
   blob_.resize(static_cast<std::size_t>(input_height_) * input_width_ * 3);
   memory_info_ =
       Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
   std::cout << "ReID encoder " << model_path << " loaded (" << input_width_
-            << "x" << input_height_ << ", dim " << feature_dim_ << ", provider "
-            << active_provider_ << ")." << std::endl;
+            << "x" << input_height_ << ", provider " << active_provider_ << ")."
+            << std::endl;
 }
 
 ReIDEncoder::~ReIDEncoder() {}
@@ -170,7 +165,14 @@ ReIDEncoder::inference(const cv::Mat &frame,
 
   const float *data = outputs[0].GetTensorData<float>();
   const std::size_t rows = boxes.size();
-  const std::size_t dim = static_cast<std::size_t>(feature_dim_);
+  // Resolve the embedding dim from the runtime output tensor, which is always
+  // concrete (unlike the graph's possibly-symbolic declared shape).
+  const std::size_t total = static_cast<std::size_t>(
+      outputs[0].GetTensorTypeAndShapeInfo().GetElementCount());
+  const std::size_t dim = rows > 0 ? total / rows : 0;
+  if (dim == 0 || rows * dim != total) {
+    return features; // unexpected output shape: report no features
+  }
   features.resize(rows);
   for (std::size_t i = 0; i < rows; ++i) {
     std::vector<float> feat(dim, 0.0f);

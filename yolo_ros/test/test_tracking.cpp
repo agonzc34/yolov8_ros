@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <set>
 #include <string>
@@ -708,6 +710,30 @@ TEST(TrackerFactory, CreatesBotSortWithReidParams) {
   params.with_reid = true;
   params.reid_model = "";
   EXPECT_NE(create_tracker(params), nullptr);
+}
+
+TEST(ReIDEncoder, ProducesUnitNormEmbeddingsWhenModelAvailable) {
+  const char *env = std::getenv("YOLO_ROS_REID_MODEL");
+  const std::string path =
+      env != nullptr ? env : "/home/agonzc34/models/osnet_x0_25_reid.onnx";
+  std::ifstream probe(path);
+  if (!probe.good()) {
+    GTEST_SKIP() << "set YOLO_ROS_REID_MODEL to a ReID ONNX model to run this";
+  }
+  engine::ReIDEncoder encoder(path, "cpu", "cpu");
+  cv::Mat frame(240, 320, CV_8UC3, cv::Scalar(10, 20, 30));
+  const std::vector<std::array<float, 4>> boxes = {{10, 10, 90, 210},
+                                                   {120, 20, 220, 230}};
+  const auto feats = encoder.inference(frame, boxes);
+  ASSERT_EQ(feats.size(), 2u);
+  EXPECT_EQ(feats[0].size(), 512u);
+  for (const auto &feature : feats) {
+    double norm = 0.0;
+    for (const float value : feature) {
+      norm += static_cast<double>(value) * value;
+    }
+    EXPECT_NEAR(std::sqrt(norm), 1.0, 1e-3);
+  }
 }
 
 } // namespace

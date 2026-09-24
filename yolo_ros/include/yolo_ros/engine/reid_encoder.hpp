@@ -76,8 +76,6 @@ private:
   int input_width_ = 0;
   /// @brief Model input height.
   int input_height_ = 0;
-  /// @brief Embedding dimension.
-  int feature_dim_ = 0;
   /// @brief Storage backing input_names_.
   std::vector<Ort::AllocatedStringPtr> input_name_alloc_;
   /// @brief Input node names.
