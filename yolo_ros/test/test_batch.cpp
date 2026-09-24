@@ -121,5 +121,24 @@ TEST(DynamicBatchDetect, RunsSeveralImagesInOneBatch) {
   }
 }
 
+// A model with a fixed batch > 1 exercises the partial-chunk padding path:
+// one image pads up to the chunk, and three images run as chunks 2 + 1.
+TEST(FixedBatchPadding, PadsPartialChunksAndDropsPadding) {
+  const std::string model =
+      yolo_ros::test::download_model("zwh20081/yolo26-onnx", "yolo26n-b2.onnx");
+  const cv::Mat image = yolo_ros::test::download_sample_image();
+  if (model.empty() || image.empty()) {
+    GTEST_SKIP() << "yolo26n-b2.onnx or the sample image is unavailable";
+  }
+  yolo_ros::yolo::YoloDetect detector(yolo_ros::test::make_params(model));
+  const auto single = detector.detect(image);
+  ASSERT_FALSE(single.empty());
+  const auto three = detector.detect_batch({image, image, image});
+  ASSERT_EQ(three.size(), 3u);
+  for (const auto &detections : three) {
+    ASSERT_EQ(detections.size(), single.size());
+  }
+}
+
 } // namespace
 } // namespace yolo_ros

@@ -7,7 +7,6 @@
 #include "rclcpp/qos.hpp"
 #include "yolo_ros/yolo/model_factory.hpp"
 #include <algorithm>
-#include <cctype>
 #include <string>
 
 namespace yolo_ros::node {

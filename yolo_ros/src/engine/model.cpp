@@ -135,9 +135,6 @@ Model::Model(yolo_ros::yolo::utils::YoloParams params)
   std::cout << "Using execution provider: " << this->active_provider_
             << std::endl;
 
-  // Report the batch capability so a batch-1 model is not mistaken for a
-  // batching one.
-
   Ort::AllocatorWithDefaultOptions allocator;
 
   // Get input and output node information

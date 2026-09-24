@@ -16,11 +16,8 @@
 #include <string>
 #include <vector>
 
-#include <opencv2/opencv.hpp>
-
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "sensor_msgs/msg/image.hpp"
-#include "std_msgs/msg/header.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 #include "yolo_msgs/srv/set_classes.hpp"
@@ -32,12 +29,10 @@
 /// @{
 namespace yolo_ros::node {
 
-/// @brief One decoded frame awaiting its batch slot.
+/// @brief One source frame awaiting its batch slot.
 struct PendingFrame {
-  /// @brief Decoded BGR image.
-  cv::Mat image;
-  /// @brief Header of the source image (stamp + frame_id).
-  std_msgs::msg::Header header;
+  /// @brief Source image message, decoded on the worker thread.
+  sensor_msgs::msg::Image::ConstSharedPtr image;
 };
 
 /// @brief Inference node that batches frames from several cameras.
@@ -74,7 +69,8 @@ private:
   /// @brief Declare every ROS parameter with its default.
   void declare_params();
   /// @brief Read the parameters into the members.
-  void load_params();
+  /// @return False when the camera/topic arrays are inconsistent.
+  bool load_params();
   /// @brief Release the model, scheduler, services and topics.
   void teardown();
 

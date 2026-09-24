@@ -5,9 +5,10 @@
 
 #include <algorithm>
 #include <functional>
-#include <stdexcept>
 #include <string>
 #include <utility>
+
+#include <opencv2/opencv.hpp>
 
 #if defined(CV_BRIDGE_H)
 #include <cv_bridge/cv_bridge.h>
@@ -42,7 +43,10 @@ BatchNode::on_configure(const rclcpp_lifecycle::State &) {
     this->declare_params();
     this->params_declared_ = true;
   }
-  this->load_params();
+  if (!this->load_params()) {
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+        CallbackReturn::FAILURE;
+  }
   RCLCPP_INFO(get_logger(), "[%s] Configured", this->get_name());
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
       CallbackReturn::SUCCESS;
@@ -155,7 +159,7 @@ void BatchNode::declare_params() {
   this->declare_parameter<int>("max_batch_size", 8);
 }
 
-void BatchNode::load_params() {
+bool BatchNode::load_params() {
   this->get_parameter("model_type", this->yolo_params_.model_type);
   this->get_parameter("model", this->yolo_params_.model_path);
   this->get_parameter("model_repo", this->yolo_params_.model_repo);
@@ -185,8 +189,9 @@ void BatchNode::load_params() {
   this->max_batch_size_ = static_cast<std::size_t>(std::max(1, max_batch));
 
   if (this->camera_names_.size() != this->image_topics_.size()) {
-    throw std::runtime_error(
-        "camera_names and image_topics must have the same length");
+    RCLCPP_ERROR(get_logger(),
+                 "camera_names and image_topics must have the same length");
+    return false;
   }
   // Hugging Face Hub: keep the same precedence as yolo_node.
   if (!this->yolo_params_.model_repo.empty() &&
@@ -204,6 +209,7 @@ void BatchNode::load_params() {
                    this->yolo_params_.model_path.c_str());
     }
   }
+  return true;
 }
 
 void BatchNode::image_callback(std::size_t camera,
@@ -219,16 +225,8 @@ void BatchNode::image_callback(std::size_t camera,
     }
     this->last_inference_time_ = now;
   }
-  cv::Mat image;
-  try {
-    image = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
-  } catch (const cv_bridge::Exception &e) {
-    RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
-    return;
-  }
   PendingFrame frame;
-  frame.image = std::move(image);
-  frame.header = msg->header;
+  frame.image = msg;
   this->scheduler_->push(camera, std::move(frame));
 }
 
@@ -237,10 +235,23 @@ void BatchNode::process_batch(
   if (batch.empty() || !this->yolo_model_ || !this->enable_inference_.load()) {
     return;
   }
+  std::vector<std::pair<std::size_t, PendingFrame>> decoded;
   std::vector<cv::Mat> images;
+  decoded.reserve(batch.size());
   images.reserve(batch.size());
-  for (const auto &item : batch) {
-    images.push_back(item.second.image);
+  for (auto &item : batch) {
+    try {
+      images.push_back(cv_bridge::toCvCopy(item.second.image,
+                                           sensor_msgs::image_encodings::BGR8)
+                           ->image);
+    } catch (const cv_bridge::Exception &e) {
+      RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
+      continue;
+    }
+    decoded.push_back(std::move(item));
+  }
+  if (images.empty()) {
+    return;
   }
   std::vector<std::vector<yolo_msgs::msg::Detection>> results;
   try {
@@ -249,7 +260,7 @@ void BatchNode::process_batch(
     RCLCPP_ERROR(get_logger(), "batch inference failed: %s", e.what());
     return;
   }
-  for (std::size_t i = 0; i < batch.size() && i < results.size(); ++i) {
+  for (std::size_t i = 0; i < decoded.size() && i < results.size(); ++i) {
     auto detections = std::move(results[i]);
     {
       std::lock_guard<std::mutex> lock(this->classes_mutex_);
@@ -267,9 +278,9 @@ void BatchNode::process_batch(
       detections.resize(static_cast<std::size_t>(this->yolo_params_.max_det));
     }
     yolo_msgs::msg::DetectionArray array;
-    array.header = batch[i].second.header;
+    array.header = decoded[i].second.image->header;
     array.detections = std::move(detections);
-    this->detection_publishers_[batch[i].first]->publish(array);
+    this->detection_publishers_[decoded[i].first]->publish(array);
   }
 }
 
