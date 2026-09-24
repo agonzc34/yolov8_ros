@@ -10,6 +10,7 @@
 #define YOLO_ROS__TRACKING__STRACK_HPP_
 
 #include <array>
+#include <vector>
 
 #include "yolo_ros/tracking/utils/kalman_filter.hpp"
 
@@ -104,6 +105,19 @@ public:
   /// @brief Detection index in the current frame. @return The index.
   int idx() const { return idx_; }
 
+  /// @brief L2-normalize @p feat, store it as the current feature and EMA it
+  /// into the smooth feature used for appearance association (alpha = 0.9, the
+  /// BoT-SORT reference value). No-op on an empty feature.
+  void update_features(const std::vector<float> &feat);
+  /// @brief Whether an appearance feature has been set.
+  /// @return True once update_features() has received a non-empty feature.
+  bool has_feature() const { return !curr_feat_.empty(); }
+  /// @brief Last detection feature. @return The (possibly empty) feature.
+  const std::vector<float> &curr_feat() const { return curr_feat_; }
+  /// @brief Exponentially-smoothed feature. @return The (possibly empty)
+  /// feature.
+  const std::vector<float> &smooth_feat() const { return smooth_feat_; }
+
   /// @brief Current box in (min-x, min-y, max-x, max-y) pixel format.
   /// @return The xyxy corners.
   std::array<float, 4> xyxy() const;
@@ -149,6 +163,12 @@ private:
   int class_id_ = 0;
   /// @brief Detection index in the current frame (-1 when unset).
   int idx_ = -1;
+  /// @brief Last detection embedding (empty when ReID is off).
+  std::vector<float> curr_feat_;
+  /// @brief EMA of the detection embeddings, used for matching.
+  std::vector<float> smooth_feat_;
+  /// @brief EMA weight applied by update_features() (reference BoT-SORT alpha).
+  static constexpr double kFeatureAlpha = 0.9;
 };
 
 } // namespace yolo_ros::tracking

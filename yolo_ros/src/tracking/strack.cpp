@@ -4,6 +4,7 @@
 
 #include "yolo_ros/tracking/strack.hpp"
 
+#include <cmath>
 #include <cstddef>
 
 namespace yolo_ros::tracking {
@@ -32,6 +33,42 @@ STrack::STrack(const std::array<float, 4> &xywh, float score, int class_id,
   score_ = score;
   class_id_ = class_id;
   idx_ = idx;
+}
+
+void STrack::update_features(const std::vector<float> &feat) {
+  if (feat.empty()) {
+    return;
+  }
+  double norm = 0.0;
+  for (const float value : feat) {
+    norm += static_cast<double>(value) * value;
+  }
+  norm = std::sqrt(norm);
+
+  curr_feat_.assign(feat.size(), 0.0f);
+  if (norm > 1e-12) {
+    for (std::size_t i = 0; i < feat.size(); ++i) {
+      curr_feat_[i] = static_cast<float>(feat[i] / norm);
+    }
+  }
+
+  // First observation (or a dimension change): smooth starts equal to curr.
+  if (smooth_feat_.size() != curr_feat_.size()) {
+    smooth_feat_ = curr_feat_;
+    return;
+  }
+  double smooth_norm = 0.0;
+  for (std::size_t i = 0; i < curr_feat_.size(); ++i) {
+    smooth_feat_[i] = static_cast<float>(kFeatureAlpha * smooth_feat_[i] +
+                                         (1.0 - kFeatureAlpha) * curr_feat_[i]);
+    smooth_norm += static_cast<double>(smooth_feat_[i]) * smooth_feat_[i];
+  }
+  smooth_norm = std::sqrt(smooth_norm);
+  if (smooth_norm > 1e-12) {
+    for (float &value : smooth_feat_) {
+      value = static_cast<float>(value / smooth_norm);
+    }
+  }
 }
 
 void STrack::predict() {
@@ -78,6 +115,9 @@ void STrack::re_activate(const STrack &new_track, int frame_id, bool new_id) {
   score_ = new_track.score_;
   class_id_ = new_track.class_id_;
   idx_ = new_track.idx_;
+  if (new_track.has_feature()) {
+    update_features(new_track.curr_feat());
+  }
 }
 
 void STrack::update(const STrack &new_track, int frame_id) {
@@ -94,6 +134,9 @@ void STrack::update(const STrack &new_track, int frame_id) {
   score_ = new_track.score_;
   class_id_ = new_track.class_id_;
   idx_ = new_track.idx_;
+  if (new_track.has_feature()) {
+    update_features(new_track.curr_feat());
+  }
 }
 
 int STrack::next_id() { return ++count_; }

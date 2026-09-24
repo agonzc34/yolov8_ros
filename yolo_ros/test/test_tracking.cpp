@@ -536,5 +536,38 @@ TEST(TrackerFactory, BotSortMismatchedParamsIsNull) {
   EXPECT_EQ(create_tracker(params), nullptr);
 }
 
+TEST(STrack, FeaturesAreNormalizedAndEmaSmoothed) {
+  STrack s({50, 50, 20, 20}, 0.9f, 0, 0);
+  EXPECT_FALSE(s.has_feature());
+  s.update_features({3.0f, 4.0f});
+  ASSERT_TRUE(s.has_feature());
+  EXPECT_NEAR(s.curr_feat()[0], 0.6f, 1e-6);
+  EXPECT_NEAR(s.curr_feat()[1], 0.8f, 1e-6);
+  // The first feature sets smooth == curr.
+  EXPECT_NEAR(s.smooth_feat()[0], 0.6f, 1e-6);
+  EXPECT_NEAR(s.smooth_feat()[1], 0.8f, 1e-6);
+
+  s.update_features({1.0f, 0.0f});
+  // smooth = 0.9*old + 0.1*new, renormalized.
+  const float e0 = 0.9f * 0.6f + 0.1f * 1.0f;
+  const float e1 = 0.9f * 0.8f + 0.1f * 0.0f;
+  const float n = std::sqrt(e0 * e0 + e1 * e1);
+  EXPECT_NEAR(s.curr_feat()[0], 1.0f, 1e-6);
+  EXPECT_NEAR(s.smooth_feat()[0], e0 / n, 1e-6);
+  EXPECT_NEAR(s.smooth_feat()[1], e1 / n, 1e-6);
+}
+
+TEST(STrack, UpdatePropagatesDetectionFeature) {
+  utils::KalmanFilterXYAH kf;
+  STrack::reset_id();
+  STrack track({50, 50, 20, 20}, 0.9f, 0, 0);
+  track.activate(&kf, 1);
+  STrack det({52, 50, 20, 20}, 0.9f, 0, 1);
+  det.update_features({1.0f, 0.0f});
+  track.update(det, 2);
+  ASSERT_TRUE(track.has_feature());
+  EXPECT_NEAR(track.curr_feat()[0], 1.0f, 1e-6);
+}
+
 } // namespace
 } // namespace yolo_ros::tracking
