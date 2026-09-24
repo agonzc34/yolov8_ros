@@ -57,6 +57,8 @@ add_executable(yolo_node
   src/yolo/classify.cpp
   src/yolo/obb.cpp
   src/yolo/utils.cpp
+  src/yolo/model_task.cpp
+  src/yolo/model_factory.cpp
 
   src/engine/model.cpp
   src/engine/provider.cpp
@@ -308,6 +310,19 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_batch_scheduler PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+
+  ament_add_gtest(test_model_factory
+    test/test_model_factory.cpp
+    src/yolo/model_task.cpp
+  )
+  target_include_directories(test_model_factory PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+  target_link_libraries(test_model_factory
+    ${yolo_msgs_TARGETS}
+    ${yolo_onnxruntime_vendor_LIBRARIES}
+    cv_bridge::cv_bridge
   )
 endif()
 
