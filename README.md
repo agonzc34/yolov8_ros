@@ -114,45 +114,7 @@ Pick the model with `model_filename:=` (a file in the Hugging Face mirror set by
 ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_segment.yaml
 ```
 
-### Object Detection
-
-Detection is the default, with tracking enabled (namespace `yolo`):
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py
-```
-
-### Instance Segmentation
-
-Segmentation is inferred from the `-seg` model file name:
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26l-seg.onnx
-```
-
-### Human Pose
-
-Pose is inferred from the `-pose` model file name:
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-pose.onnx
-```
-
-### Oriented Bounding Box (OBB)
-
-OBB is inferred from the `-obb` model file name; tracking and debug run as usual:
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-obb.onnx
-```
-
-### Image Classification
-
-Classification is inferred from the `-cls` model file name. Image-level labels have no spatial extent, so turn tracking off; the `yolo_classify.yaml` preset wires the debug node to the raw `detections` stream (add `model_filename:=` to swap the classifier):
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_classify.yaml use_tracking:=False
-```
+Runnable launch commands for each task (detection, segmentation, pose, OBB and classification) are collected in [Demos](#demos).
 
 <p align="center">
   <img src="./docs/media/rqt_graph_yolov8.png" alt="ROS 2 node graph" width="100%" />
@@ -160,11 +122,7 @@ ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_brin
 
 ### 3D Detection
 
-Add `use_3d:=True` to the launch to also start the C++ 3D detection node, which subscribes to the depth image + `CameraInfo` and publishes `detections_3d`:
-
-```shell
-ros2 launch yolo_bringup yolo.launch.py use_3d:=True
-```
+Add `use_3d:=True` to the launch to also start the C++ 3D detection node, which subscribes to the depth image + `CameraInfo` and publishes `detections_3d`.
 
 For segmentation the depth ROI is driven by the mask polygon; for pose the 2D keypoints are back-projected to 3D (`debug_kp_markers`). The 3D node can also estimate the orientation of each box (an oriented bounding box fit by PCA to a strided depth sample) when `enable_orientation` is set. When enabled, `detections_3d` carries a non-identity quaternion in each box's `center.orientation` and the box `size` is expressed along the object's own axes.
 
@@ -312,7 +270,7 @@ ros2 launch yolo_bringup yolo.launch.py model_filename:=yolo26m-obb.onnx
 
 ### Image Classification
 
-Image-level ImageNet-1k labels are published as detections with an empty bbox.
+Image-level ImageNet-1k labels are published as detections with an empty bbox, so tracking is off and the `yolo_classify.yaml` preset wires the debug node to the raw `detections` stream.
 
 ```shell
 ros2 launch yolo_bringup yolo.launch.py params_file:=$(ros2 pkg prefix yolo_bringup)/share/yolo_bringup/config/yolo_classify.yaml use_tracking:=False
