@@ -213,6 +213,20 @@ cameras:
 
 Every camera's output lives under `/<ns>/<cam>/`: **detections** (the raw batched detector stream), **tracking** (when `tracking` is on), **detections_3d** (when the camera has a `depth` block) and **debug_image**. The launch takes a single `pipeline_file:=` argument to point at a different config (default `config/pipelines.yaml`).
 
+#### Batching scaling
+
+Batching is a **throughput** optimization, not a latency one: per-image latency grows roughly linearly with the batch, while aggregate throughput improves because the GPU work is shared. Measured engine-only (`Model::detect_batch`, no queue/DDS/node overhead) with `yolo26n-dyn.onnx` on the 640×480 frames from the benchmark harness ([methodology](docs/benchmark.md)), on an RTX 3060 (12 GB), median of 50 runs after warm-up; `img/s` is aggregate throughput:
+
+| cameras (batch) | CUDA fp32 | TensorRT fp16 |
+|--:|--:|--:|
+| 1 | 6.4 ms · 156 img/s | 4.3 ms · 234 img/s |
+| 2 | 11.2 ms · 178 img/s | 7.2 ms · 278 img/s |
+| 3 | 16.3 ms · 184 img/s | 10.9 ms · 275 img/s |
+| 4 | 21.6 ms · 186 img/s | 13.9 ms · 287 img/s |
+| 4 × unbatched (same session) | 24.9 ms total · 161 img/s | 16.9 ms total · 237 img/s |
+
+Batching 4 cameras buys ~15–20 % more aggregate throughput than four unbatched runs; the execution provider is the larger lever (~+55 % for TensorRT fp16 over CUDA fp32). The dynamic-batch export itself costs ~0–8 % per image versus the static batch-1 model. These are saturated-batch numbers — with real cameras the latest-frame queue drops stale frames, so partial batches are cheaper and per-camera latency stays bounded.
+
 ### Topics
 
 All topics are published under the launch namespace (default `yolo`):
